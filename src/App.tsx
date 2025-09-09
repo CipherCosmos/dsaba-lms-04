@@ -26,10 +26,13 @@ function App() {
   useEffect(() => {
     dispatch(initializeAuth())
     const token = localStorage.getItem('token')
-    if (token && !user) {
+    if (token) {
       dispatch(fetchCurrentUser())
     }
-  }, [dispatch, user])
+  }, [dispatch]) // Removed 'user' to prevent infinite loop
+
+  // Debug logs for troubleshooting
+  console.log('Auth state:', { user, isAuthenticated, loading })
 
   if (loading) {
     return (

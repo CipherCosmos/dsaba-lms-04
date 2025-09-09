@@ -1,29 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-
-type Exam = {
-  id: number
-  name: string
-  subject_id: number
-  exam_type: 'internal1' | 'internal2' | 'final'
-  exam_date?: string
-  duration?: number
-  total_marks: number
-  questions: Question[]
-  created_at: string
-}
-
-type Question = {
-  id: number
-  question_number: string
-  max_marks: number
-  co_mapping: string[]
-  po_mapping: string[]
-  section: 'A' | 'B' | 'C'
-  blooms_level: string
-  difficulty: 'easy' | 'medium' | 'hard'
-}
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import toast from 'react-hot-toast'
@@ -38,8 +15,8 @@ const questionSchema = yup.object({
   section: yup.string().oneOf(['A', 'B', 'C']).required('Section is required'),
   blooms_level: yup.string().required('Blooms level is required'),
   difficulty: yup.string().oneOf(['easy', 'medium', 'hard']).required('Difficulty is required'),
-  co_mapping: yup.array().of(yup.string()).default([]),
-  po_mapping: yup.array().of(yup.string()).default([])
+  co_mapping: yup.array().of(yup.string()),
+  po_mapping: yup.array().of(yup.string())
 })
 
 const examSchema = yup.object({
@@ -112,31 +89,18 @@ const ExamConfiguration = () => {
       // Convert date to ISO string if provided
       const examData = {
         ...data,
-        duration: data.duration || undefined,
-        exam_date: data.exam_date ? new Date(data.exam_date).toISOString() : undefined
-      } as any
-
-      console.log('Submitting exam data:', JSON.stringify(examData, null, 2))
-      console.log('Editing exam:', editingExam)
-      console.log('Current exams state:', exams)
+        exam_date: data.exam_date ? new Date(data.exam_date).toISOString() : null
+      }
 
       if (editingExam) {
-        const updatePayload = { id: editingExam.id, ...examData }
-        console.log('Update payload:', JSON.stringify(updatePayload, null, 2))
-
-        const result = await dispatch(updateExam(updatePayload)).unwrap()
-        console.log('Update result:', JSON.stringify(result, null, 2))
-        console.log('Exams after update:', exams)
-
+        await dispatch(updateExam({ id: editingExam.id, ...examData })).unwrap()
         toast.success('Exam updated successfully!')
       } else {
-        const result = await dispatch(createExam(examData)).unwrap()
-        console.log('Create result:', JSON.stringify(result, null, 2))
+        await dispatch(createExam(examData)).unwrap()
         toast.success('Exam created successfully!')
       }
       closeModal()
     } catch (error: any) {
-      console.error('Submit error:', error)
       toast.error(error.message || 'An error occurred')
     }
   }
@@ -152,11 +116,7 @@ const ExamConfiguration = () => {
       exam_date: exam.exam_date ? new Date(exam.exam_date).toISOString().split('T')[0] : undefined,
       duration: exam.duration,
       total_marks: exam.total_marks,
-      questions: exam.questions?.length > 0 ? exam.questions.map((q: any) => ({
-        ...q,
-        co_mapping: Array.isArray(q.co_mapping) ? q.co_mapping : [],
-        po_mapping: Array.isArray(q.po_mapping) ? q.po_mapping : []
-      })) : [{
+      questions: exam.questions?.length > 0 ? exam.questions : [{
         question_number: '1a',
         max_marks: 10,
         section: 'A',
@@ -506,24 +466,15 @@ const ExamConfiguration = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             CO Mapping (comma separated)
                           </label>
-                          <Controller
-                            name={`questions.${index}.co_mapping`}
-                            control={control}
-                            render={({ field }) => (
-                              <input
-                                type="text"
-                                className="input-field w-full"
-                                placeholder="CO1, CO2"
-                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                onChange={(e) => {
-                                  const value = e.target.value
-                                    .split(',')
-                                    .map(s => s.trim())
-                                    .filter(s => s !== '')
-                                  field.onChange(value)
-                                }}
-                              />
-                            )}
+                          <input
+                            {...register(`questions.${index}.co_mapping`)}
+                            type="text"
+                            className="input-field w-full"
+                            placeholder="CO1, CO2"
+                            onChange={(e) => {
+                              const value = e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                              setValue(`questions.${index}.co_mapping`, value)
+                            }}
                           />
                         </div>
 
@@ -531,24 +482,15 @@ const ExamConfiguration = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             PO Mapping (comma separated)
                           </label>
-                          <Controller
-                            name={`questions.${index}.po_mapping`}
-                            control={control}
-                            render={({ field }) => (
-                              <input
-                                type="text"
-                                className="input-field w-full"
-                                placeholder="PO1, PO2"
-                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                onChange={(e) => {
-                                  const value = e.target.value
-                                    .split(',')
-                                    .map(s => s.trim())
-                                    .filter(s => s !== '')
-                                  field.onChange(value)
-                                }}
-                              />
-                            )}
+                          <input
+                            {...register(`questions.${index}.po_mapping`)}
+                            type="text"
+                            className="input-field w-full"
+                            placeholder="PO1, PO2"
+                            onChange={(e) => {
+                              const value = e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                              setValue(`questions.${index}.po_mapping`, value)
+                            }}
                           />
                         </div>
                       </div>

@@ -1,13 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session, joinedload
 import uvicorn
 import os
 import io
 from datetime import datetime
 from typing import List, Optional
+import logging
+import json
 
 from database import SessionLocal, engine, Base
 from models import *
@@ -15,6 +17,11 @@ from schemas import *
 from auth import get_current_user
 from crud import *
 from analytics import *
+from fastapi.exceptions import RequestValidationError
+from fastapi import Request
+
+# Setup logging
+logging.basicConfig(level=logging.WARNING)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -213,7 +220,7 @@ def delete_subject_endpoint(
 # User endpoints
 @app.get("/users", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role.value not in ['admin', 'hod']:
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     return get_all_users(db)
 
@@ -285,6 +292,17 @@ def get_exam_by_id(
         raise HTTPException(status_code=404, detail="Exam not found")
     return exam
 
+# Exception handler for 422 errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logging.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    request_body = await request.body()
+    logging.warning(f"Request body: {request_body}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Validation error", "errors": exc.errors()},
+    )
+
 @app.post("/exams", response_model=ExamResponse)
 def create_exam_endpoint(
     exam: ExamCreate,
@@ -293,13 +311,16 @@ def create_exam_endpoint(
 ):
     if current_user.role.value not in ['teacher', 'admin', 'hod']:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
+    # Log incoming data for debugging
+    logging.warning(f"Received exam data: {json.dumps(exam.dict(), default=str)}")
+
     # Verify teacher owns the subject
     if current_user.role.value == 'teacher':
         subject = get_subject_by_id(db, exam.subject_id)
         if not subject or subject.teacher_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to create exam for this subject")
-    
+
     return create_exam(db, exam)
 
 @app.put("/exams/{exam_id}", response_model=ExamResponse)

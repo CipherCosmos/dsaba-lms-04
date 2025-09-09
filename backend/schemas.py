@@ -206,6 +206,16 @@ class QuestionResponse(QuestionBase):
         from_attributes = True
         from_attributes = True
 
+# Exam question schema for exam creation (without exam_id)
+class ExamQuestionCreate(BaseModel):
+    question_number: str
+    max_marks: float = Field(..., ge=0.5)
+    co_mapping: List[str] = []
+    po_mapping: List[str] = []
+    section: QuestionSection
+    blooms_level: str
+    difficulty: Difficulty
+
 # Exam schemas
 class ExamBase(BaseModel):
     name: str
@@ -216,8 +226,8 @@ class ExamBase(BaseModel):
     total_marks: float = Field(..., ge=1)
 
 class ExamCreate(ExamBase):
-    questions: List[QuestionCreate] = []
-    
+    questions: List[ExamQuestionCreate] = []
+
     @model_validator(mode='after')
     def validate_questions(self):
         if self.questions:
@@ -233,6 +243,15 @@ class ExamUpdate(BaseModel):
     exam_date: Optional[datetime] = None
     duration: Optional[int] = Field(None, ge=30, le=300)
     total_marks: Optional[float] = Field(None, ge=1)
+    questions: Optional[List[ExamQuestionCreate]] = None
+
+    @model_validator(mode='after')
+    def validate_questions(self):
+        if self.questions:
+            total_marks = sum(q.max_marks for q in self.questions)
+            if self.total_marks and self.total_marks != total_marks:
+                self.total_marks = total_marks
+        return self
 
 class ExamResponse(ExamBase):
     id: int

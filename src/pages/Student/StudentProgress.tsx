@@ -1,15 +1,19 @@
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
-import { Bar } from 'react-chartjs-2'
-import { Target, TrendingUp, AlertCircle, CheckCircle, Clock, BookOpen, Brain, Lightbulb } from 'lucide-react'
+import { fetchSubjects } from '../../store/slices/subjectSlice'
+import { fetchExams } from '../../store/slices/examSlice'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
+import { Line, Bar, Doughnut } from 'react-chartjs-2'
+import { Target, TrendingUp, Award, Calendar, BookOpen, CheckCircle, AlertTriangle, Star, Clock, Trophy } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
@@ -20,14 +24,90 @@ const StudentProgress = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { studentAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
+  const { subjects } = useSelector((state: RootState) => state.subjects)
+  const { exams } = useSelector((state: RootState) => state.exams)
+
+  const [goals, setGoals] = useState([
+    { id: 1, title: 'Achieve 85% overall', target: 85, current: 0, deadline: '2024-05-30', status: 'active' },
+    { id: 2, title: 'Top 5 in class', target: 5, current: 0, deadline: '2024-05-30', status: 'active' },
+    { id: 3, title: 'All COs above 70%', target: 70, current: 0, deadline: '2024-04-30', status: 'active' },
+    { id: 4, title: 'Perfect attendance', target: 100, current: 95, deadline: '2024-06-30', status: 'active' }
+  ])
+
+  const [milestones, setMilestones] = useState([
+    { id: 1, title: 'First A+ Grade', achieved: false, date: null, description: 'Score 90% or above in any exam' },
+    { id: 2, title: 'Consistent Performer', achieved: false, date: null, description: 'Maintain 80%+ for 3 consecutive exams' },
+    { id: 3, title: 'Subject Expert', achieved: false, date: null, description: 'Score 95%+ in any subject' },
+    { id: 4, title: 'Class Leader', achieved: false, date: null, description: 'Achieve top 3 position in class' },
+    { id: 5, title: 'CO Champion', achieved: false, date: null, description: 'Achieve 80%+ in all Course Outcomes' }
+  ])
 
   useEffect(() => {
     if (user?.id) {
       dispatch(fetchStudentAnalytics(user.id))
     }
+    dispatch(fetchSubjects())
+    dispatch(fetchExams())
   }, [dispatch, user])
 
-  if (loading) {
+  useEffect(() => {
+    if (studentAnalytics) {
+      // Update goals progress
+      setGoals(prevGoals => prevGoals.map(goal => {
+        let current = 0
+        switch (goal.title) {
+          case 'Achieve 85% overall':
+            current = studentAnalytics.percentage
+            break
+          case 'Top 5 in class':
+            current = studentAnalytics.rank <= 5 ? 100 : (11 - studentAnalytics.rank) * 10
+            break
+          case 'All COs above 70%':
+            const coScores = Object.values(studentAnalytics.co_attainment)
+            current = coScores.length > 0 ? (coScores.filter(score => score >= 70).length / coScores.length) * 100 : 0
+            break
+        }
+        return { ...goal, current }
+      }))
+
+      // Update milestones
+      setMilestones(prevMilestones => prevMilestones.map(milestone => {
+        let achieved = false
+        let date = null
+        
+        switch (milestone.title) {
+          case 'First A+ Grade':
+            achieved = studentAnalytics.performance_trend.some(p => p.percentage >= 90)
+            if (achieved) date = new Date().toISOString()
+            break
+          case 'Consistent Performer':
+            const recentExams = studentAnalytics.performance_trend.slice(-3)
+            achieved = recentExams.length >= 3 && recentExams.every(p => p.percentage >= 80)
+            if (achieved) date = new Date().toISOString()
+            break
+          case 'Subject Expert':
+            achieved = studentAnalytics.performance_trend.some(p => p.percentage >= 95)
+            if (achieved) date = new Date().toISOString()
+            break
+          case 'Class Leader':
+            achieved = studentAnalytics.rank <= 3
+            if (achieved) date = new Date().toISOString()
+            break
+          case 'CO Champion':
+            const coValues = Object.values(studentAnalytics.co_attainment)
+            achieved = coValues.length > 0 && coValues.every(score => score >= 80)
+            if (achieved) date = new Date().toISOString()
+            break
+        }
+        
+        return { ...milestone, achieved, date: milestone.date || date }
+      }))
+    }
+  }, [studentAnalytics])
+
+  const classSubjects = subjects.filter(s => s.class_id === user?.class_id)
+
+  if (loading && !studentAnalytics) {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
@@ -38,238 +118,261 @@ const StudentProgress = () => {
   if (!studentAnalytics) {
     return (
       <div className="text-center py-12">
+        <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500">No progress data available</p>
+        <p className="text-sm text-gray-400">Complete some exams to track your progress</p>
       </div>
     )
   }
 
-  // Generate recommendations based on performance
-  const generateRecommendations = () => {
-    const recommendations = []
-    
-    // CO-based recommendations
-    Object.entries(studentAnalytics.co_attainment).forEach(([co, attainment]) => {
-      if (attainment < 60) {
-        recommendations.push({
-          type: 'improvement',
-          priority: 'high',
-          title: `Strengthen ${co}`,
-          description: `Your attainment in ${co} is ${attainment.toFixed(1)}%. Focus on related topics and practice more problems.`,
-          action: 'Review course materials and attempt practice questions',
-          icon: Brain
-        })
-      } else if (attainment >= 90) {
-        recommendations.push({
-          type: 'strength',
-          priority: 'info',
-          title: `Excellent in ${co}`,
-          description: `Outstanding performance with ${attainment.toFixed(1)}% attainment. Consider helping peers in this area.`,
-          action: 'Maintain proficiency and help others',
-          icon: CheckCircle
-        })
-      }
-    })
-
-    // Performance trend recommendations
-    if (studentAnalytics.performance_trend.length >= 2) {
-      const latest = studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 1]
-      const previous = studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 2]
-      
-      if (latest.percentage < previous.percentage) {
-        recommendations.push({
-          type: 'alert',
-          priority: 'high',
-          title: 'Performance Decline',
-          description: `Your performance dropped from ${previous.percentage.toFixed(1)}% to ${latest.percentage.toFixed(1)}%.`,
-          action: 'Review recent topics and seek help if needed',
-          icon: TrendingUp
-        })
-      } else if (latest.percentage > previous.percentage + 5) {
-        recommendations.push({
-          type: 'improvement',
-          priority: 'medium',
-          title: 'Great Progress!',
-          description: `You improved from ${previous.percentage.toFixed(1)}% to ${latest.percentage.toFixed(1)}%.`,
-          action: 'Keep up the excellent work and maintain momentum',
-          icon: TrendingUp
-        })
-      }
-    }
-
-    // Rank-based recommendations
-    if (studentAnalytics.rank > 10) {
-      recommendations.push({
-        type: 'goal',
-        priority: 'medium',
-        title: 'Improve Class Ranking',
-        description: `Currently ranked #${studentAnalytics.rank}. With focused effort, you can climb higher.`,
-        action: 'Set a goal to reach top 10 in next assessment',
-        icon: Target
-      })
-    }
-
-    return recommendations.slice(0, 6) // Limit to 6 recommendations
-  }
-
-  const recommendations = generateRecommendations()
-
-  // Generate learning goals
-  const generateLearningGoals = () => {
-    const goals = []
-    
-    Object.entries(studentAnalytics.co_attainment).forEach(([co, attainment]) => {
-      if (attainment < 75) {
-        const targetImprovement = Math.min(90, attainment + 15)
-        goals.push({
-          id: co,
-          title: `Improve ${co} to ${targetImprovement.toFixed(0)}%`,
-          current: attainment,
-          target: targetImprovement,
-          progress: (attainment / targetImprovement) * 100,
-          priority: attainment < 50 ? 'high' : 'medium',
-          timeframe: 'Next 4 weeks'
-        })
-      }
-    })
-
-    // Overall performance goal
-    if (studentAnalytics.percentage < 85) {
-      const targetOverall = Math.min(95, studentAnalytics.percentage + 10)
-      goals.push({
-        id: 'overall',
-        title: `Reach ${targetOverall.toFixed(0)}% Overall Performance`,
-        current: studentAnalytics.percentage,
-        target: targetOverall,
-        progress: (studentAnalytics.percentage / targetOverall) * 100,
-        priority: 'high',
-        timeframe: 'End of semester'
-      })
-    }
-
-    return goals.slice(0, 5) // Limit to 5 goals
-  }
-
-  const learningGoals = generateLearningGoals()
-
+  // Progress over time chart
   const progressData = {
-    labels: Object.keys(studentAnalytics.co_attainment),
+    labels: studentAnalytics.performance_trend.map((_, index) => `Exam ${index + 1}`),
     datasets: [
       {
-        label: 'Current Attainment (%)',
-        data: Object.values(studentAnalytics.co_attainment),
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        label: 'Your Progress (%)',
+        data: studentAnalytics.performance_trend.map(p => p.percentage),
         borderColor: 'rgba(59, 130, 246, 1)',
-        borderWidth: 1
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.4,
+        fill: true
       },
       {
-        label: 'Target (75%)',
-        data: Object.keys(studentAnalytics.co_attainment).map(() => 75),
-        backgroundColor: 'rgba(34, 197, 94, 0.3)',
+        label: 'Target (80%)',
+        data: new Array(studentAnalytics.performance_trend.length).fill(80),
         borderColor: 'rgba(34, 197, 94, 1)',
-        borderWidth: 2,
-        type: 'line' as const
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderDash: [5, 5],
+        tension: 0,
+        fill: false
       }
     ]
   }
 
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100
+  // Goal completion chart
+  const goalCompletionData = {
+    labels: ['Completed', 'In Progress', 'Not Started'],
+    datasets: [
+      {
+        data: [
+          goals.filter(g => g.current >= g.target).length,
+          goals.filter(g => g.current > 0 && g.current < g.target).length,
+          goals.filter(g => g.current === 0).length
+        ],
+        backgroundColor: [
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(245, 158, 11, 0.8)',
+          'rgba(156, 163, 175, 0.8)'
+        ]
       }
-    }
+    ]
   }
+
+  const achievedMilestones = milestones.filter(m => m.achieved).length
+  const totalMilestones = milestones.length
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Learning Progress Tracker</h1>
-
-      {/* Learning Goals */}
-      <div className="card">
-        <div className="flex items-center space-x-2 mb-4">
-          <Target className="h-5 w-5 text-blue-500" />
-          <h3 className="text-lg font-semibold text-gray-900">My Learning Goals</h3>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Progress Tracking</h1>
+          <p className="text-gray-600">Monitor your academic journey and achievements</p>
         </div>
-        <div className="space-y-4">
-          {learningGoals.map(goal => (
-            <div key={goal.id} className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-medium text-gray-900">{goal.title}</h4>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  goal.priority === 'high' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {goal.priority} priority
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                <span>Current: {goal.current.toFixed(1)}%</span>
-                <span>Target: {goal.target.toFixed(1)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                <div
-                  className={`h-3 rounded-full ${
-                    goal.progress >= 90 ? 'bg-green-500' :
-                    goal.progress >= 70 ? 'bg-blue-500' :
-                    goal.progress >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${Math.min(goal.progress, 100)}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{goal.progress.toFixed(1)}% complete</span>
-                <span>{goal.timeframe}</span>
-              </div>
+      </div>
+
+      {/* Progress Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="card">
+          <div className="flex items-center">
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <TrendingUp className="h-6 w-6 text-blue-600" />
             </div>
-          ))}
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Current Average</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {studentAnalytics.percentage.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="flex items-center space-x-1">
+              {studentAnalytics.performance_trend.length >= 2 && (
+                <>
+                  {studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 1].percentage > 
+                   studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 2].percentage ? (
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <TrendingUp className="h-4 w-4 text-red-500 transform rotate-180" />
+                  )}
+                  <span className={`text-sm ${
+                    studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 1].percentage > 
+                    studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 2].percentage ? 
+                    'text-green-600' : 'text-red-600'
+                  }`}>
+                    {Math.abs(
+                      studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 1].percentage - 
+                      studentAnalytics.performance_trend[studentAnalytics.performance_trend.length - 2].percentage
+                    ).toFixed(1)}% vs last exam
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center">
+            <div className="bg-yellow-100 p-3 rounded-lg">
+              <Target className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Goals Progress</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {goals.filter(g => g.current >= g.target).length}/{goals.length}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-xs text-gray-500">
+              {((goals.filter(g => g.current >= g.target).length / goals.length) * 100).toFixed(0)}% completed
+            </p>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center">
+            <div className="bg-green-100 p-3 rounded-lg">
+              <Award className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Milestones</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {achievedMilestones}/{totalMilestones}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-xs text-gray-500">
+              {((achievedMilestones / totalMilestones) * 100).toFixed(0)}% unlocked
+            </p>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="flex items-center">
+            <div className="bg-purple-100 p-3 rounded-lg">
+              <Trophy className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Class Position</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                #{studentAnalytics.rank}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-xs text-gray-500">
+              {studentAnalytics.rank <= 5 ? '🏆 Top 5!' : 'Keep climbing!'}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Progress Chart */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">CO Attainment vs Targets</h3>
-        <div className="h-64">
-          <Bar data={progressData} options={chartOptions} />
+      {/* Progress Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Trend</h3>
+          <div className="h-64">
+            <Line 
+              data={progressData} 
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'top' as const,
+                  },
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: 100
+                  }
+                }
+              }} 
+            />
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Goal Completion Status</h3>
+          <div className="h-64">
+            <Doughnut 
+              data={goalCompletionData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom' as const,
+                  }
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Personalized Recommendations */}
+      {/* Goals Section */}
       <div className="card">
-        <div className="flex items-center space-x-2 mb-4">
-          <Lightbulb className="h-5 w-5 text-yellow-500" />
-          <h3 className="text-lg font-semibold text-gray-900">Personalized Recommendations</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {recommendations.map((rec, index) => {
-            const Icon = rec.icon
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Academic Goals</h3>
+        <div className="space-y-4">
+          {goals.map(goal => {
+            const progressPercent = Math.min((goal.current / goal.target) * 100, 100)
+            const isCompleted = goal.current >= goal.target
+            const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+            
             return (
-              <div
-                key={index}
-                className={`p-4 rounded-lg border-l-4 ${
-                  rec.type === 'improvement' ? 'bg-blue-50 border-blue-400' :
-                  rec.type === 'strength' ? 'bg-green-50 border-green-400' :
-                  rec.type === 'alert' ? 'bg-red-50 border-red-400' :
-                  'bg-yellow-50 border-yellow-400'
-                }`}
-              >
-                <div className="flex items-start space-x-3">
-                  <Icon className={`h-5 w-5 mt-0.5 ${
-                    rec.type === 'improvement' ? 'text-blue-500' :
-                    rec.type === 'strength' ? 'text-green-500' :
-                    rec.type === 'alert' ? 'text-red-500' :
-                    'text-yellow-500'
-                  }`} />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 mb-1">{rec.title}</h4>
-                    <p className="text-sm text-gray-600 mb-2">{rec.description}</p>
-                    <p className="text-sm font-medium text-gray-800">{rec.action}</p>
+              <div key={goal.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-lg ${isCompleted ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      {isCompleted ? (
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <Target className="h-5 w-5 text-gray-600" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">{goal.title}</h4>
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span>Target: {goal.target}{goal.title.includes('%') ? '%' : ''}</span>
+                        <span>Current: {goal.current.toFixed(1)}{goal.title.includes('%') ? '%' : ''}</span>
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>{daysLeft > 0 ? `${daysLeft} days left` : 'Overdue'}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    isCompleted ? 'bg-green-100 text-green-800' :
+                    progressPercent >= 70 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {isCompleted ? 'Completed' : `${progressPercent.toFixed(0)}%`}
+                  </span>
+                </div>
+                
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      isCompleted ? 'bg-green-500' :
+                      progressPercent >= 70 ? 'bg-yellow-500' :
+                      'bg-blue-500'
+                    }`}
+                    style={{ width: `${progressPercent}%` }}
+                  />
                 </div>
               </div>
             )
@@ -277,94 +380,144 @@ const StudentProgress = () => {
         </div>
       </div>
 
-      {/* Study Plan */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Study Plan */}
-        <div className="card">
-          <div className="flex items-center space-x-2 mb-4">
-            <Clock className="h-5 w-5 text-purple-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Weekly Study Plan</h3>
-          </div>
-          <div className="space-y-3">
-            {Object.entries(studentAnalytics.co_attainment)
-              .filter(([_, attainment]) => attainment < 70)
-              .slice(0, 5)
-              .map(([co, attainment]) => {
-                const hoursNeeded = Math.ceil((70 - attainment) / 10)
-                return (
-                  <div key={co} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                    <div>
-                      <span className="font-medium text-gray-900">{co}</span>
-                      <p className="text-sm text-gray-600">Current: {attainment.toFixed(1)}%</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-medium text-purple-600">{hoursNeeded}h/week</span>
-                      <p className="text-xs text-gray-500">recommended</p>
-                    </div>
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-
-        {/* Resource Recommendations */}
-        <div className="card">
-          <div className="flex items-center space-x-2 mb-4">
-            <BookOpen className="h-5 w-5 text-green-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Recommended Resources</h3>
-          </div>
-          <div className="space-y-3">
-            {Object.entries(studentAnalytics.co_attainment)
-              .filter(([_, attainment]) => attainment < 75)
-              .slice(0, 4)
-              .map(([co, attainment]) => (
-                <div key={co} className="p-3 bg-green-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-1">For {co} Improvement</h4>
-                  <ul className="text-sm text-gray-600 space-y-1">
-                    <li>• Review lecture notes and textbook chapters</li>
-                    <li>• Attempt practice problems from question bank</li>
-                    <li>• Form study groups with classmates</li>
-                    <li>• Schedule office hours with instructor</li>
-                  </ul>
-                </div>
-              ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Progress Milestones */}
+      {/* Milestones */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Achievement Milestones</h3>
-        <div className="relative">
-          <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-          <div className="space-y-6">
-            {[
-              { milestone: 'Reach 60% in all COs', completed: Object.values(studentAnalytics.co_attainment).every(v => v >= 60) },
-              { milestone: 'Achieve 75% overall performance', completed: studentAnalytics.percentage >= 75 },
-              { milestone: 'Top 10 class ranking', completed: studentAnalytics.rank <= 10 },
-              { milestone: 'Excellence in 3+ COs (80%+)', completed: Object.values(studentAnalytics.co_attainment).filter(v => v >= 80).length >= 3 },
-              { milestone: '90% overall performance', completed: studentAnalytics.percentage >= 90 }
-            ].map((item, index) => (
-              <div key={index} className="relative flex items-center space-x-3">
-                <div className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full ${
-                  item.completed ? 'bg-green-500' : 'bg-gray-300'
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {milestones.map(milestone => (
+            <div key={milestone.id} className={`border-2 rounded-lg p-4 transition-all ${
+              milestone.achieved 
+                ? 'border-green-200 bg-green-50' 
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}>
+              <div className="flex items-start space-x-3">
+                <div className={`p-2 rounded-lg flex-shrink-0 ${
+                  milestone.achieved ? 'bg-green-100' : 'bg-gray-100'
                 }`}>
-                  {item.completed ? (
-                    <CheckCircle className="h-5 w-5 text-white" />
+                  {milestone.achieved ? (
+                    <Star className="h-5 w-5 text-green-600" />
                   ) : (
-                    <Clock className="h-5 w-5 text-gray-600" />
+                    <Star className="h-5 w-5 text-gray-400" />
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className={`font-medium ${item.completed ? 'text-green-800' : 'text-gray-900'}`}>
-                    {item.milestone}
+                  <h4 className={`font-medium ${
+                    milestone.achieved ? 'text-green-900' : 'text-gray-900'
+                  }`}>
+                    {milestone.title}
+                  </h4>
+                  <p className={`text-sm mt-1 ${
+                    milestone.achieved ? 'text-green-700' : 'text-gray-600'
+                  }`}>
+                    {milestone.description}
                   </p>
-                  <p className={`text-sm ${item.completed ? 'text-green-600' : 'text-gray-500'}`}>
-                    {item.completed ? 'Completed! 🎉' : 'In progress...'}
-                  </p>
+                  {milestone.achieved && milestone.date && (
+                    <div className="flex items-center space-x-1 mt-2">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="text-xs text-green-600">
+                        Achieved on {new Date(milestone.date).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Study Plan Recommendations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Study Plan Recommendations</h3>
+          <div className="space-y-3">
+            {studentAnalytics.percentage >= 85 ? (
+              <>
+                <div className="flex items-start space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900">Maintain Excellence</p>
+                    <p className="text-xs text-green-700">Continue current study methods. Consider peer tutoring.</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <BookOpen className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">Advanced Learning</p>
+                    <p className="text-xs text-blue-700">Explore additional projects and research opportunities.</p>
+                  </div>
+                </div>
+              </>
+            ) : studentAnalytics.percentage >= 70 ? (
+              <>
+                <div className="flex items-start space-x-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <Target className="h-5 w-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-900">Push for Excellence</p>
+                    <p className="text-xs text-yellow-700">Focus on consistency. Review weak topics regularly.</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">Time Management</p>
+                    <p className="text-xs text-blue-700">Allocate more time to challenging subjects.</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start space-x-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-900">Focus Required</p>
+                    <p className="text-xs text-red-700">Immediate attention needed. Consider remedial sessions.</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <BookOpen className="h-5 w-5 text-orange-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-orange-900">Back to Basics</p>
+                    <p className="text-xs text-orange-700">Review fundamental concepts before moving to advanced topics.</p>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="text-lg font-semibant text-gray-900 mb-4">Next Steps</h3>
+          <div className="space-y-3">
+            <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="bg-blue-100 p-1 rounded">
+                <span className="text-blue-600 font-bold text-sm">1</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-blue-900">Review weak COs</p>
+                <p className="text-xs text-blue-700">Focus on course outcomes below 60%</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start space-x-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="bg-purple-100 p-1 rounded">
+                <span className="text-purple-600 font-bold text-sm">2</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-purple-900">Practice regularly</p>
+                <p className="text-xs text-purple-700">Daily problem-solving in weak areas</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="bg-green-100 p-1 rounded">
+                <span className="text-green-600 font-bold text-sm">3</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-green-900">Set mini-goals</p>
+                <p className="text-xs text-green-700">Weekly targets for improvement</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

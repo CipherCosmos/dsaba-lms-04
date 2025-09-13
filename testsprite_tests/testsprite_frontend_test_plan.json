@@ -1,0 +1,505 @@
+{
+  "project_name": "Internal Exam Management System",
+  "test_type": "frontend",
+  "test_plan": [
+    {
+      "test_id": "login_001",
+      "test_name": "User Login - Admin",
+      "description": "Test admin user login functionality",
+      "url": "http://localhost:3000/login",
+      "steps": [
+        "Navigate to login page",
+        "Enter admin credentials (admin/admin123)",
+        "Click login button",
+        "Verify redirect to admin dashboard",
+        "Verify admin navigation menu is visible"
+      ],
+      "expected_results": [
+        "Login form loads correctly",
+        "Admin credentials are accepted",
+        "Redirect to admin dashboard occurs",
+        "Admin-specific navigation is displayed"
+      ]
+    },
+    {
+      "test_id": "login_002",
+      "test_name": "User Login - Teacher",
+      "description": "Test teacher user login functionality",
+      "url": "http://localhost:3000/login",
+      "steps": [
+        "Navigate to login page",
+        "Enter teacher credentials (teacher1/teacher123)",
+        "Click login button",
+        "Verify redirect to teacher dashboard",
+        "Verify teacher navigation menu is visible"
+      ],
+      "expected_results": [
+        "Login form loads correctly",
+        "Teacher credentials are accepted",
+        "Redirect to teacher dashboard occurs",
+        "Teacher-specific navigation is displayed"
+      ]
+    },
+    {
+      "test_id": "login_003",
+      "test_name": "User Login - Student",
+      "description": "Test student user login functionality",
+      "url": "http://localhost:3000/login",
+      "steps": [
+        "Navigate to login page",
+        "Enter student credentials (cse-a_student01/student123)",
+        "Click login button",
+        "Verify redirect to student dashboard",
+        "Verify student navigation menu is visible"
+      ],
+      "expected_results": [
+        "Login form loads correctly",
+        "Student credentials are accepted",
+        "Redirect to student dashboard occurs",
+        "Student-specific navigation is displayed"
+      ]
+    },
+    {
+      "test_id": "login_004",
+      "test_name": "User Login - HOD",
+      "description": "Test HOD user login functionality",
+      "url": "http://localhost:3000/login",
+      "steps": [
+        "Navigate to login page",
+        "Enter HOD credentials (hod_cse/hod123)",
+        "Click login button",
+        "Verify redirect to HOD dashboard",
+        "Verify HOD navigation menu is visible"
+      ],
+      "expected_results": [
+        "Login form loads correctly",
+        "HOD credentials are accepted",
+        "Redirect to HOD dashboard occurs",
+        "HOD-specific navigation is displayed"
+      ]
+    },
+    {
+      "test_id": "login_005",
+      "test_name": "Login Error Handling",
+      "description": "Test login error handling with invalid credentials",
+      "url": "http://localhost:3000/login",
+      "steps": [
+        "Navigate to login page",
+        "Enter invalid credentials",
+        "Click login button",
+        "Verify error message is displayed"
+      ],
+      "expected_results": [
+        "Error message appears for invalid credentials",
+        "User remains on login page",
+        "Form is not submitted"
+      ]
+    },
+    {
+      "test_id": "dashboard_001",
+      "test_name": "Admin Dashboard",
+      "description": "Test admin dashboard functionality",
+      "url": "http://localhost:3000/dashboard",
+      "prerequisites": ["login_001"],
+      "steps": [
+        "Login as admin",
+        "Navigate to dashboard",
+        "Verify dashboard statistics are displayed",
+        "Verify navigation menu items",
+        "Test navigation to different sections"
+      ],
+      "expected_results": [
+        "Dashboard loads with statistics",
+        "All admin navigation items are visible",
+        "Navigation between sections works",
+        "Data is displayed correctly"
+      ]
+    },
+    {
+      "test_id": "dashboard_002",
+      "test_name": "Teacher Dashboard",
+      "description": "Test teacher dashboard functionality",
+      "url": "http://localhost:3000/dashboard",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to dashboard",
+        "Verify teacher-specific statistics",
+        "Test navigation to teacher sections"
+      ],
+      "expected_results": [
+        "Teacher dashboard loads correctly",
+        "Teacher-specific data is displayed",
+        "Navigation works properly"
+      ]
+    },
+    {
+      "test_id": "dashboard_003",
+      "test_name": "Student Dashboard",
+      "description": "Test student dashboard functionality",
+      "url": "http://localhost:3000/dashboard",
+      "prerequisites": ["login_003"],
+      "steps": [
+        "Login as student",
+        "Navigate to dashboard",
+        "Verify student performance data",
+        "Test navigation to student sections"
+      ],
+      "expected_results": [
+        "Student dashboard loads correctly",
+        "Student performance data is displayed",
+        "Navigation works properly"
+      ]
+    },
+    {
+      "test_id": "user_management_001",
+      "test_name": "User Management - Create User",
+      "description": "Test creating a new user",
+      "url": "http://localhost:3000/admin/users",
+      "prerequisites": ["login_001"],
+      "steps": [
+        "Login as admin",
+        "Navigate to user management",
+        "Click 'Add New User' button",
+        "Fill in user details form",
+        "Submit the form",
+        "Verify user is created successfully"
+      ],
+      "expected_results": [
+        "User management page loads",
+        "Add user form is displayed",
+        "Form validation works",
+        "User is created successfully",
+        "New user appears in the list"
+      ]
+    },
+    {
+      "test_id": "user_management_002",
+      "test_name": "User Management - Edit User",
+      "description": "Test editing an existing user",
+      "url": "http://localhost:3000/admin/users",
+      "prerequisites": ["login_001"],
+      "steps": [
+        "Login as admin",
+        "Navigate to user management",
+        "Click edit button on a user",
+        "Modify user details",
+        "Save changes",
+        "Verify changes are saved"
+      ],
+      "expected_results": [
+        "Edit form loads with user data",
+        "Changes can be made",
+        "Form validation works",
+        "Changes are saved successfully"
+      ]
+    },
+    {
+      "test_id": "department_management_001",
+      "test_name": "Department Management - Create Department",
+      "description": "Test creating a new department",
+      "url": "http://localhost:3000/admin/departments",
+      "prerequisites": ["login_001"],
+      "steps": [
+        "Login as admin",
+        "Navigate to department management",
+        "Click 'Add Department' button",
+        "Fill in department details",
+        "Submit the form",
+        "Verify department is created"
+      ],
+      "expected_results": [
+        "Department management page loads",
+        "Add department form is displayed",
+        "Form validation works",
+        "Department is created successfully"
+      ]
+    },
+    {
+      "test_id": "class_management_001",
+      "test_name": "Class Management - Create Class",
+      "description": "Test creating a new class",
+      "url": "http://localhost:3000/admin/classes",
+      "prerequisites": ["login_001"],
+      "steps": [
+        "Login as admin",
+        "Navigate to class management",
+        "Click 'Add Class' button",
+        "Fill in class details",
+        "Submit the form",
+        "Verify class is created"
+      ],
+      "expected_results": [
+        "Class management page loads",
+        "Add class form is displayed",
+        "Form validation works",
+        "Class is created successfully"
+      ]
+    },
+    {
+      "test_id": "subject_management_001",
+      "test_name": "Subject Management - Create Subject",
+      "description": "Test creating a new subject",
+      "url": "http://localhost:3000/admin/subjects",
+      "prerequisites": ["login_001"],
+      "steps": [
+        "Login as admin",
+        "Navigate to subject management",
+        "Click 'Add Subject' button",
+        "Fill in subject details",
+        "Submit the form",
+        "Verify subject is created"
+      ],
+      "expected_results": [
+        "Subject management page loads",
+        "Add subject form is displayed",
+        "Form validation works",
+        "Subject is created successfully"
+      ]
+    },
+    {
+      "test_id": "exam_management_001",
+      "test_name": "Exam Configuration - Create Exam",
+      "description": "Test creating a new exam",
+      "url": "http://localhost:3000/teacher/exam-configuration",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to exam configuration",
+        "Click 'Create Exam' button",
+        "Fill in exam details",
+        "Add questions to exam",
+        "Submit the form",
+        "Verify exam is created"
+      ],
+      "expected_results": [
+        "Exam configuration page loads",
+        "Create exam form is displayed",
+        "Question addition works",
+        "Form validation works",
+        "Exam is created successfully"
+      ]
+    },
+    {
+      "test_id": "marks_entry_001",
+      "test_name": "Marks Entry - Enter Marks",
+      "description": "Test entering marks for an exam",
+      "url": "http://localhost:3000/teacher/marks-entry",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to marks entry",
+        "Select an exam",
+        "Enter marks for students",
+        "Save marks",
+        "Verify marks are saved"
+      ],
+      "expected_results": [
+        "Marks entry page loads",
+        "Exam selection works",
+        "Marks can be entered",
+        "Form validation works",
+        "Marks are saved successfully"
+      ]
+    },
+    {
+      "test_id": "marks_entry_002",
+      "test_name": "Marks Entry - Excel Upload",
+      "description": "Test uploading marks via Excel file",
+      "url": "http://localhost:3000/teacher/marks-entry",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to marks entry",
+        "Select an exam",
+        "Click 'Upload Excel' button",
+        "Upload Excel file",
+        "Verify marks are imported"
+      ],
+      "expected_results": [
+        "Excel upload option is available",
+        "File upload works",
+        "Marks are imported correctly",
+        "Validation errors are shown if any"
+      ]
+    },
+    {
+      "test_id": "student_analytics_001",
+      "test_name": "Student Analytics - View Performance",
+      "description": "Test viewing student performance analytics",
+      "url": "http://localhost:3000/student/analytics",
+      "prerequisites": ["login_003"],
+      "steps": [
+        "Login as student",
+        "Navigate to analytics",
+        "View performance charts",
+        "Check CO/PO attainment",
+        "View progress trends"
+      ],
+      "expected_results": [
+        "Analytics page loads",
+        "Performance charts are displayed",
+        "CO/PO data is shown",
+        "Trends are visible"
+      ]
+    },
+    {
+      "test_id": "teacher_analytics_001",
+      "test_name": "Teacher Analytics - Class Performance",
+      "description": "Test viewing class performance analytics",
+      "url": "http://localhost:3000/teacher/analytics",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to analytics",
+        "View class performance data",
+        "Check question analysis",
+        "View CO/PO attainment"
+      ],
+      "expected_results": [
+        "Analytics page loads",
+        "Class performance data is displayed",
+        "Question analysis is shown",
+        "CO/PO data is visible"
+      ]
+    },
+    {
+      "test_id": "hod_analytics_001",
+      "test_name": "HOD Analytics - Department Overview",
+      "description": "Test viewing department analytics",
+      "url": "http://localhost:3000/hod/analytics",
+      "prerequisites": ["login_004"],
+      "steps": [
+        "Login as HOD",
+        "Navigate to analytics",
+        "View department overview",
+        "Check faculty performance",
+        "View strategic dashboard"
+      ],
+      "expected_results": [
+        "Analytics page loads",
+        "Department data is displayed",
+        "Faculty performance is shown",
+        "Strategic insights are visible"
+      ]
+    },
+    {
+      "test_id": "co_po_management_001",
+      "test_name": "CO/PO Management - Create CO",
+      "description": "Test creating CO definitions",
+      "url": "http://localhost:3000/teacher/co-management",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to CO management",
+        "Click 'Add CO' button",
+        "Fill in CO details",
+        "Submit the form",
+        "Verify CO is created"
+      ],
+      "expected_results": [
+        "CO management page loads",
+        "Add CO form is displayed",
+        "Form validation works",
+        "CO is created successfully"
+      ]
+    },
+    {
+      "test_id": "co_po_management_002",
+      "test_name": "CO/PO Management - CO-PO Matrix",
+      "description": "Test managing CO-PO matrix",
+      "url": "http://localhost:3000/teacher/co-management",
+      "prerequisites": ["login_002"],
+      "steps": [
+        "Login as teacher",
+        "Navigate to CO management",
+        "Go to CO-PO matrix section",
+        "Update matrix values",
+        "Save changes",
+        "Verify matrix is updated"
+      ],
+      "expected_results": [
+        "CO-PO matrix is displayed",
+        "Matrix can be updated",
+        "Changes are saved",
+        "Validation works"
+      ]
+    },
+    {
+      "test_id": "reports_001",
+      "test_name": "Report Generation - Generate Report",
+      "description": "Test generating reports",
+      "url": "http://localhost:3000/hod/reports",
+      "prerequisites": ["login_004"],
+      "steps": [
+        "Login as HOD",
+        "Navigate to reports",
+        "Select report type",
+        "Configure filters",
+        "Generate report",
+        "Download report"
+      ],
+      "expected_results": [
+        "Reports page loads",
+        "Report types are available",
+        "Filters can be configured",
+        "Report generation works",
+        "Download functionality works"
+      ]
+    },
+    {
+      "test_id": "navigation_001",
+      "test_name": "Navigation - Role-based Access",
+      "description": "Test role-based navigation access",
+      "url": "http://localhost:3000",
+      "steps": [
+        "Login as different user roles",
+        "Verify navigation menu items",
+        "Test access to restricted pages",
+        "Verify proper redirects"
+      ],
+      "expected_results": [
+        "Navigation shows appropriate items per role",
+        "Restricted pages are not accessible",
+        "Proper redirects occur",
+        "Access control works correctly"
+      ]
+    },
+    {
+      "test_id": "responsive_001",
+      "test_name": "Responsive Design - Mobile View",
+      "description": "Test responsive design on mobile devices",
+      "url": "http://localhost:3000",
+      "steps": [
+        "Open application in mobile view",
+        "Test navigation menu",
+        "Test form interactions",
+        "Test data display"
+      ],
+      "expected_results": [
+        "Layout adapts to mobile screen",
+        "Navigation works on mobile",
+        "Forms are usable on mobile",
+        "Data is readable on mobile"
+      ]
+    },
+    {
+      "test_id": "error_handling_001",
+      "test_name": "Error Handling - Network Errors",
+      "description": "Test error handling for network issues",
+      "url": "http://localhost:3000",
+      "steps": [
+        "Simulate network disconnection",
+        "Try to perform actions",
+        "Verify error messages",
+        "Test recovery after reconnection"
+      ],
+      "expected_results": [
+        "Error messages are displayed",
+        "User is informed of issues",
+        "Recovery works after reconnection",
+        "No crashes occur"
+      ]
+    }
+  ]
+}

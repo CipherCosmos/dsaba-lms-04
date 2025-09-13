@@ -5,7 +5,7 @@ import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { Building, Users, BookOpen, GraduationCap, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Building, Users, BookOpen, GraduationCap, TrendingUp, AlertTriangle, Target, BarChart3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const AdminDashboard = () => {
@@ -160,25 +160,41 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <Link to="/admin/departments" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <Building className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Link to="/admin/departments" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+              <Building className="h-8 w-8 text-blue-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
               <p className="text-sm font-medium text-center">Manage Departments</p>
+              <p className="text-xs text-gray-500 text-center mt-1">Create & configure departments</p>
             </Link>
             
-            <Link to="/admin/users" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <Users className="h-8 w-8 text-green-500 mx-auto mb-2" />
+            <Link to="/admin/users" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+              <Users className="h-8 w-8 text-green-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
               <p className="text-sm font-medium text-center">Manage Users</p>
+              <p className="text-xs text-gray-500 text-center mt-1">Add & manage all users</p>
             </Link>
             
-            <Link to="/admin/classes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <GraduationCap className="h-8 w-8 text-purple-500 mx-auto mb-2" />
+            <Link to="/admin/classes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+              <GraduationCap className="h-8 w-8 text-purple-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
               <p className="text-sm font-medium text-center">Manage Classes</p>
+              <p className="text-xs text-gray-500 text-center mt-1">Create & organize classes</p>
             </Link>
             
-            <Link to="/admin/subjects" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              <BookOpen className="h-8 w-8 text-orange-500 mx-auto mb-2" />
+            <Link to="/admin/subjects" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+              <BookOpen className="h-8 w-8 text-orange-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
               <p className="text-sm font-medium text-center">Manage Subjects</p>
+              <p className="text-xs text-gray-500 text-center mt-1">Configure course subjects</p>
+            </Link>
+            
+            <Link to="/admin/co-management" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+              <Target className="h-8 w-8 text-red-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-sm font-medium text-center">CO Management</p>
+              <p className="text-xs text-gray-500 text-center mt-1">Define course outcomes</p>
+            </Link>
+            
+            <Link to="/admin/po-management" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
+              <BarChart3 className="h-8 w-8 text-indigo-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
+              <p className="text-sm font-medium text-center">PO Management</p>
+              <p className="text-xs text-gray-500 text-center mt-1">Define program outcomes</p>
             </Link>
           </div>
         </div>

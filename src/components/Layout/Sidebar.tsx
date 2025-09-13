@@ -4,7 +4,7 @@ import { RootState } from '../../store/store'
 import {
   Home, Users, Building, BookOpen, GraduationCap,
   ClipboardList, BarChart3, FileText, Settings,
-  TrendingUp, Award, PieChart
+  TrendingUp, Award, PieChart, Target, Layers, Gauge, Brain
 } from 'lucide-react'
 
 const Sidebar = () => {
@@ -18,14 +18,32 @@ const Sidebar = () => {
 
     switch (user?.role) {
       case 'admin':
-      case 'hod':
         return [
           ...baseItems,
           { name: 'Departments', href: '/admin/departments', icon: Building },
           { name: 'Classes', href: '/admin/classes', icon: Users },
           { name: 'Subjects', href: '/admin/subjects', icon: BookOpen },
           { name: 'Users', href: '/admin/users', icon: GraduationCap },
-          { name: 'Analytics', href: '/hod/analytics', icon: BarChart3 },
+          { name: 'CO Management', href: '/admin/co-management', icon: Target },
+          { name: 'PO Management', href: '/admin/po-management', icon: Layers },
+          { name: 'CO Targets', href: '/admin/co-targets', icon: Gauge },
+          { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+          { name: 'Reports', href: '/admin/reports', icon: FileText },
+        ]
+      
+      case 'hod':
+        return [
+          ...baseItems,
+          { name: 'Department Users', href: '/hod/users', icon: GraduationCap },
+          { name: 'Department Classes', href: '/hod/classes', icon: Users },
+          { name: 'Department Subjects', href: '/hod/subjects', icon: BookOpen },
+          { name: 'CO Management', href: '/admin/co-management', icon: Target },
+          { name: 'PO Management', href: '/admin/po-management', icon: Layers },
+          { name: 'CO Targets', href: '/admin/co-targets', icon: Gauge },
+          { name: 'Department Analytics', href: '/hod/analytics', icon: BarChart3 },
+          { name: 'Student Analytics', href: '/hod/student-analytics', icon: TrendingUp },
+          { name: 'Teacher Analytics', href: '/hod/teacher-analytics', icon: Users },
+          { name: 'Strategic Dashboard', href: '/hod/strategic-dashboard', icon: Brain },
           { name: 'Reports', href: '/hod/reports', icon: FileText },
         ]
       
@@ -35,6 +53,9 @@ const Sidebar = () => {
           { name: 'Exam Configuration', href: '/teacher/exam-config', icon: Settings },
           { name: 'Marks Entry', href: '/teacher/marks-entry', icon: ClipboardList },
           { name: 'Analytics', href: '/teacher/analytics', icon: PieChart },
+          { name: 'Attainment Analytics', href: '/teacher/attainment-analytics', icon: BarChart3 },
+          { name: 'Comprehensive Analytics', href: '/teacher/comprehensive-analytics', icon: TrendingUp },
+          { name: 'Report Management', href: '/teacher/reports', icon: FileText },
         ]
       
       case 'student':

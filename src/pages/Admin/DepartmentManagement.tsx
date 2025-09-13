@@ -50,11 +50,16 @@ const DepartmentManagement = () => {
 
   const onSubmit = async (data: DepartmentForm) => {
     try {
+      const processedData = {
+        ...data,
+        hod_id: data.hod_id || undefined
+      }
+      
       if (editingDepartment) {
-        await dispatch(updateDepartment({ id: editingDepartment.id, ...data })).unwrap()
+        await dispatch(updateDepartment({ id: editingDepartment.id, ...processedData })).unwrap()
         toast.success('Department updated successfully!')
       } else {
-        await dispatch(createDepartment(data)).unwrap()
+        await dispatch(createDepartment(processedData)).unwrap()
         toast.success('Department created successfully!')
       }
       closeModal()

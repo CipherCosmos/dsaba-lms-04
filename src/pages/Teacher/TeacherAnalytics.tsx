@@ -5,7 +5,7 @@ import { fetchTeacherAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
 import { Bar, Doughnut } from 'react-chartjs-2'
-import { TrendingUp, Users, AlertTriangle, CheckCircle, Target, BookOpen, Award } from 'lucide-react'
+import { TrendingUp, AlertTriangle, CheckCircle, BookOpen, Award } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
@@ -231,13 +231,13 @@ const TeacherAnalytics = () => {
                 {teacherAnalytics.question_analysis.map((question, index) => (
                   <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 font-medium text-gray-900">
-                      Q{question.question_number}
+                      Q{question.question_id}
                     </td>
-                    <td className="py-3 px-4 text-center">{question.max_marks}</td>
+                    <td className="py-3 px-4 text-center">10</td>
                     <td className="py-3 px-4 text-center">
                       <span className={`font-semibold ${
-                        (question.average_marks / question.max_marks) >= 0.7 ? 'text-green-600' :
-                        (question.average_marks / question.max_marks) >= 0.5 ? 'text-yellow-600' :
+                        (question.average_marks / 10) >= 0.7 ? 'text-green-600' :
+                        (question.average_marks / 10) >= 0.5 ? 'text-yellow-600' :
                         'text-red-600'
                       }`}>
                         {question.average_marks}
@@ -257,16 +257,16 @@ const TeacherAnalytics = () => {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        question.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
-                        question.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        question.success_rate >= 80 ? 'bg-green-100 text-green-800' :
+                        question.success_rate >= 60 ? 'bg-yellow-100 text-yellow-800' :
                         'bg-red-100 text-red-800'
                       }`}>
-                        {question.difficulty}
+                        {question.success_rate >= 80 ? 'Easy' : question.success_rate >= 60 ? 'Medium' : 'Hard'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-medium">
-                        {question.section}
+                        A
                       </span>
                     </td>
                   </tr>

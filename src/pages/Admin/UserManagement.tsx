@@ -75,7 +75,11 @@ const UserManagement = () => {
   const onSubmit = async (data: UserForm) => {
     try {
       if (editingUser) {
-        const updateData = { ...data }
+        const updateData = { 
+          ...data,
+          department_id: data.department_id || undefined,
+          class_id: data.class_id || undefined
+        }
         if (!updateData.password) {
           delete updateData.password
         }

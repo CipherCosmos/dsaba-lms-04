@@ -1,36 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-
-type Exam = {
-  id: number
-  name: string
-  subject_id: number
-  exam_type: 'internal1' | 'internal2' | 'final'
-  exam_date?: string
-  duration?: number
-  total_marks: number
-  questions: Question[]
-  created_at: string
-}
-
-type Question = {
-  id: number
-  question_number: string
-  max_marks: number
-  co_mapping: string[]
-  po_mapping: string[]
-  section: 'A' | 'B' | 'C'
-  blooms_level: string
-  difficulty: 'easy' | 'medium' | 'hard'
-}
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import toast from 'react-hot-toast'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchExams, createExam, updateExam, deleteExam } from '../../store/slices/examSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { Plus, Edit2, Trash2, Settings, Calendar, Clock, FileText } from 'lucide-react'
+import { fetchCODefinitions, fetchPODefinitions } from '../../store/slices/copoSlice'
+import { coAPI, poAPI } from '../../services/api'
+import { Plus, Edit2, Trash2, Settings, Calendar, Clock, FileText, Target, Layers, CheckCircle, X } from 'lucide-react'
 
 const questionSchema = yup.object({
   question_number: yup.string().required('Question number is required'),
@@ -38,8 +17,8 @@ const questionSchema = yup.object({
   section: yup.string().oneOf(['A', 'B', 'C']).required('Section is required'),
   blooms_level: yup.string().required('Blooms level is required'),
   difficulty: yup.string().oneOf(['easy', 'medium', 'hard']).required('Difficulty is required'),
-  co_mapping: yup.array().of(yup.string()).default([]),
-  po_mapping: yup.array().of(yup.string()).default([])
+  co_mapping: yup.array().of(yup.string()),
+  po_mapping: yup.array().of(yup.string())
 })
 
 const examSchema = yup.object({
@@ -59,8 +38,16 @@ const ExamConfiguration = () => {
   const { exams, loading } = useSelector((state: RootState) => state.exams)
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { user } = useSelector((state: RootState) => state.auth)
+  const { coDefinitions, poDefinitions } = useSelector((state: RootState) => state.copo)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<any>(null)
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
+  const [availableCOs, setAvailableCOs] = useState<any[]>([])
+  const [availablePOs, setAvailablePOs] = useState<any[]>([])
+  const [loadingCOs, setLoadingCOs] = useState(false)
+  const [loadingPOs, setLoadingPOs] = useState(false)
+  const [coPoMapping, setCoPoMapping] = useState<any[]>([])
+  const [autoMapPOs, setAutoMapPOs] = useState(true)
 
   const {
     register,
@@ -105,38 +92,106 @@ const ExamConfiguration = () => {
   }, [totalMarks, setValue])
 
   // Filter subjects for current teacher
-  const teacherSubjects = subjects.filter(s => s.teacher_id === user?.id)
+  const teacherSubjects = useMemo(() => 
+    subjects.filter(s => s.teacher_id === user?.id),
+    [subjects, user?.id]
+  )
+
+  // Fetch COs and POs when subject changes
+  const fetchCOsAndPOs = async (subjectId: number) => {
+    if (!subjectId) {
+      setAvailableCOs([])
+      setAvailablePOs([])
+      setCoPoMapping([])
+      return
+    }
+
+    try {
+      setLoadingCOs(true)
+      setLoadingPOs(true)
+
+      // Fetch COs for the subject
+      const coResponse = await coAPI.getBySubject(subjectId)
+      setAvailableCOs(coResponse || [])
+
+      // Get the subject to find its department
+      const subject = subjects.find(s => s.id === subjectId)
+      if (subject?.department_id) {
+        // Fetch POs for the department
+        const poResponse = await poAPI.getByDepartment(subject.department_id)
+        setAvailablePOs(poResponse || [])
+        
+        // Fetch CO-PO mapping for auto-mapping
+        try {
+          const response = await fetch(`/api/analytics/co-po-mapping/${subjectId}`)
+          if (response.ok) {
+            const mapping = await response.json()
+            setCoPoMapping(mapping)
+          }
+        } catch (error) {
+          console.warn('Could not fetch CO-PO mapping:', error)
+          setCoPoMapping([])
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching COs and POs:', error)
+      toast.error('Failed to load CO/PO data')
+    } finally {
+      setLoadingCOs(false)
+      setLoadingPOs(false)
+    }
+  }
+
+  // Auto-map POs based on selected COs
+  const getMappedPOs = (selectedCOs: string[]) => {
+    if (!autoMapPOs || !coPoMapping.length) return []
+    
+    const mappedPOs = new Set<string>()
+    selectedCOs.forEach(coCode => {
+      const coMapping = coPoMapping.find(m => m.co_code === coCode)
+      if (coMapping) {
+        coMapping.mapped_pos.forEach((po: any) => {
+          mappedPOs.add(po.po_code)
+        })
+      }
+    })
+    
+    return Array.from(mappedPOs)
+  }
+
+  // Watch for subject changes
+  const watchedSubjectId = watch('subject_id')
+  useEffect(() => {
+    if (watchedSubjectId) {
+      setSelectedSubjectId(watchedSubjectId)
+      fetchCOsAndPOs(watchedSubjectId)
+    }
+  }, [watchedSubjectId, subjects])
 
   const onSubmit = async (data: ExamForm) => {
     try {
       // Convert date to ISO string if provided
       const examData = {
         ...data,
+        exam_date: data.exam_date ? new Date(data.exam_date).toISOString() : undefined,
         duration: data.duration || undefined,
-        exam_date: data.exam_date ? new Date(data.exam_date).toISOString() : undefined
-      } as any
-
-      console.log('Submitting exam data:', JSON.stringify(examData, null, 2))
-      console.log('Editing exam:', editingExam)
-      console.log('Current exams state:', exams)
+        questions: data.questions?.map((q: any, index: number) => ({
+          ...q,
+          id: q.id || index + 1,
+          co_mapping: q.co_mapping?.filter((co: any) => co !== undefined) || [],
+          po_mapping: q.po_mapping?.filter((po: any) => po !== undefined) || []
+        })) || []
+      }
 
       if (editingExam) {
-        const updatePayload = { id: editingExam.id, ...examData }
-        console.log('Update payload:', JSON.stringify(updatePayload, null, 2))
-
-        const result = await dispatch(updateExam(updatePayload)).unwrap()
-        console.log('Update result:', JSON.stringify(result, null, 2))
-        console.log('Exams after update:', exams)
-
+        await dispatch(updateExam({ id: editingExam.id, ...examData })).unwrap()
         toast.success('Exam updated successfully!')
       } else {
-        const result = await dispatch(createExam(examData)).unwrap()
-        console.log('Create result:', JSON.stringify(result, null, 2))
+        await dispatch(createExam(examData)).unwrap()
         toast.success('Exam created successfully!')
       }
       closeModal()
     } catch (error: any) {
-      console.error('Submit error:', error)
       toast.error(error.message || 'An error occurred')
     }
   }
@@ -149,14 +204,10 @@ const ExamConfiguration = () => {
       name: exam.name,
       subject_id: exam.subject_id,
       exam_type: exam.exam_type,
-      exam_date: exam.exam_date ? new Date(exam.exam_date).toISOString().split('T')[0] : undefined,
+      exam_date: exam.exam_date ? new Date(exam.exam_date) : undefined,
       duration: exam.duration,
       total_marks: exam.total_marks,
-      questions: exam.questions?.length > 0 ? exam.questions.map((q: any) => ({
-        ...q,
-        co_mapping: Array.isArray(q.co_mapping) ? q.co_mapping : [],
-        po_mapping: Array.isArray(q.po_mapping) ? q.po_mapping : []
-      })) : [{
+      questions: exam.questions?.length > 0 ? exam.questions : [{
         question_number: '1a',
         max_marks: 10,
         section: 'A',
@@ -207,6 +258,150 @@ const ExamConfiguration = () => {
       co_mapping: [],
       po_mapping: []
     })
+  }
+
+  // CO/PO Selection Component
+  const COPOSelector = ({ 
+    questionIndex, 
+    selectedCOs, 
+    selectedPOs, 
+    onCOChange, 
+    onPOChange 
+  }: {
+    questionIndex: number
+    selectedCOs: string[]
+    selectedPOs: string[]
+    onCOChange: (cos: string[]) => void
+    onPOChange: (pos: string[]) => void
+  }) => {
+    const toggleCO = (coCode: string) => {
+      const newCOs = selectedCOs.includes(coCode)
+        ? selectedCOs.filter(co => co !== coCode)
+        : [...selectedCOs, coCode]
+      onCOChange(newCOs)
+      
+      // Auto-map POs if enabled
+      if (autoMapPOs) {
+        const mappedPOs = getMappedPOs(newCOs)
+        onPOChange(mappedPOs)
+      }
+    }
+
+    const togglePO = (poCode: string) => {
+      const newPOs = selectedPOs.includes(poCode)
+        ? selectedPOs.filter(po => po !== poCode)
+        : [...selectedPOs, poCode]
+      onPOChange(newPOs)
+    }
+
+    return (
+      <div className="space-y-4">
+        {/* CO Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <Target className="inline w-4 h-4 mr-1" />
+            Course Outcomes (COs)
+          </label>
+          {loadingCOs ? (
+            <div className="text-sm text-gray-500">Loading COs...</div>
+          ) : availableCOs.length === 0 ? (
+            <div className="text-sm text-gray-500">No COs available for this subject</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {availableCOs.map((co) => (
+                <button
+                  key={co.id}
+                  type="button"
+                  onClick={() => toggleCO(co.code)}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    selectedCOs.includes(co.code)
+                      ? 'bg-blue-100 border-blue-300 text-blue-800'
+                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <CheckCircle 
+                    className={`w-4 h-4 ${
+                      selectedCOs.includes(co.code) ? 'text-blue-600' : 'text-gray-400'
+                    }`} 
+                  />
+                  <span className="font-medium">{co.code}</span>
+                  <span className="text-xs text-gray-500 truncate">{co.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* PO Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <Layers className="inline w-4 h-4 mr-1" />
+            Program Outcomes (POs)
+          </label>
+          {loadingPOs ? (
+            <div className="text-sm text-gray-500">Loading POs...</div>
+          ) : availablePOs.length === 0 ? (
+            <div className="text-sm text-gray-500">No POs available for this department</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {availablePOs.map((po) => (
+                <button
+                  key={po.id}
+                  type="button"
+                  onClick={() => togglePO(po.code)}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                    selectedPOs.includes(po.code)
+                      ? 'bg-green-100 border-green-300 text-green-800'
+                      : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <CheckCircle 
+                    className={`w-4 h-4 ${
+                      selectedPOs.includes(po.code) ? 'text-green-600' : 'text-gray-400'
+                    }`} 
+                  />
+                  <span className="font-medium">{po.code}</span>
+                  <span className="text-xs text-gray-500 truncate">{po.title}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Selected Items Summary */}
+        {(selectedCOs.length > 0 || selectedPOs.length > 0) && (
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="text-sm text-gray-600 mb-2">Selected Mappings:</div>
+            <div className="flex flex-wrap gap-2">
+              {selectedCOs.map(co => (
+                <span key={co} className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                  {co}
+                  <button
+                    type="button"
+                    onClick={() => toggleCO(co)}
+                    className="ml-1 text-blue-600 hover:text-blue-800"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {selectedPOs.map(po => (
+                <span key={po} className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                  {po}
+                  <button
+                    type="button"
+                    onClick={() => togglePO(po)}
+                    className="ml-1 text-green-600 hover:text-green-800"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   // Filter exams for current teacher
@@ -278,10 +473,38 @@ const ExamConfiguration = () => {
               </div>
               
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm mb-2">
                   <span>Questions: {exam.questions?.length || 0}</span>
                   <span className="font-medium">Total: {exam.total_marks} marks</span>
                 </div>
+                
+                {/* CO/PO Summary */}
+                {exam.questions && exam.questions.length > 0 && (
+                  <div className="text-xs text-gray-500">
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      <span className="font-medium">COs:</span>
+                      {Array.from(new Set(exam.questions.flatMap(q => q.co_mapping || []))).slice(0, 3).map(co => (
+                        <span key={co} className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs">
+                          {co}
+                        </span>
+                      ))}
+                      {Array.from(new Set(exam.questions.flatMap(q => q.co_mapping || []))).length > 3 && (
+                        <span className="text-gray-400">+{Array.from(new Set(exam.questions.flatMap(q => q.co_mapping || []))).length - 3} more</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <span className="font-medium">POs:</span>
+                      {Array.from(new Set(exam.questions.flatMap(q => q.po_mapping || []))).slice(0, 3).map(po => (
+                        <span key={po} className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">
+                          {po}
+                        </span>
+                      ))}
+                      {Array.from(new Set(exam.questions.flatMap(q => q.po_mapping || []))).length > 3 && (
+                        <span className="text-gray-400">+{Array.from(new Set(exam.questions.flatMap(q => q.po_mapping || []))).length - 3} more</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -399,9 +622,14 @@ const ExamConfiguration = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-medium text-gray-900">Questions</h3>
                   <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-600">
-                      Total Marks: {totalMarks}
-                    </span>
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium">Total Marks: {totalMarks}</span>
+                      {selectedSubjectId && (availableCOs.length > 0 || availablePOs.length > 0) && (
+                        <span className="ml-4 text-xs text-gray-500">
+                          {availableCOs.length} COs • {availablePOs.length} POs available
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={addQuestion}
@@ -412,6 +640,36 @@ const ExamConfiguration = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Quick Stats */}
+                {watchedQuestions && watchedQuestions.length > 0 && (
+                  <div className="bg-blue-50 rounded-lg p-4 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Total Questions:</span>
+                        <span className="ml-2 font-medium">{watchedQuestions.length}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Unique COs:</span>
+                        <span className="ml-2 font-medium">
+                          {Array.from(new Set(watchedQuestions.flatMap(q => q.co_mapping || []))).length}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Unique POs:</span>
+                        <span className="ml-2 font-medium">
+                          {Array.from(new Set(watchedQuestions.flatMap(q => q.po_mapping || []))).length}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Avg Marks:</span>
+                        <span className="ml-2 font-medium">
+                          {(totalMarks / watchedQuestions.length).toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   {fields.map((field, index) => (
@@ -501,62 +759,41 @@ const ExamConfiguration = () => {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            CO Mapping (comma separated)
-                          </label>
-                          <Controller
-                            name={`questions.${index}.co_mapping`}
-                            control={control}
-                            render={({ field }) => (
+                      {/* CO/PO Mapping Section */}
+                      <div className="mt-4">
+                        <div className="border-t pt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="text-sm font-medium text-gray-700">CO/PO Mapping</h5>
+                            <label className="flex items-center space-x-2 text-xs text-gray-600">
                               <input
-                                type="text"
-                                className="input-field w-full"
-                                placeholder="CO1, CO2"
-                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                onChange={(e) => {
-                                  const value = e.target.value
-                                    .split(',')
-                                    .map(s => s.trim())
-                                    .filter(s => s !== '')
-                                  field.onChange(value)
-                                }}
+                                type="checkbox"
+                                checked={autoMapPOs}
+                                onChange={(e) => setAutoMapPOs(e.target.checked)}
+                                className="rounded"
                               />
-                            )}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            PO Mapping (comma separated)
-                          </label>
-                          <Controller
-                            name={`questions.${index}.po_mapping`}
-                            control={control}
-                            render={({ field }) => (
-                              <input
-                                type="text"
-                                className="input-field w-full"
-                                placeholder="PO1, PO2"
-                                value={Array.isArray(field.value) ? field.value.join(', ') : ''}
-                                onChange={(e) => {
-                                  const value = e.target.value
-                                    .split(',')
-                                    .map(s => s.trim())
-                                    .filter(s => s !== '')
-                                  field.onChange(value)
-                                }}
-                              />
-                            )}
-                          />
+                              <span>Auto-map POs from COs</span>
+                            </label>
+                          </div>
+                          {selectedSubjectId ? (
+                            <COPOSelector
+                              questionIndex={index}
+                              selectedCOs={watchedQuestions?.[index]?.co_mapping || []}
+                              selectedPOs={watchedQuestions?.[index]?.po_mapping || []}
+                              onCOChange={(cos) => setValue(`questions.${index}.co_mapping`, cos)}
+                              onPOChange={(pos) => setValue(`questions.${index}.po_mapping`, pos)}
+                            />
+                          ) : (
+                            <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">
+                              Please select a subject first to configure CO/PO mappings
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {errors.questions?.[index] && (
                         <div className="mt-2 text-red-500 text-sm">
                           {Object.entries(errors.questions[index] || {}).map(([key, error]) => (
-                            <p key={key}>{error?.message}</p>
+                            <p key={key}>{typeof error === 'object' && 'message' in error ? error.message : String(error)}</p>
                           ))}
                         </div>
                       )}

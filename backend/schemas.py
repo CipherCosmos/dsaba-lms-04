@@ -324,3 +324,238 @@ class FileUploadResponse(BaseModel):
     message: str
     processed_records: int = 0
     errors: List[str] = []
+
+# CO/PO/PSO Framework Schemas
+
+# CO Definition schemas
+class CODefinitionBase(BaseModel):
+    code: str = Field(..., max_length=10)
+    title: str = Field(..., max_length=200)
+    description: Optional[str] = None
+
+class CODefinitionCreate(CODefinitionBase):
+    subject_id: int
+
+class CODefinitionUpdate(BaseModel):
+    code: Optional[str] = Field(None, max_length=10)
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+
+class CODefinitionResponse(CODefinitionBase):
+    id: int
+    subject_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# PO Definition schemas
+class PODefinitionBase(BaseModel):
+    code: str = Field(..., max_length=10)
+    title: str = Field(..., max_length=200)
+    description: Optional[str] = None
+    type: str = Field(default="PO", pattern="^(PO|PSO)$")
+
+class PODefinitionCreate(PODefinitionBase):
+    department_id: int
+
+class PODefinitionUpdate(BaseModel):
+    code: Optional[str] = Field(None, max_length=10)
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+    type: Optional[str] = Field(None, pattern="^(PO|PSO)$")
+
+class PODefinitionResponse(PODefinitionBase):
+    id: int
+    department_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# CO Target schemas
+class COTargetBase(BaseModel):
+    co_code: str = Field(..., max_length=10)
+    target_pct: float = Field(..., ge=0, le=100)
+    l1_threshold: float = Field(default=60.0, ge=0, le=100)
+    l2_threshold: float = Field(default=70.0, ge=0, le=100)
+    l3_threshold: float = Field(default=80.0, ge=0, le=100)
+
+class COTargetCreate(COTargetBase):
+    subject_id: int
+
+class COTargetUpdate(BaseModel):
+    co_code: Optional[str] = Field(None, max_length=10)
+    target_pct: Optional[float] = Field(None, ge=0, le=100)
+    l1_threshold: Optional[float] = Field(None, ge=0, le=100)
+    l2_threshold: Optional[float] = Field(None, ge=0, le=100)
+    l3_threshold: Optional[float] = Field(None, ge=0, le=100)
+
+class COTargetResponse(COTargetBase):
+    id: int
+    subject_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Assessment Weight schemas
+class AssessmentWeightBase(BaseModel):
+    exam_type: ExamType
+    weight_pct: float = Field(..., ge=0, le=100)
+
+class AssessmentWeightCreate(AssessmentWeightBase):
+    subject_id: int
+
+class AssessmentWeightUpdate(BaseModel):
+    exam_type: Optional[ExamType] = None
+    weight_pct: Optional[float] = Field(None, ge=0, le=100)
+
+class AssessmentWeightResponse(AssessmentWeightBase):
+    id: int
+    subject_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# CO-PO Matrix schemas
+class COPOMatrixBase(BaseModel):
+    co_code: str = Field(..., max_length=10)
+    po_code: str = Field(..., max_length=10)
+    strength: int = Field(..., ge=1, le=3)
+
+class COPOMatrixCreate(COPOMatrixBase):
+    subject_id: int
+
+class COPOMatrixUpdate(BaseModel):
+    co_code: Optional[str] = Field(None, max_length=10)
+    po_code: Optional[str] = Field(None, max_length=10)
+    strength: Optional[int] = Field(None, ge=1, le=3)
+
+class COPOMatrixResponse(COPOMatrixBase):
+    id: int
+    subject_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Question CO Weight schemas
+class QuestionCOWeightBase(BaseModel):
+    co_code: str = Field(..., max_length=10)
+    weight_pct: float = Field(..., ge=0, le=100)
+
+class QuestionCOWeightCreate(QuestionCOWeightBase):
+    question_id: int
+
+class QuestionCOWeightUpdate(BaseModel):
+    co_code: Optional[str] = Field(None, max_length=10)
+    weight_pct: Optional[float] = Field(None, ge=0, le=100)
+
+class QuestionCOWeightResponse(QuestionCOWeightBase):
+    id: int
+    question_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Indirect Attainment schemas
+class IndirectAttainmentBase(BaseModel):
+    source: str = Field(..., max_length=100)
+    po_code: Optional[str] = Field(None, max_length=10)
+    co_code: Optional[str] = Field(None, max_length=10)
+    value_pct: float = Field(..., ge=0, le=100)
+    term: Optional[str] = Field(None, max_length=20)
+
+class IndirectAttainmentCreate(IndirectAttainmentBase):
+    subject_id: int
+
+class IndirectAttainmentUpdate(BaseModel):
+    source: Optional[str] = Field(None, max_length=100)
+    po_code: Optional[str] = Field(None, max_length=10)
+    co_code: Optional[str] = Field(None, max_length=10)
+    value_pct: Optional[float] = Field(None, ge=0, le=100)
+    term: Optional[str] = Field(None, max_length=20)
+
+class IndirectAttainmentResponse(IndirectAttainmentBase):
+    id: int
+    subject_id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Attainment Analytics schemas
+class COAttainmentDetail(BaseModel):
+    co_code: str
+    target_pct: float
+    actual_pct: float
+    level: str  # L1, L2, L3
+    gap: float
+    coverage: float
+    evidence: List[Dict[str, Any]]  # Question details
+
+class POAttainmentDetail(BaseModel):
+    po_code: str
+    direct_pct: float
+    indirect_pct: float
+    total_pct: float
+    level: str
+    gap: float
+    contributing_cos: List[str]
+
+class SubjectAttainmentResponse(BaseModel):
+    subject_id: int
+    subject_name: str
+    co_attainment: List[COAttainmentDetail]
+    po_attainment: List[POAttainmentDetail]
+    blooms_distribution: Dict[str, Any]
+    difficulty_mix: Dict[str, Any]
+    co_coverage: float
+
+class StudentAttainmentResponse(BaseModel):
+    student_id: int
+    student_name: str
+    subject_id: int
+    subject_name: str
+    co_attainment: List[Dict[str, Any]]  # Per CO attainment by assessment
+    evidence: List[Dict[str, Any]]  # Question evidence
+
+class ClassAttainmentResponse(BaseModel):
+    class_id: int
+    class_name: str
+    term: str
+    co_attainment: List[COAttainmentDetail]
+    po_attainment: List[POAttainmentDetail]
+    student_count: int
+    pass_rate: float
+
+class ProgramAttainmentResponse(BaseModel):
+    department_id: int
+    department_name: str
+    year: int
+    po_attainment: List[POAttainmentDetail]
+    program_kpis: Dict[str, Any]
+    cohort_analysis: Dict[str, Any]
+
+# Bulk operations schemas
+class BulkCOTargetUpdate(BaseModel):
+    subject_id: int
+    co_targets: List[COTargetCreate]
+
+class BulkAssessmentWeightUpdate(BaseModel):
+    subject_id: int
+    assessment_weights: List[AssessmentWeightCreate]
+
+class BulkCOPOMatrixUpdate(BaseModel):
+    subject_id: int
+    co_po_matrix: List[COPOMatrixCreate]
+
+class BulkQuestionCOWeightUpdate(BaseModel):
+    question_id: int
+    co_weights: List[QuestionCOWeightCreate]

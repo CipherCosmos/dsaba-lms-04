@@ -1,0 +1,407 @@
+{
+  "project_name": "Internal Exam Management System",
+  "test_type": "backend",
+  "test_plan": [
+    {
+      "test_id": "auth_001",
+      "test_name": "User Authentication - Login Success",
+      "description": "Test successful user login with valid credentials",
+      "endpoint": "POST /auth/login",
+      "test_data": {
+        "username": "admin",
+        "password": "admin123"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "access_token": "string",
+        "token_type": "bearer",
+        "user": {
+          "id": "number",
+          "username": "admin",
+          "role": "admin"
+        }
+      }
+    },
+    {
+      "test_id": "auth_002",
+      "test_name": "User Authentication - Login Failure",
+      "description": "Test login failure with invalid credentials",
+      "endpoint": "POST /auth/login",
+      "test_data": {
+        "username": "invalid",
+        "password": "invalid"
+      },
+      "expected_status": 401,
+      "expected_response": {
+        "detail": "Incorrect username or password"
+      }
+    },
+    {
+      "test_id": "auth_003",
+      "test_name": "Get Current User Info",
+      "description": "Test getting current user information with valid token",
+      "endpoint": "GET /auth/me",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "id": "number",
+        "username": "string",
+        "email": "string",
+        "role": "string"
+      }
+    },
+    {
+      "test_id": "users_001",
+      "test_name": "Get All Users",
+      "description": "Test retrieving all users with admin access",
+      "endpoint": "GET /users",
+      "headers": {
+        "Authorization": "Bearer {admin_token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "username": "string",
+          "email": "string",
+          "role": "string"
+        }
+      }
+    },
+    {
+      "test_id": "users_002",
+      "test_name": "Create New User",
+      "description": "Test creating a new user with admin access",
+      "endpoint": "POST /users",
+      "headers": {
+        "Authorization": "Bearer {admin_token}"
+      },
+      "test_data": {
+        "username": "testuser",
+        "email": "test@example.com",
+        "first_name": "Test",
+        "last_name": "User",
+        "role": "student",
+        "password": "password123"
+      },
+      "expected_status": 201,
+      "expected_response": {
+        "id": "number",
+        "username": "testuser",
+        "email": "test@example.com",
+        "role": "student"
+      }
+    },
+    {
+      "test_id": "departments_001",
+      "test_name": "Get All Departments",
+      "description": "Test retrieving all departments",
+      "endpoint": "GET /departments",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "name": "string",
+          "code": "string"
+        }
+      }
+    },
+    {
+      "test_id": "departments_002",
+      "test_name": "Create Department",
+      "description": "Test creating a new department",
+      "endpoint": "POST /departments",
+      "headers": {
+        "Authorization": "Bearer {admin_token}"
+      },
+      "test_data": {
+        "name": "Test Department",
+        "code": "TEST"
+      },
+      "expected_status": 201,
+      "expected_response": {
+        "id": "number",
+        "name": "Test Department",
+        "code": "TEST"
+      }
+    },
+    {
+      "test_id": "classes_001",
+      "test_name": "Get All Classes",
+      "description": "Test retrieving all classes",
+      "endpoint": "GET /classes",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "name": "string",
+          "department_id": "number",
+          "semester": "number",
+          "section": "string"
+        }
+      }
+    },
+    {
+      "test_id": "subjects_001",
+      "test_name": "Get All Subjects",
+      "description": "Test retrieving all subjects",
+      "endpoint": "GET /subjects",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "name": "string",
+          "code": "string",
+          "class_id": "number",
+          "credits": "number"
+        }
+      }
+    },
+    {
+      "test_id": "exams_001",
+      "test_name": "Get All Exams",
+      "description": "Test retrieving all exams",
+      "endpoint": "GET /exams",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "name": "string",
+          "subject_id": "number",
+          "exam_type": "string",
+          "total_marks": "number"
+        }
+      }
+    },
+    {
+      "test_id": "exams_002",
+      "test_name": "Create Exam",
+      "description": "Test creating a new exam",
+      "endpoint": "POST /exams",
+      "headers": {
+        "Authorization": "Bearer {teacher_token}"
+      },
+      "test_data": {
+        "name": "Test Exam",
+        "subject_id": 1,
+        "exam_type": "internal1",
+        "total_marks": 100,
+        "questions": [
+          {
+            "question_number": "1",
+            "max_marks": 50,
+            "section": "A",
+            "blooms_level": "L1",
+            "difficulty": "easy"
+          }
+        ]
+      },
+      "expected_status": 201,
+      "expected_response": {
+        "id": "number",
+        "name": "Test Exam",
+        "subject_id": 1,
+        "exam_type": "internal1"
+      }
+    },
+    {
+      "test_id": "marks_001",
+      "test_name": "Get Marks by Exam",
+      "description": "Test retrieving marks for a specific exam",
+      "endpoint": "GET /marks/exam/{exam_id}",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "exam_id": "number",
+          "student_id": "number",
+          "question_id": "number",
+          "marks_obtained": "number"
+        }
+      }
+    },
+    {
+      "test_id": "marks_002",
+      "test_name": "Bulk Create Marks",
+      "description": "Test bulk creation of marks",
+      "endpoint": "POST /marks/bulk",
+      "headers": {
+        "Authorization": "Bearer {teacher_token}"
+      },
+      "test_data": [
+        {
+          "exam_id": 1,
+          "student_id": 1,
+          "question_id": 1,
+          "marks_obtained": 45
+        }
+      ],
+      "expected_status": 201,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "exam_id": 1,
+          "student_id": 1,
+          "marks_obtained": 45
+        }
+      }
+    },
+    {
+      "test_id": "analytics_001",
+      "test_name": "Get Student Analytics",
+      "description": "Test retrieving student analytics",
+      "endpoint": "GET /analytics/student/{student_id}",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "percentage": "number",
+        "rank": "number",
+        "total_marks": "number",
+        "performance_trend": "array",
+        "co_attainment": "object",
+        "po_attainment": "object"
+      }
+    },
+    {
+      "test_id": "analytics_002",
+      "test_name": "Get Teacher Analytics",
+      "description": "Test retrieving teacher analytics",
+      "endpoint": "GET /analytics/teacher/{teacher_id}",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "class_performance": "object",
+        "question_analysis": "array",
+        "co_po_attainment": "object"
+      }
+    },
+    {
+      "test_id": "analytics_003",
+      "test_name": "Get HOD Analytics",
+      "description": "Test retrieving HOD analytics",
+      "endpoint": "GET /analytics/hod/{department_id}",
+      "headers": {
+        "Authorization": "Bearer {hod_token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "department_overview": "object",
+        "subject_performance": "array",
+        "teacher_performance": "array"
+      }
+    },
+    {
+      "test_id": "dashboard_001",
+      "test_name": "Get Dashboard Stats",
+      "description": "Test retrieving dashboard statistics",
+      "endpoint": "GET /dashboard/stats",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "stats": "object",
+        "recent_activity": "array"
+      }
+    },
+    {
+      "test_id": "co_po_001",
+      "test_name": "Get Subject COs",
+      "description": "Test retrieving CO definitions for a subject",
+      "endpoint": "GET /subjects/{subject_id}/cos",
+      "headers": {
+        "Authorization": "Bearer {token}"
+      },
+      "expected_status": 200,
+      "expected_response": {
+        "type": "array",
+        "items": {
+          "id": "number",
+          "code": "string",
+          "title": "string",
+          "subject_id": "number"
+        }
+      }
+    },
+    {
+      "test_id": "co_po_002",
+      "test_name": "Create CO Definition",
+      "description": "Test creating a new CO definition",
+      "endpoint": "POST /subjects/{subject_id}/cos",
+      "headers": {
+        "Authorization": "Bearer {teacher_token}"
+      },
+      "test_data": {
+        "code": "CO1",
+        "title": "Test CO",
+        "description": "Test CO description"
+      },
+      "expected_status": 201,
+      "expected_response": {
+        "id": "number",
+        "code": "CO1",
+        "title": "Test CO",
+        "subject_id": "number"
+      }
+    },
+    {
+      "test_id": "reports_001",
+      "test_name": "Generate Report",
+      "description": "Test generating a report",
+      "endpoint": "POST /reports/generate",
+      "headers": {
+        "Authorization": "Bearer {admin_token}"
+      },
+      "test_data": {
+        "report_type": "student_performance",
+        "filters": {},
+        "format": "pdf"
+      },
+      "expected_status": 202,
+      "expected_response": {
+        "task_id": "string",
+        "status": "started",
+        "message": "string"
+      }
+    },
+    {
+      "test_id": "health_001",
+      "test_name": "Health Check",
+      "description": "Test system health check",
+      "endpoint": "GET /health",
+      "expected_status": 200,
+      "expected_response": {
+        "status": "healthy",
+        "timestamp": "string"
+      }
+    }
+  ]
+}

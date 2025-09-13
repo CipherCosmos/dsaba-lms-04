@@ -5,8 +5,8 @@ import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale } from 'chart.js'
-import { Line, Bar, Doughnut, Radar } from 'react-chartjs-2'
-import { TrendingUp, Award, Target, BookOpen, Star, AlertCircle, Trophy, Brain, Calendar, Download, Eye } from 'lucide-react'
+import { Line, Doughnut, Radar } from 'react-chartjs-2'
+import { TrendingUp, Award, BookOpen, Star, AlertCircle, Trophy, Brain, Target, Download } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
@@ -26,7 +26,7 @@ const StudentAnalytics = () => {
   const { studentAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
   const { subjects } = useSelector((state: RootState) => state.subjects)
-  const { exams } = useSelector((state: RootState) => state.exams)
+  const { } = useSelector((state: RootState) => state.exams)
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedSubject, setSelectedSubject] = useState('')
 
@@ -39,9 +39,6 @@ const StudentAnalytics = () => {
   }, [dispatch, user])
 
   const classSubjects = subjects.filter(s => s.class_id === user?.class_id)
-  const studentExams = exams.filter(exam => 
-    classSubjects.some(subject => subject.id === exam.subject_id)
-  )
 
   if (loading && !studentAnalytics) {
     return (
@@ -198,7 +195,6 @@ const StudentAnalytics = () => {
   const coPerformance = Object.entries(studentAnalytics.co_attainment)
   const strengths = coPerformance.filter(([_, score]) => score >= 80).map(([co, _]) => co)
   const weaknesses = coPerformance.filter(([_, score]) => score < 60).map(([co, _]) => co)
-  const improving = coPerformance.filter(([_, score]) => score >= 60 && score < 80).map(([co, _]) => co)
 
   // Study recommendations based on performance
   const getStudyRecommendations = () => {
@@ -547,7 +543,7 @@ const StudentAnalytics = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {subjectPerformance.map((subject, index) => (
+              {subjectPerformance.map((subject, index) => subject && (
                 <div key={index} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>

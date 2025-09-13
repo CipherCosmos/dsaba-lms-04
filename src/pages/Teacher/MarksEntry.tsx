@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchExams } from '../../store/slices/examSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchMarksByExam, saveMarks } from '../../store/slices/marksSlice'
-import { Download, Upload, Save, Edit3, Users, FileSpreadsheet } from 'lucide-react'
+import { 
+  Download, Upload, Save, Edit3, Users, FileSpreadsheet, 
+  Search, Filter, CheckCircle, AlertTriangle, TrendingUp, 
+  Calculator, Target, Award, Clock, BookOpen, BarChart3 
+} from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 const MarksEntry = () => {
@@ -21,6 +24,12 @@ const MarksEntry = () => {
   const [selectedExam, setSelectedExam] = useState<any>(null)
   const [marksData, setMarksData] = useState<any[]>([])
   const [students, setStudents] = useState<any[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState<'name' | 'total' | 'percentage'>('name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [showStats, setShowStats] = useState(true)
+  const [autoSave, setAutoSave] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
   useEffect(() => {
     dispatch(fetchExams())
@@ -29,10 +38,84 @@ const MarksEntry = () => {
   }, [dispatch])
 
   // Filter exams for current teacher
-  const teacherSubjects = subjects.filter(s => s.teacher_id === user?.id)
-  const teacherExams = exams.filter(exam => 
-    teacherSubjects.some(subject => subject.id === exam.subject_id)
+  const teacherSubjects = useMemo(() => 
+    subjects.filter(s => s.teacher_id === user?.id),
+    [subjects, user?.id]
   )
+  
+  const teacherExams = useMemo(() => 
+    exams.filter(exam => 
+      teacherSubjects.some(subject => subject.id === exam.subject_id)
+    ),
+    [exams, teacherSubjects]
+  )
+
+  // Filter and sort students
+  const filteredAndSortedStudents = useMemo(() => {
+    let filtered = marksData.filter(student =>
+      student.student_name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    filtered.sort((a, b) => {
+      let aValue, bValue
+      switch (sortBy) {
+        case 'name':
+          aValue = a.student_name
+          bValue = b.student_name
+          break
+        case 'total':
+          aValue = a.total
+          bValue = b.total
+          break
+        case 'percentage':
+          aValue = selectedExam?.total_marks > 0 ? (a.total / selectedExam.total_marks) * 100 : 0
+          bValue = selectedExam?.total_marks > 0 ? (b.total / selectedExam.total_marks) * 100 : 0
+          break
+        default:
+          return 0
+      }
+
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1
+      } else {
+        return aValue < bValue ? 1 : -1
+      }
+    })
+
+    return filtered
+  }, [marksData, searchTerm, sortBy, sortOrder, selectedExam])
+
+  // Calculate statistics
+  const statistics = useMemo(() => {
+    if (!marksData.length || !selectedExam) return null
+
+    const totalStudents = marksData.length
+    const totalMarks = selectedExam.total_marks
+    const averageMarks = marksData.reduce((sum, s) => sum + s.total, 0) / totalStudents
+    const averagePercentage = totalMarks > 0 ? (averageMarks / totalMarks) * 100 : 0
+    
+    const passedStudents = marksData.filter(s => 
+      totalMarks > 0 && (s.total / totalMarks) * 100 >= 50
+    ).length
+    
+    const passRate = (passedStudents / totalStudents) * 100
+
+    const gradeDistribution = {
+      A: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 90).length,
+      B: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 80 && (s.total / totalMarks) * 100 < 90).length,
+      C: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 70 && (s.total / totalMarks) * 100 < 80).length,
+      D: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 60 && (s.total / totalMarks) * 100 < 70).length,
+      F: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 < 60).length
+    }
+
+    return {
+      totalStudents,
+      averageMarks: averageMarks.toFixed(1),
+      averagePercentage: averagePercentage.toFixed(1),
+      passRate: passRate.toFixed(1),
+      gradeDistribution
+    }
+  }, [marksData, selectedExam])
 
   const handleExamSelect = async (exam: any) => {
     setSelectedExam(exam)
@@ -50,7 +133,7 @@ const MarksEntry = () => {
       
       // Initialize marks data structure
       const initialMarksData = classStudents.map(student => {
-        const studentMarks = {}
+        const studentMarks: { [key: number]: number } = {}
         exam.questions?.forEach((question: any) => {
           const existingMark = marks.find(m => 
             m.student_id === student.id && m.question_id === question.id
@@ -79,7 +162,25 @@ const MarksEntry = () => {
       }
       return student
     }))
+
+    // Auto-save if enabled
+    if (autoSave) {
+      setTimeout(() => {
+        handleSaveMarks()
+      }, 2000) // Auto-save after 2 seconds of inactivity
+    }
   }
+
+  // Auto-save effect
+  useEffect(() => {
+    if (autoSave && marksData.length > 0) {
+      const timer = setTimeout(() => {
+        handleSaveMarks()
+      }, 5000) // Auto-save every 5 seconds
+
+      return () => clearTimeout(timer)
+    }
+  }, [marksData, autoSave])
 
   const handleSaveMarks = async () => {
     if (!selectedExam) return
@@ -99,9 +200,16 @@ const MarksEntry = () => {
       }
 
       await dispatch(saveMarks(marksToSave)).unwrap()
-      toast.success('Marks saved successfully!')
+      setLastSaved(new Date())
+      toast.success('Marks saved successfully!', {
+        icon: <CheckCircle className="w-5 h-5 text-green-600" />,
+        duration: 3000
+      })
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save marks')
+      toast.error(error.message || 'Failed to save marks', {
+        icon: <AlertTriangle className="w-5 h-5 text-red-600" />,
+        duration: 5000
+      })
     }
   }
 
@@ -152,8 +260,8 @@ const MarksEntry = () => {
             
             selectedExam.questions?.forEach((question: any) => {
               const columnName = `Q${question.question_number} (${question.max_marks})`
-              if (uploadedRow[columnName] !== undefined) {
-                updatedMarks[question.id] = Number(uploadedRow[columnName]) || 0
+              if (uploadedRow[columnName as keyof typeof uploadedRow] !== undefined) {
+                updatedMarks[question.id] = Number(uploadedRow[columnName as keyof typeof uploadedRow]) || 0
               }
             })
             
@@ -203,8 +311,12 @@ const MarksEntry = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Marks Entry</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Marks Entry</h1>
+          <p className="text-gray-600 mt-1">Enter and manage student marks efficiently</p>
+        </div>
         <div className="flex space-x-3">
           {selectedExam && (
             <>
@@ -239,6 +351,42 @@ const MarksEntry = () => {
         </div>
       </div>
 
+      {/* Quick Stats Bar */}
+      {selectedExam && statistics && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Users className="w-5 h-5 text-blue-600 mr-2" />
+                <span className="text-2xl font-bold text-gray-900">{statistics.totalStudents}</span>
+              </div>
+              <p className="text-sm text-gray-600">Students</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Calculator className="w-5 h-5 text-green-600 mr-2" />
+                <span className="text-2xl font-bold text-gray-900">{statistics.averageMarks}</span>
+              </div>
+              <p className="text-sm text-gray-600">Avg Marks</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center mb-2">
+                <TrendingUp className="w-5 h-5 text-purple-600 mr-2" />
+                <span className="text-2xl font-bold text-gray-900">{statistics.averagePercentage}%</span>
+              </div>
+              <p className="text-sm text-gray-600">Avg %</p>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center mb-2">
+                <Award className="w-5 h-5 text-orange-600 mr-2" />
+                <span className="text-2xl font-bold text-gray-900">{statistics.passRate}%</span>
+              </div>
+              <p className="text-sm text-gray-600">Pass Rate</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Exam Selection */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Exam</h3>
@@ -271,14 +419,97 @@ const MarksEntry = () => {
       {selectedExam && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {selectedExam.name} - Marks Entry
-            </h3>
-            <div className="flex items-center space-x-2">
-              <Users size={16} className="text-gray-600" />
-              <span className="text-sm text-gray-600">{students.length} students</span>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {selectedExam.name} - Marks Entry
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {students.length} students • {selectedExam.questions?.length || 0} questions • {selectedExam.total_marks} total marks
+              </p>
+            </div>
+            <div className="flex items-center space-x-4">
+              {lastSaved && (
+                <div className="text-xs text-gray-500">
+                  Last saved: {lastSaved.toLocaleTimeString()}
+                </div>
+              )}
+              <div className="flex items-center space-x-2">
+                <Users size={16} className="text-gray-600" />
+                <span className="text-sm text-gray-600">{students.length} students</span>
+              </div>
             </div>
           </div>
+
+          {/* Search and Filter Controls */}
+          <div className="mb-6 flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-field pl-10 w-full"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'total' | 'percentage')}
+                className="input-field"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="total">Sort by Total</option>
+                <option value="percentage">Sort by %</option>
+              </select>
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="btn-secondary px-3"
+              >
+                {sortOrder === 'asc' ? '↑' : '↓'}
+              </button>
+              <button
+                onClick={() => setShowStats(!showStats)}
+                className={`btn-secondary px-3 ${showStats ? 'bg-blue-100 text-blue-700' : ''}`}
+              >
+                <BarChart3 size={16} />
+              </button>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSave}
+                  onChange={(e) => setAutoSave(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm text-gray-600">Auto-save</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Grade Distribution Chart */}
+          {showStats && statistics && (
+            <div className="mb-6 bg-gray-50 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Grade Distribution</h4>
+              <div className="grid grid-cols-5 gap-4">
+                {Object.entries(statistics.gradeDistribution).map(([grade, count]) => (
+                  <div key={grade} className="text-center">
+                    <div className={`text-2xl font-bold ${
+                      grade === 'A' ? 'text-green-600' :
+                      grade === 'B' ? 'text-blue-600' :
+                      grade === 'C' ? 'text-yellow-600' :
+                      grade === 'D' ? 'text-orange-600' :
+                      'text-red-600'
+                    }`}>
+                      {count}
+                    </div>
+                    <div className="text-xs text-gray-600">Grade {grade}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -300,7 +531,7 @@ const MarksEntry = () => {
                 </tr>
               </thead>
               <tbody>
-                {marksData.map((student, index) => (
+                {filteredAndSortedStudents.map((student) => (
                   <tr key={student.student_id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 sticky left-0 bg-white">
                       <div>
@@ -310,19 +541,37 @@ const MarksEntry = () => {
                     </td>
                     {selectedExam.questions?.map((question: any) => (
                       <td key={question.id} className="py-3 px-4 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max={question.max_marks}
-                          step="0.5"
-                          value={student.marks[question.id] || ''}
-                          onChange={(e) => handleMarksChange(
-                            student.student_id,
-                            question.id,
-                            parseFloat(e.target.value) || 0
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max={question.max_marks}
+                            step="0.5"
+                            value={student.marks[question.id] || ''}
+                            onChange={(e) => handleMarksChange(
+                              student.student_id,
+                              question.id,
+                              parseFloat(e.target.value) || 0
+                            )}
+                            className={`w-16 input-field text-center ${
+                              student.marks[question.id] > question.max_marks
+                                ? 'border-red-300 bg-red-50'
+                                : student.marks[question.id] === question.max_marks
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
+                            placeholder="0"
+                          />
+                          {student.marks[question.id] > question.max_marks && (
+                            <AlertTriangle className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-4 h-4 text-red-500" />
                           )}
-                          className="w-16 input-field text-center"
-                        />
+                          {student.marks[question.id] === question.max_marks && (
+                            <CheckCircle className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-500" />
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          /{question.max_marks}
+                        </div>
                       </td>
                     ))}
                     <td className="py-3 px-4 text-center font-medium">

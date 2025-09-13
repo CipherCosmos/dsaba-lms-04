@@ -6,8 +6,8 @@ import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale } from 'chart.js'
-import { Bar, Line, Doughnut, Radar } from 'react-chartjs-2'
-import { Users, BookOpen, TrendingUp, Award, Target, AlertTriangle, CheckCircle, Star, Download, Filter } from 'lucide-react'
+import { Bar, Doughnut } from 'react-chartjs-2'
+import { Users, BookOpen, TrendingUp, Award, Target, AlertTriangle, CheckCircle, Star, Download, Filter, Clock } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
@@ -27,11 +27,10 @@ const HODAnalytics = () => {
   const { hodAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
   const { departments } = useSelector((state: RootState) => state.departments)
-  const { users } = useSelector((state: RootState) => state.users)
-  const { subjects } = useSelector((state: RootState) => state.subjects)
+  const { } = useSelector((state: RootState) => state.users)
   const [activeTab, setActiveTab] = useState('overview')
-  const [selectedTeacher, setSelectedTeacher] = useState('')
   const [selectedSubject, setSelectedSubject] = useState('')
+  // Removed unused state variables
 
   useEffect(() => {
     if (user?.department_id) {
@@ -43,8 +42,6 @@ const HODAnalytics = () => {
   }, [dispatch, user])
 
   const department = departments.find(d => d.id === user?.department_id)
-  const departmentTeachers = users.filter(u => u.role === 'teacher' && u.department_id === user?.department_id)
-  const departmentStudents = users.filter(u => u.role === 'student' && u.department_id === user?.department_id)
 
   if (loading && !hodAnalytics) {
     return (
@@ -435,11 +432,11 @@ const HODAnalytics = () => {
                       <td className="py-3 px-4">
                         <div>
                           <p className="font-medium text-gray-900">{subject.subject_name}</p>
-                          <p className="text-sm text-gray-600">{subject.subject_code}</p>
+                          <p className="text-sm text-gray-600">{subject.subject_name}</p>
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <p className="text-sm text-gray-900">{subject.teacher_name}</p>
+                        <p className="text-sm text-gray-900">N/A</p>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`font-semibold ${
@@ -571,7 +568,7 @@ const HODAnalytics = () => {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="font-medium">{teacher.total_students || 'N/A'}</span>
+                        <span className="font-medium">N/A</span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`font-semibold ${

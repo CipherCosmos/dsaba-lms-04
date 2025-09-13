@@ -6,7 +6,7 @@ import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import toast from 'react-hot-toast'
-import { Download, FileText, Calendar, Filter, Users, BookOpen, Award, BarChart3, Settings } from 'lucide-react'
+import { Download, FileText, Filter, Users, BookOpen, Award, BarChart3 } from 'lucide-react'
 import { format } from 'date-fns'
 
 const Reports = () => {
@@ -27,7 +27,6 @@ const Reports = () => {
     format: 'pdf'
   })
   const [generating, setGenerating] = useState(false)
-  const [reportTemplates, setReportTemplates] = useState([])
 
   useEffect(() => {
     dispatch(fetchSubjects())
@@ -38,8 +37,8 @@ const Reports = () => {
 
   const loadReportTemplates = async () => {
     try {
-      const templates = await analyticsAPI.getReportTemplates()
-      setReportTemplates(templates)
+      // const templates = await analyticsAPI.getReportTemplates()
+      // setReportTemplates(templates)
     } catch (error) {
       console.error('Failed to load report templates:', error)
     }

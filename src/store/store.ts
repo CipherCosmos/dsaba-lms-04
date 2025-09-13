@@ -7,6 +7,8 @@ import subjectReducer from './slices/subjectSlice'
 import examReducer from './slices/examSlice'
 import marksReducer from './slices/marksSlice'
 import analyticsReducer from './slices/analyticsSlice'
+import copoReducer from './slices/copoSlice'
+import advancedAnalyticsReducer from './slices/advancedAnalyticsSlice'
 
 export const store = configureStore({
   reducer: {
@@ -18,6 +20,8 @@ export const store = configureStore({
     exams: examReducer,
     marks: marksReducer,
     analytics: analyticsReducer,
+    copo: copoReducer,
+    advancedAnalytics: advancedAnalyticsReducer,
   },
 })
 

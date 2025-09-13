@@ -13,7 +13,7 @@ import {
 } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
-import { Plus, Edit2, Trash2, BookOpen, User, Award } from 'lucide-react'
+import { Plus, Edit2, Trash2, BookOpen, User } from 'lucide-react'
 
 const schema = yup.object({
   name: yup.string().required('Subject name is required'),
@@ -42,8 +42,7 @@ const SubjectManagement = () => {
     handleSubmit,
     formState: { errors },
     reset,
-    setValue,
-    watch
+    setValue
   } = useForm<SubjectForm>({
     resolver: yupResolver(schema),
   })
@@ -61,8 +60,9 @@ const SubjectManagement = () => {
       // Process CO and PO mappings
       const processedData = {
         ...data,
-        cos: typeof data.cos === 'string' ? data.cos.split(',').map(s => s.trim()).filter(s => s) : data.cos || [],
-        pos: typeof data.pos === 'string' ? data.pos.split(',').map(s => s.trim()).filter(s => s) : data.pos || []
+        cos: Array.isArray(data.cos) ? data.cos.filter((item): item is string => typeof item === 'string') : [],
+        pos: Array.isArray(data.pos) ? data.pos.filter((item): item is string => typeof item === 'string') : [],
+        teacher_id: data.teacher_id || undefined
       }
 
       if (editingSubject) {

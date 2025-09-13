@@ -4,7 +4,7 @@ import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
-import { TrendingUp, Award, Target, BookOpen, Star, AlertCircle, Trophy, Brain, Calendar } from 'lucide-react'
+import { TrendingUp, Award, Target, BookOpen, Star, Trophy, Brain, Calendar } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const StudentDashboard = () => {
@@ -84,7 +84,7 @@ const StudentDashboard = () => {
       value: classSubjects.length,
       icon: BookOpen,
       color: 'bg-blue-100',
-      trend: `${Math.round(Math.random() * 2) + 4} active`,
+      trend: `${subjects.length} active`,
       href: '/student/subjects'
     },
   ]
@@ -223,7 +223,7 @@ const StudentDashboard = () => {
                     <p className="font-medium text-gray-900">{exam.name}</p>
                     <p className="text-sm text-gray-600">{subject?.name}</p>
                     <p className="text-xs text-blue-600">
-                      {new Date(exam.exam_date).toLocaleDateString()}
+                      {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'TBD'}
                     </p>
                   </div>
                 )

@@ -13,7 +13,7 @@ import {
 } from '../../store/slices/classSlice'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
-import { Plus, Edit2, Trash2, Users, BookOpen, GraduationCap } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, GraduationCap } from 'lucide-react'
 
 const schema = yup.object({
   name: yup.string().required('Class name is required'),

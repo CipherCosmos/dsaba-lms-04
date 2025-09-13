@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, and_, or_
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from models import *
 from schemas import *
 from auth import get_password_hash
@@ -203,6 +203,15 @@ def update_user(db: Session, user_id: int, user: UserUpdate):
     db.refresh(db_user)
     return db_user
 
+def update_user_password(db: Session, user_id: int, new_password: str):
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        return False
+    
+    db_user.hashed_password = get_password_hash(new_password)
+    db.commit()
+    return True
+
 def delete_user(db: Session, user_id: int):
     db_user = db.query(User).filter(User.id == user_id).first()
     if db_user:
@@ -271,8 +280,32 @@ def update_exam(db: Session, exam_id: int, exam: ExamUpdate):
         if isinstance(update_data['exam_date'], str):
             update_data['exam_date'] = datetime.fromisoformat(update_data['exam_date'].replace('Z', '+00:00'))
     
+    # Handle questions separately to avoid SQLAlchemy relationship issues
+    questions_data = update_data.pop('questions', None)
+    
     for field, value in update_data.items():
-        setattr(db_exam, field, value)
+        if hasattr(db_exam, field):
+            setattr(db_exam, field, value)
+    
+    # Handle questions update separately
+    if questions_data is not None:
+        # Delete existing questions
+        db.query(Question).filter(Question.exam_id == exam_id).delete()
+        
+        # Add new questions
+        for question_data in questions_data:
+            question = Question(
+                exam_id=exam_id,
+                question_number=question_data.get('question_number'),
+                max_marks=question_data.get('max_marks'),
+                co_mapping=question_data.get('co_mapping', []),
+                po_mapping=question_data.get('po_mapping', []),
+                section=question_data.get('section'),
+                blooms_level=question_data.get('blooms_level'),
+                difficulty=question_data.get('difficulty'),
+                co_weighting_mode=question_data.get('co_weighting_mode', 'equal_split')
+            )
+            db.add(question)
     
     db.commit()
     db.refresh(db_exam)
@@ -324,8 +357,6 @@ def get_student_marks_for_exam(db: Session, exam_id: int, student_id: int):
 
 def bulk_create_marks_db(db: Session, marks: List[MarkCreate]):
     try:
-        db.begin()
-        
         # Group marks by exam/student/question for efficient processing
         for mark_data in marks:
             # Validate mark against question max_marks
@@ -570,3 +601,683 @@ async def process_marks_excel_upload(file, exam_id: int, db: Session) -> List[Ma
                     continue  # Skip invalid marks
     
     return marks_data
+
+# CO/PO/PSO Framework CRUD Operations
+
+# CO Definition CRUD
+def get_co_definitions_by_subject(db: Session, subject_id: int) -> List[CODefinition]:
+    """Get all CO definitions for a subject"""
+    return db.query(CODefinition).filter(CODefinition.subject_id == subject_id).all()
+
+def get_co_definition_by_id(db: Session, co_id: int) -> Optional[CODefinition]:
+    """Get CO definition by ID"""
+    return db.query(CODefinition).filter(CODefinition.id == co_id).first()
+
+def create_co_definition(db: Session, co_definition: CODefinitionCreate) -> CODefinition:
+    """Create a new CO definition"""
+    db_co = CODefinition(**co_definition.dict())
+    db.add(db_co)
+    db.commit()
+    db.refresh(db_co)
+    return db_co
+
+def update_co_definition(db: Session, co_id: int, co_definition: CODefinitionUpdate) -> Optional[CODefinition]:
+    """Update CO definition"""
+    db_co = db.query(CODefinition).filter(CODefinition.id == co_id).first()
+    if not db_co:
+        return None
+    
+    update_data = co_definition.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_co, field, value)
+    
+    db.commit()
+    db.refresh(db_co)
+    return db_co
+
+def delete_co_definition(db: Session, co_id: int) -> bool:
+    """Delete CO definition"""
+    db_co = db.query(CODefinition).filter(CODefinition.id == co_id).first()
+    if db_co:
+        db.delete(db_co)
+        db.commit()
+        return True
+    return False
+
+# PO Definition CRUD
+def get_po_definitions_by_department(db: Session, department_id: int) -> List[PODefinition]:
+    """Get all PO definitions for a department"""
+    return db.query(PODefinition).filter(PODefinition.department_id == department_id).all()
+
+def get_po_definition_by_id(db: Session, po_id: int) -> Optional[PODefinition]:
+    """Get PO definition by ID"""
+    return db.query(PODefinition).filter(PODefinition.id == po_id).first()
+
+def create_po_definition(db: Session, po_definition: PODefinitionCreate) -> PODefinition:
+    """Create a new PO definition"""
+    db_po = PODefinition(**po_definition.dict())
+    db.add(db_po)
+    db.commit()
+    db.refresh(db_po)
+    return db_po
+
+def update_po_definition(db: Session, po_id: int, po_definition: PODefinitionUpdate) -> Optional[PODefinition]:
+    """Update PO definition"""
+    db_po = db.query(PODefinition).filter(PODefinition.id == po_id).first()
+    if not db_po:
+        return None
+    
+    update_data = po_definition.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_po, field, value)
+    
+    db.commit()
+    db.refresh(db_po)
+    return db_po
+
+def delete_po_definition(db: Session, po_id: int) -> bool:
+    """Delete PO definition"""
+    db_po = db.query(PODefinition).filter(PODefinition.id == po_id).first()
+    if db_po:
+        db.delete(db_po)
+        db.commit()
+        return True
+    return False
+
+# CO Target CRUD
+def get_co_targets_by_subject(db: Session, subject_id: int) -> List[COTarget]:
+    """Get all CO targets for a subject"""
+    return db.query(COTarget).filter(COTarget.subject_id == subject_id).all()
+
+def get_co_target_by_id(db: Session, target_id: int) -> Optional[COTarget]:
+    """Get CO target by ID"""
+    return db.query(COTarget).filter(COTarget.id == target_id).first()
+
+def create_co_target(db: Session, co_target: COTargetCreate) -> COTarget:
+    """Create a new CO target"""
+    db_target = COTarget(**co_target.dict())
+    db.add(db_target)
+    db.commit()
+    db.refresh(db_target)
+    return db_target
+
+def update_co_target(db: Session, target_id: int, co_target: COTargetUpdate) -> Optional[COTarget]:
+    """Update CO target"""
+    db_target = db.query(COTarget).filter(COTarget.id == target_id).first()
+    if not db_target:
+        return None
+    
+    update_data = co_target.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_target, field, value)
+    
+    db.commit()
+    db.refresh(db_target)
+    return db_target
+
+def delete_co_target(db: Session, target_id: int) -> bool:
+    """Delete CO target"""
+    db_target = db.query(COTarget).filter(COTarget.id == target_id).first()
+    if db_target:
+        db.delete(db_target)
+        db.commit()
+        return True
+    return False
+
+def bulk_update_co_targets(db: Session, subject_id: int, co_targets: List[COTargetCreate]) -> List[COTarget]:
+    """Bulk update CO targets for a subject"""
+    # Delete existing targets
+    db.query(COTarget).filter(COTarget.subject_id == subject_id).delete()
+    
+    # Create new targets
+    new_targets = []
+    for co_target in co_targets:
+        # Look up the co_id based on co_code and subject_id
+        co_definition = db.query(CODefinition).filter(
+            CODefinition.subject_id == subject_id,
+            CODefinition.code == co_target.co_code
+        ).first()
+        
+        if not co_definition:
+            raise ValueError(f"CO definition with code '{co_target.co_code}' not found for subject {subject_id}")
+        
+        # Create COTarget with co_id
+        db_target = COTarget(
+            subject_id=subject_id,
+            co_id=co_definition.id,
+            co_code=co_target.co_code,
+            target_pct=co_target.target_pct,
+            l1_threshold=co_target.l1_threshold,
+            l2_threshold=co_target.l2_threshold,
+            l3_threshold=co_target.l3_threshold
+        )
+        db.add(db_target)
+        new_targets.append(db_target)
+    
+    db.commit()
+    for target in new_targets:
+        db.refresh(target)
+    
+    return new_targets
+
+# Assessment Weight CRUD
+def get_assessment_weights_by_subject(db: Session, subject_id: int) -> List[AssessmentWeight]:
+    """Get all assessment weights for a subject"""
+    return db.query(AssessmentWeight).filter(AssessmentWeight.subject_id == subject_id).all()
+
+def get_assessment_weight_by_id(db: Session, weight_id: int) -> Optional[AssessmentWeight]:
+    """Get assessment weight by ID"""
+    return db.query(AssessmentWeight).filter(AssessmentWeight.id == weight_id).first()
+
+def create_assessment_weight(db: Session, assessment_weight: AssessmentWeightCreate) -> AssessmentWeight:
+    """Create a new assessment weight"""
+    db_weight = AssessmentWeight(**assessment_weight.dict())
+    db.add(db_weight)
+    db.commit()
+    db.refresh(db_weight)
+    return db_weight
+
+def update_assessment_weight(db: Session, weight_id: int, assessment_weight: AssessmentWeightUpdate) -> Optional[AssessmentWeight]:
+    """Update assessment weight"""
+    db_weight = db.query(AssessmentWeight).filter(AssessmentWeight.id == weight_id).first()
+    if not db_weight:
+        return None
+    
+    update_data = assessment_weight.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_weight, field, value)
+    
+    db.commit()
+    db.refresh(db_weight)
+    return db_weight
+
+def delete_assessment_weight(db: Session, weight_id: int) -> bool:
+    """Delete assessment weight"""
+    db_weight = db.query(AssessmentWeight).filter(AssessmentWeight.id == weight_id).first()
+    if db_weight:
+        db.delete(db_weight)
+        db.commit()
+        return True
+    return False
+
+def bulk_update_assessment_weights(db: Session, subject_id: int, assessment_weights: List[AssessmentWeightCreate]) -> List[AssessmentWeight]:
+    """Bulk update assessment weights for a subject"""
+    # Delete existing weights
+    db.query(AssessmentWeight).filter(AssessmentWeight.subject_id == subject_id).delete()
+    
+    # Create new weights
+    new_weights = []
+    for weight in assessment_weights:
+        weight.subject_id = subject_id
+        db_weight = AssessmentWeight(**weight.dict())
+        db.add(db_weight)
+        new_weights.append(db_weight)
+    
+    db.commit()
+    for weight in new_weights:
+        db.refresh(weight)
+    
+    return new_weights
+
+# CO-PO Matrix CRUD
+def get_co_po_matrix_by_subject(db: Session, subject_id: int) -> List[COPOMatrix]:
+    """Get all CO-PO matrix entries for a subject"""
+    return db.query(COPOMatrix).filter(COPOMatrix.subject_id == subject_id).all()
+
+def get_co_po_matrix_by_id(db: Session, matrix_id: int) -> Optional[COPOMatrix]:
+    """Get CO-PO matrix entry by ID"""
+    return db.query(COPOMatrix).filter(COPOMatrix.id == matrix_id).first()
+
+def create_co_po_matrix(db: Session, co_po_matrix: COPOMatrixCreate) -> COPOMatrix:
+    """Create a new CO-PO matrix entry"""
+    db_matrix = COPOMatrix(**co_po_matrix.dict())
+    db.add(db_matrix)
+    db.commit()
+    db.refresh(db_matrix)
+    return db_matrix
+
+def update_co_po_matrix(db: Session, matrix_id: int, co_po_matrix: COPOMatrixUpdate) -> Optional[COPOMatrix]:
+    """Update CO-PO matrix entry"""
+    db_matrix = db.query(COPOMatrix).filter(COPOMatrix.id == matrix_id).first()
+    if not db_matrix:
+        return None
+    
+    update_data = co_po_matrix.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_matrix, field, value)
+    
+    db.commit()
+    db.refresh(db_matrix)
+    return db_matrix
+
+def delete_co_po_matrix(db: Session, matrix_id: int) -> bool:
+    """Delete CO-PO matrix entry"""
+    db_matrix = db.query(COPOMatrix).filter(COPOMatrix.id == matrix_id).first()
+    if db_matrix:
+        db.delete(db_matrix)
+        db.commit()
+        return True
+    return False
+
+def bulk_update_co_po_matrix(db: Session, subject_id: int, co_po_matrix: List[COPOMatrixCreate]) -> List[COPOMatrix]:
+    """Bulk update CO-PO matrix for a subject"""
+    # Delete existing matrix entries
+    db.query(COPOMatrix).filter(COPOMatrix.subject_id == subject_id).delete()
+    
+    # Create new matrix entries
+    new_entries = []
+    for entry in co_po_matrix:
+        # Look up the co_id based on co_code and subject_id
+        co_definition = db.query(CODefinition).filter(
+            CODefinition.subject_id == subject_id,
+            CODefinition.code == entry.co_code
+        ).first()
+        
+        if not co_definition:
+            raise ValueError(f"CO definition with code '{entry.co_code}' not found for subject {subject_id}")
+        
+        # Look up the po_id based on po_code (POs are department-wide)
+        po_definition = db.query(PODefinition).filter(
+            PODefinition.code == entry.po_code
+        ).first()
+        
+        if not po_definition:
+            raise ValueError(f"PO definition with code '{entry.po_code}' not found")
+        
+        # Create COPOMatrix with co_id and po_id
+        db_entry = COPOMatrix(
+            subject_id=subject_id,
+            co_id=co_definition.id,
+            po_id=po_definition.id,
+            co_code=entry.co_code,
+            po_code=entry.po_code,
+            strength=entry.strength
+        )
+        db.add(db_entry)
+        new_entries.append(db_entry)
+    
+    db.commit()
+    for entry in new_entries:
+        db.refresh(entry)
+    
+    return new_entries
+
+# Question CO Weight CRUD
+def get_question_co_weights(db: Session, question_id: int) -> List[QuestionCOWeight]:
+    """Get all CO weights for a question"""
+    return db.query(QuestionCOWeight).filter(QuestionCOWeight.question_id == question_id).all()
+
+def get_question_co_weight_by_id(db: Session, weight_id: int) -> Optional[QuestionCOWeight]:
+    """Get question CO weight by ID"""
+    return db.query(QuestionCOWeight).filter(QuestionCOWeight.id == weight_id).first()
+
+def create_question_co_weight(db: Session, question_co_weight: QuestionCOWeightCreate) -> QuestionCOWeight:
+    """Create a new question CO weight"""
+    db_weight = QuestionCOWeight(**question_co_weight.dict())
+    db.add(db_weight)
+    db.commit()
+    db.refresh(db_weight)
+    return db_weight
+
+def update_question_co_weight(db: Session, weight_id: int, question_co_weight: QuestionCOWeightUpdate) -> Optional[QuestionCOWeight]:
+    """Update question CO weight"""
+    db_weight = db.query(QuestionCOWeight).filter(QuestionCOWeight.id == weight_id).first()
+    if not db_weight:
+        return None
+    
+    update_data = question_co_weight.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_weight, field, value)
+    
+    db.commit()
+    db.refresh(db_weight)
+    return db_weight
+
+def delete_question_co_weight(db: Session, weight_id: int) -> bool:
+    """Delete question CO weight"""
+    db_weight = db.query(QuestionCOWeight).filter(QuestionCOWeight.id == weight_id).first()
+    if db_weight:
+        db.delete(db_weight)
+        db.commit()
+        return True
+    return False
+
+def bulk_update_question_co_weights(db: Session, question_id: int, co_weights: List[QuestionCOWeightCreate]) -> List[QuestionCOWeight]:
+    """Bulk update CO weights for a question"""
+    # Delete existing weights
+    db.query(QuestionCOWeight).filter(QuestionCOWeight.question_id == question_id).delete()
+    
+    # Create new weights
+    new_weights = []
+    for weight in co_weights:
+        weight.question_id = question_id
+        db_weight = QuestionCOWeight(**weight.dict())
+        db.add(db_weight)
+        new_weights.append(db_weight)
+    
+    db.commit()
+    for weight in new_weights:
+        db.refresh(weight)
+    
+    return new_weights
+
+# Indirect Attainment CRUD
+def get_indirect_attainment_by_subject(db: Session, subject_id: int) -> List[IndirectAttainment]:
+    """Get all indirect attainment data for a subject"""
+    return db.query(IndirectAttainment).filter(IndirectAttainment.subject_id == subject_id).all()
+
+def get_indirect_attainment_by_id(db: Session, attainment_id: int) -> Optional[IndirectAttainment]:
+    """Get indirect attainment by ID"""
+    return db.query(IndirectAttainment).filter(IndirectAttainment.id == attainment_id).first()
+
+def create_indirect_attainment(db: Session, indirect_attainment: IndirectAttainmentCreate) -> IndirectAttainment:
+    """Create a new indirect attainment entry"""
+    db_attainment = IndirectAttainment(**indirect_attainment.dict())
+    db.add(db_attainment)
+    db.commit()
+    db.refresh(db_attainment)
+    return db_attainment
+
+def update_indirect_attainment(db: Session, attainment_id: int, indirect_attainment: IndirectAttainmentUpdate) -> Optional[IndirectAttainment]:
+    """Update indirect attainment"""
+    db_attainment = db.query(IndirectAttainment).filter(IndirectAttainment.id == attainment_id).first()
+    if not db_attainment:
+        return None
+    
+    update_data = indirect_attainment.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_attainment, field, value)
+    
+    db.commit()
+    db.refresh(db_attainment)
+    return db_attainment
+
+def delete_indirect_attainment(db: Session, attainment_id: int) -> bool:
+    """Delete indirect attainment"""
+    db_attainment = db.query(IndirectAttainment).filter(IndirectAttainment.id == attainment_id).first()
+    if db_attainment:
+        db.delete(db_attainment)
+        db.commit()
+        return True
+    return False
+
+# Attainment Audit CRUD
+def create_attainment_audit(db: Session, subject_id: int, change: str, user_id: int) -> AttainmentAudit:
+    """Create an audit entry for attainment changes"""
+    db_audit = AttainmentAudit(
+        subject_id=subject_id,
+        change=change,
+        user_id=user_id
+    )
+    db.add(db_audit)
+    db.commit()
+    db.refresh(db_audit)
+    return db_audit
+
+def get_attainment_audit_by_subject(db: Session, subject_id: int) -> List[AttainmentAudit]:
+    """Get audit trail for a subject"""
+    return db.query(AttainmentAudit).filter(AttainmentAudit.subject_id == subject_id).order_by(AttainmentAudit.timestamp.desc()).all()
+
+# CO-PO Analysis Functions
+def get_co_po_matrix_by_subject(db: Session, subject_id: int) -> List[Dict]:
+    """Get CO-PO mapping matrix for a subject"""
+    co_po_entries = db.query(COPOMatrix).options(
+        joinedload(COPOMatrix.co_definition),
+        joinedload(COPOMatrix.po_definition)
+    ).filter(COPOMatrix.subject_id == subject_id).all()
+    
+    # Group by CO
+    co_po_map = {}
+    for entry in co_po_entries:
+        co_code = entry.co_code
+        if co_code not in co_po_map:
+            co_po_map[co_code] = {
+                'co_code': co_code,
+                'co_title': entry.co_definition.title,
+                'mapped_pos': []
+            }
+        co_po_map[co_code]['mapped_pos'].append({
+            'po_code': entry.po_code,
+            'po_title': entry.po_definition.title,
+            'strength': entry.strength
+        })
+    
+    return list(co_po_map.values())
+
+def get_co_attainment_analysis_db(db: Session, subject_id: int, exam_type: str = "all") -> Dict:
+    """Get CO attainment analysis for a subject"""
+    # Get all COs for the subject
+    cos = db.query(CODefinition).filter(CODefinition.subject_id == subject_id).all()
+    
+    # Get exams based on type
+    exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
+    if exam_type != "all":
+        exam_query = exam_query.filter(Exam.exam_type == exam_type)
+    exams = exam_query.all()
+    
+    co_analysis = {}
+    for co in cos:
+        co_marks = []
+        total_marks = 0
+        target_marks = 0
+        
+        # Get CO target
+        co_target = db.query(COTarget).filter(
+            COTarget.subject_id == subject_id,
+            COTarget.co_code == co.code
+        ).first()
+        
+        if co_target:
+            target_marks = co_target.target_pct
+        
+        # Calculate attainment for each exam
+        for exam in exams:
+            # Get all marks for the exam and filter by CO mapping in Python
+            exam_marks = db.query(Mark).join(Question).filter(
+                Mark.exam_id == exam.id
+            ).all()
+            
+            # Filter marks where the question's co_mapping contains the CO code
+            exam_marks = [mark for mark in exam_marks 
+                         if mark.question.co_mapping and co.code in mark.question.co_mapping]
+            
+            if exam_marks:
+                total_obtained = sum(mark.marks_obtained for mark in exam_marks)
+                total_possible = sum(question.max_marks for question in exam.questions 
+                                  if co.code in (question.co_mapping or []))
+                
+                if total_possible > 0:
+                    attainment = (total_obtained / total_possible) * 100
+                    co_marks.append({
+                        'exam_id': exam.id,
+                        'exam_name': exam.name,
+                        'attainment': attainment,
+                        'obtained': total_obtained,
+                        'possible': total_possible
+                    })
+        
+        # Calculate overall attainment
+        overall_attainment = 0
+        if co_marks:
+            overall_attainment = sum(m['attainment'] for m in co_marks) / len(co_marks)
+        
+        co_analysis[co.code] = {
+            'co_code': co.code,
+            'co_title': co.title,
+            'target': target_marks,
+            'attainment': overall_attainment,
+            'status': 'Achieved' if overall_attainment >= target_marks else 'Not Achieved',
+            'exam_details': co_marks
+        }
+    
+    return co_analysis
+
+def get_po_attainment_analysis_db(db: Session, subject_id: int, exam_type: str = "all") -> Dict:
+    """Get PO attainment analysis for a subject"""
+    # Get CO-PO mappings for the subject
+    co_po_matrix = db.query(COPOMatrix).filter(COPOMatrix.subject_id == subject_id).all()
+    
+    # Get CO attainments
+    co_attainments = get_co_attainment_analysis_db(db, subject_id, exam_type)
+    
+    # Group POs by their mapped COs
+    po_analysis = {}
+    for entry in co_po_matrix:
+        po_code = entry.po_code
+        co_code = entry.co_code
+        strength = entry.strength
+        
+        if po_code not in po_analysis:
+            po_analysis[po_code] = {
+                'po_code': po_code,
+                'mapped_cos': [],
+                'weighted_attainment': 0,
+                'total_weight': 0
+            }
+        
+        if co_code in co_attainments:
+            co_attainment = co_attainments[co_code]['attainment']
+            po_analysis[po_code]['mapped_cos'].append({
+                'co_code': co_code,
+                'strength': strength,
+                'attainment': co_attainment
+            })
+            
+            # Calculate weighted attainment
+            po_analysis[po_code]['weighted_attainment'] += co_attainment * strength
+            po_analysis[po_code]['total_weight'] += strength
+    
+    # Calculate final PO attainments
+    for po_code, data in po_analysis.items():
+        if data['total_weight'] > 0:
+            data['attainment'] = data['weighted_attainment'] / data['total_weight']
+        else:
+            data['attainment'] = 0
+        
+        data['status'] = 'Achieved' if data['attainment'] >= 60 else 'Not Achieved'
+    
+    return po_analysis
+
+def get_student_performance_analysis_db(db: Session, subject_id: int, student_id: int = None, exam_type: str = "all") -> Dict:
+    """Get detailed student performance analysis"""
+    # Get subject and class
+    subject = db.query(Subject).filter(Subject.id == subject_id).first()
+    if not subject:
+        return {}
+    
+    # Get students (all or specific)
+    if student_id:
+        students = db.query(User).filter(User.id == student_id, User.role == 'student').all()
+    else:
+        students = db.query(User).filter(
+            User.class_id == subject.class_id, 
+            User.role == 'student'
+        ).all()
+    
+    # Get exams
+    exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
+    if exam_type != "all":
+        exam_query = exam_query.filter(Exam.exam_type == exam_type)
+    exams = exam_query.all()
+    
+    student_analysis = {}
+    for student in students:
+        student_marks = []
+        total_obtained = 0
+        total_possible = 0
+        
+        for exam in exams:
+            exam_marks = db.query(Mark).join(Question).filter(
+                Mark.exam_id == exam.id,
+                Mark.student_id == student.id
+            ).all()
+            
+            if exam_marks:
+                obtained = sum(mark.marks_obtained for mark in exam_marks)
+                possible = sum(question.max_marks for question in exam.questions)
+                
+                student_marks.append({
+                    'exam_id': exam.id,
+                    'exam_name': exam.name,
+                    'obtained': obtained,
+                    'possible': possible,
+                    'percentage': (obtained / possible * 100) if possible > 0 else 0
+                })
+                
+                total_obtained += obtained
+                total_possible += possible
+        
+        overall_percentage = (total_obtained / total_possible * 100) if total_possible > 0 else 0
+        
+        student_analysis[student.id] = {
+            'student_id': student.id,
+            'student_name': f"{student.first_name} {student.last_name}",
+            'overall_percentage': overall_percentage,
+            'total_obtained': total_obtained,
+            'total_possible': total_possible,
+            'exam_details': student_marks,
+            'grade': get_grade_from_percentage(overall_percentage)
+        }
+    
+    return student_analysis
+
+def get_class_performance_analysis_db(db: Session, subject_id: int, exam_type: str = "all") -> Dict:
+    """Get class performance analysis with comparative charts"""
+    # Get student performance
+    student_analysis = get_student_performance_analysis_db(db, subject_id, None, exam_type)
+    
+    if not student_analysis:
+        return {}
+    
+    # Calculate class statistics
+    percentages = [data['overall_percentage'] for data in student_analysis.values()]
+    
+    class_stats = {
+        'total_students': len(student_analysis),
+        'average_percentage': sum(percentages) / len(percentages) if percentages else 0,
+        'highest_percentage': max(percentages) if percentages else 0,
+        'lowest_percentage': min(percentages) if percentages else 0,
+        'pass_rate': len([p for p in percentages if p >= 50]) / len(percentages) * 100 if percentages else 0,
+        'grade_distribution': get_grade_distribution(percentages),
+        'performance_trends': get_performance_trends(student_analysis),
+        'student_rankings': sorted(student_analysis.values(), key=lambda x: x['overall_percentage'], reverse=True)
+    }
+    
+    return class_stats
+
+def get_grade_from_percentage(percentage: float) -> str:
+    """Convert percentage to grade"""
+    if percentage >= 90:
+        return 'A+'
+    elif percentage >= 80:
+        return 'A'
+    elif percentage >= 70:
+        return 'B+'
+    elif percentage >= 60:
+        return 'B'
+    elif percentage >= 50:
+        return 'C+'
+    elif percentage >= 40:
+        return 'C'
+    else:
+        return 'F'
+
+def get_grade_distribution(percentages: List[float]) -> Dict[str, int]:
+    """Get grade distribution from percentages"""
+    distribution = {'A+': 0, 'A': 0, 'B+': 0, 'B': 0, 'C+': 0, 'C': 0, 'F': 0}
+    
+    for percentage in percentages:
+        grade = get_grade_from_percentage(percentage)
+        distribution[grade] += 1
+    
+    return distribution
+
+def get_performance_trends(student_analysis: Dict) -> Dict:
+    """Get performance trends across exams"""
+    # This would analyze performance trends across different exams
+    # For now, return basic structure
+    return {
+        'improving_students': [],
+        'declining_students': [],
+        'consistent_students': []
+    }

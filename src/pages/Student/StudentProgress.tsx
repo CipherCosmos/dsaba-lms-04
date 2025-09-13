@@ -5,7 +5,7 @@ import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
-import { Line, Bar, Doughnut } from 'react-chartjs-2'
+import { Line, Doughnut } from 'react-chartjs-2'
 import { Target, TrendingUp, Award, Calendar, BookOpen, CheckCircle, AlertTriangle, Star, Clock, Trophy } from 'lucide-react'
 
 ChartJS.register(
@@ -24,8 +24,8 @@ const StudentProgress = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { studentAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
-  const { subjects } = useSelector((state: RootState) => state.subjects)
-  const { exams } = useSelector((state: RootState) => state.exams)
+  const { } = useSelector((state: RootState) => state.subjects)
+  const { } = useSelector((state: RootState) => state.exams)
 
   const [goals, setGoals] = useState([
     { id: 1, title: 'Achieve 85% overall', target: 85, current: 0, deadline: '2024-05-30', status: 'active' },
@@ -34,7 +34,13 @@ const StudentProgress = () => {
     { id: 4, title: 'Perfect attendance', target: 100, current: 95, deadline: '2024-06-30', status: 'active' }
   ])
 
-  const [milestones, setMilestones] = useState([
+  const [milestones, setMilestones] = useState<Array<{
+    id: number;
+    title: string;
+    achieved: boolean;
+    date: string | null;
+    description: string;
+  }>>([
     { id: 1, title: 'First A+ Grade', achieved: false, date: null, description: 'Score 90% or above in any exam' },
     { id: 2, title: 'Consistent Performer', achieved: false, date: null, description: 'Maintain 80%+ for 3 consecutive exams' },
     { id: 3, title: 'Subject Expert', achieved: false, date: null, description: 'Score 95%+ in any subject' },
@@ -100,12 +106,11 @@ const StudentProgress = () => {
             break
         }
         
-        return { ...milestone, achieved, date: milestone.date || date }
+        return { ...milestone, achieved, date: achieved ? date : null }
       }))
     }
   }, [studentAnalytics])
 
-  const classSubjects = subjects.filter(s => s.class_id === user?.class_id)
 
   if (loading && !studentAnalytics) {
     return (

@@ -1,6 +1,4 @@
 import { ReactNode } from 'react'
-import { useSelector } from 'react-redux'
-import { RootState } from '../../store/store'
 import Sidebar from './Sidebar'
 import Header from './Header'
 
@@ -9,7 +7,6 @@ interface LayoutProps {
 }
 
 const Layout = ({ children }: LayoutProps) => {
-  const { user } = useSelector((state: RootState) => state.auth)
 
   return (
     <div className="min-h-screen bg-gray-50">

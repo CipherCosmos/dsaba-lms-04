@@ -11,13 +11,25 @@ import DepartmentManagement from './pages/Admin/DepartmentManagement'
 import ClassManagement from './pages/Admin/ClassManagement'
 import SubjectManagement from './pages/Admin/SubjectManagement'
 import UserManagement from './pages/Admin/UserManagement'
+import COManagement from './pages/Admin/COManagement'
+import POManagement from './pages/Admin/POManagement'
+import COTargetsManagement from './pages/Admin/COTargetsManagement'
 import ExamConfiguration from './pages/Teacher/ExamConfiguration'
 import MarksEntry from './pages/Teacher/MarksEntry'
 import TeacherAnalytics from './pages/Teacher/TeacherAnalytics'
+import AttainmentAnalytics from './pages/Teacher/AttainmentAnalytics'
+import ComprehensiveAnalytics from './pages/Teacher/ComprehensiveAnalytics'
+import ReportManagement from './pages/Teacher/ReportManagement'
 import StudentAnalytics from './pages/Student/StudentAnalytics'
 import StudentProgress from './pages/Student/StudentProgress'
 import HODAnalytics from './pages/HOD/HODAnalytics'
+import HODUsers from './pages/HOD/HODUsers'
+import HODClasses from './pages/HOD/HODClasses'
+import HODSubjects from './pages/HOD/HODSubjects'
+import HODStudentAnalytics from './pages/HOD/HODStudentAnalytics'
+import HODTeacherAnalytics from './pages/HOD/HODTeacherAnalytics'
 import Reports from './pages/HOD/Reports'
+import StrategicDashboard from './pages/HOD/StrategicDashboard'
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -84,6 +96,30 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/admin/co-management" 
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'hod']}>
+              <COManagement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/po-management" 
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'hod']}>
+              <POManagement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/co-targets" 
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'hod', 'teacher']}>
+              <COTargetsManagement />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* Teacher Routes */}
         <Route 
@@ -107,6 +143,30 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
               <TeacherAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/attainment-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <AttainmentAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/comprehensive-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <ComprehensiveAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/reports" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <ReportManagement />
             </ProtectedRoute>
           } 
         />
@@ -143,6 +203,54 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['hod', 'admin']}>
               <Reports />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/hod/strategic-dashboard" 
+          element={
+            <ProtectedRoute allowedRoles={['hod', 'admin']}>
+              <StrategicDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/hod/users" 
+          element={
+            <ProtectedRoute allowedRoles={['hod', 'admin']}>
+              <HODUsers />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/hod/classes" 
+          element={
+            <ProtectedRoute allowedRoles={['hod', 'admin']}>
+              <HODClasses />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/hod/subjects" 
+          element={
+            <ProtectedRoute allowedRoles={['hod', 'admin']}>
+              <HODSubjects />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/hod/student-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['hod', 'admin']}>
+              <HODStudentAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/hod/teacher-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['hod', 'admin']}>
+              <HODTeacherAnalytics />
             </ProtectedRoute>
           } 
         />

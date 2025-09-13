@@ -109,6 +109,10 @@ export const userAPI = {
   delete: async (id: number) => {
     await apiClient.delete(`/users/${id}`)
   },
+  resetPassword: async (id: number) => {
+    const response = await apiClient.post(`/users/${id}/reset-password`)
+    return response.data
+  },
 }
 
 export const examAPI = {
@@ -227,3 +231,182 @@ export const fileAPI = {
     return response.data
   },
 }
+
+// CO/PO/PSO Framework APIs
+export const coAPI = {
+  getBySubject: async (subjectId: number) => {
+    const response = await apiClient.get(`/subjects/${subjectId}/cos`)
+    return response.data
+  },
+  create: async (subjectId: number, coData: any) => {
+    const response = await apiClient.post(`/subjects/${subjectId}/cos`, {
+      ...coData,
+      subject_id: subjectId
+    })
+    return response.data
+  },
+  update: async (coId: number, coData: any) => {
+    const response = await apiClient.put(`/cos/${coId}`, coData)
+    return response.data
+  },
+  delete: async (coId: number) => {
+    await apiClient.delete(`/cos/${coId}`)
+  },
+}
+
+export const poAPI = {
+  getByDepartment: async (departmentId: number) => {
+    const response = await apiClient.get(`/departments/${departmentId}/pos`)
+    return response.data
+  },
+  create: async (departmentId: number, poData: any) => {
+    const response = await apiClient.post(`/departments/${departmentId}/pos`, {
+      ...poData,
+      department_id: departmentId
+    })
+    return response.data
+  },
+  update: async (poId: number, poData: any) => {
+    const response = await apiClient.put(`/pos/${poId}`, poData)
+    return response.data
+  },
+  delete: async (poId: number) => {
+    await apiClient.delete(`/pos/${poId}`)
+  },
+}
+
+export const coTargetAPI = {
+  getBySubject: async (subjectId: number) => {
+    const response = await apiClient.get(`/subjects/${subjectId}/co-targets`)
+    return response.data
+  },
+  bulkUpdate: async (subjectId: number, coTargets: any[]) => {
+    const response = await apiClient.put(`/subjects/${subjectId}/co-targets`, {
+      subject_id: subjectId,
+      co_targets: coTargets.map(target => ({
+        ...target,
+        subject_id: subjectId
+      }))
+    })
+    return response.data
+  },
+}
+
+export const assessmentWeightAPI = {
+  getBySubject: async (subjectId: number) => {
+    const response = await apiClient.get(`/subjects/${subjectId}/assessment-weights`)
+    return response.data
+  },
+  bulkUpdate: async (subjectId: number, assessmentWeights: any[]) => {
+    const response = await apiClient.put(`/subjects/${subjectId}/assessment-weights`, {
+      subject_id: subjectId,
+      assessment_weights: assessmentWeights.map(weight => ({
+        ...weight,
+        subject_id: subjectId
+      }))
+    })
+    return response.data
+  },
+}
+
+export const coPoMatrixAPI = {
+  getBySubject: async (subjectId: number) => {
+    const response = await apiClient.get(`/subjects/${subjectId}/co-po-matrix`)
+    return response.data
+  },
+  bulkUpdate: async (subjectId: number, coPoMatrix: any[]) => {
+    const response = await apiClient.put(`/subjects/${subjectId}/co-po-matrix`, {
+      subject_id: subjectId,
+      co_po_matrix: coPoMatrix.map(matrix => ({
+        ...matrix,
+        subject_id: subjectId
+      }))
+    })
+    return response.data
+  },
+}
+
+export const questionCoWeightAPI = {
+  getByQuestion: async (questionId: number) => {
+    const response = await apiClient.get(`/questions/${questionId}/co-weights`)
+    return response.data
+  },
+  bulkUpdate: async (questionId: number, coWeights: any[]) => {
+    const response = await apiClient.put(`/questions/${questionId}/co-weights`, {
+      question_id: questionId,
+      co_weights: coWeights
+    })
+    return response.data
+  },
+}
+
+export const indirectAttainmentAPI = {
+  getBySubject: async (subjectId: number) => {
+    const response = await apiClient.get(`/subjects/${subjectId}/indirect-attainment`)
+    return response.data
+  },
+  create: async (subjectId: number, attainmentData: any) => {
+    const response = await apiClient.post(`/subjects/${subjectId}/indirect-attainment`, attainmentData)
+    return response.data
+  },
+  update: async (attainmentId: number, attainmentData: any) => {
+    const response = await apiClient.put(`/indirect-attainment/${attainmentId}`, attainmentData)
+    return response.data
+  },
+  delete: async (attainmentId: number) => {
+    await apiClient.delete(`/indirect-attainment/${attainmentId}`)
+  },
+}
+
+export const attainmentAuditAPI = {
+  getBySubject: async (subjectId: number) => {
+    const response = await apiClient.get(`/subjects/${subjectId}/attainment-audit`)
+    return response.data
+  },
+}
+
+// Enhanced Analytics APIs
+export const attainmentAnalyticsAPI = {
+  getSubjectAttainment: async (subjectId: number, examType?: string) => {
+    const response = await apiClient.get(`/analytics/attainment/subject/${subjectId}`, {
+      params: examType ? { exam_type: examType } : {}
+    })
+    return response.data
+  },
+  getStudentAttainment: async (studentId: number, subjectId: number) => {
+    const response = await apiClient.get(`/analytics/attainment/student/${studentId}`, {
+      params: { subject_id: subjectId }
+    })
+    return response.data
+  },
+  getClassAttainment: async (classId: number, term?: string) => {
+    const response = await apiClient.get(`/analytics/attainment/class/${classId}`, {
+      params: term ? { term } : {}
+    })
+    return response.data
+  },
+  getProgramAttainment: async (departmentId: number, year?: number) => {
+    const response = await apiClient.get(`/analytics/attainment/program/${departmentId}`, {
+      params: year ? { year } : {}
+    })
+    return response.data
+  },
+  getCOAttainment: async (subjectId: number, examType?: string) => {
+    const response = await apiClient.get(`/analytics/attainment/co/${subjectId}`, {
+      params: examType ? { exam_type: examType } : {}
+    })
+    return response.data
+  },
+  getPOAttainment: async (subjectId: number, examType?: string) => {
+    const response = await apiClient.get(`/analytics/attainment/po/${subjectId}`, {
+      params: examType ? { exam_type: examType } : {}
+    })
+    return response.data
+  },
+  getBlueprintValidation: async (subjectId: number) => {
+    const response = await apiClient.get(`/analytics/attainment/blueprint-validation/${subjectId}`)
+    return response.data
+  },
+}
+
+export default apiClient

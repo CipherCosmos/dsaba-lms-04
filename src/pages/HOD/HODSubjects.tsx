@@ -58,8 +58,8 @@ const HODSubjects: React.FC = () => {
       const subjectData = {
         ...formData,
         credits: Number(formData.credits),
-        class_id: formData.class_id || undefined,
-        teacher_id: formData.teacher_id || undefined,
+        class_id: formData.class_id || 0,
+        teacher_id: formData.teacher_id || 0,
         cos: [],
         pos: []
       }
@@ -101,8 +101,8 @@ const HODSubjects: React.FC = () => {
       const subjectData = {
         ...formData,
         credits: Number(formData.credits),
-        class_id: formData.class_id || undefined,
-        teacher_id: formData.teacher_id || undefined,
+        class_id: formData.class_id || 0,
+        teacher_id: formData.teacher_id || 0,
         cos: [],
         pos: []
       }

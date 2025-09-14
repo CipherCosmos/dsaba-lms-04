@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from './store/store'
 import { fetchCurrentUser, initializeAuth } from './store/slices/authSlice'
+import { SidebarProvider } from './contexts/SidebarContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Layout from './components/Layout/Layout'
@@ -59,8 +60,9 @@ function App() {
   }
 
   return (
-    <Layout>
-      <Routes>
+    <SidebarProvider>
+      <Layout>
+        <Routes>
         <Route path="/" element={<Dashboard />} />
         
         {/* Admin Routes */}
@@ -256,8 +258,9 @@ function App() {
         />
         
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+        </Routes>
+      </Layout>
+    </SidebarProvider>
   )
 }
 

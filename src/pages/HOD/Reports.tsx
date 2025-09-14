@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
-import { analyticsAPI } from '../../services/api'
+import { reportsAPI } from '../../services/api'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import toast from 'react-hot-toast'
-import { Download, FileText, Filter, Users, BookOpen, Award, BarChart3 } from 'lucide-react'
+import { Download, FileText, Filter, Users, BookOpen, Award, BarChart2, BarChart3, Building, TrendingUp, Target, Brain, Gauge, Layers } from 'lucide-react'
 import { format } from 'date-fns'
 
 const Reports = () => {
@@ -37,55 +37,162 @@ const Reports = () => {
 
   const loadReportTemplates = async () => {
     try {
-      // const templates = await analyticsAPI.getReportTemplates()
-      // setReportTemplates(templates)
+      const templates = await reportsAPI.getTemplates()
+      console.log('Report templates loaded:', templates)
     } catch (error) {
       console.error('Failed to load report templates:', error)
     }
   }
 
   const reportTypes = [
+    // Teacher-level reports
     {
       id: 'student_performance',
       name: 'Student Performance Report',
       description: 'Individual student performance analysis with CO/PO mapping',
       icon: Users,
-      filters: ['class_id', 'subject_id', 'exam_type', 'date_from', 'date_to']
+      filters: ['class_id', 'subject_id', 'exam_type', 'date_from', 'date_to'],
+      category: 'Student Analytics'
+    },
+    {
+      id: 'class_analytics',
+      name: 'Class Analytics Report',
+      description: 'Comprehensive class performance with statistical analysis',
+      icon: BarChart3,
+      filters: ['class_id', 'subject_id', 'exam_type'],
+      category: 'Class Analytics'
     },
     {
       id: 'co_po_attainment',
       name: 'CO/PO Attainment Report',
       description: 'Course and Program Outcomes attainment analysis',
       icon: Award,
-      filters: ['subject_id', 'class_id', 'exam_type']
+      filters: ['subject_id', 'class_id', 'exam_type'],
+      category: 'Attainment Analysis'
     },
     {
-      id: 'teacher_performance',
-      name: 'Faculty Performance Report',
-      description: 'Teaching effectiveness and class performance analysis',
-      icon: BookOpen,
-      filters: ['teacher_id', 'subject_id', 'date_from', 'date_to']
-    },
-    {
-      id: 'class_analysis',
-      name: 'Class Analysis Report',
-      description: 'Comprehensive class performance with statistical analysis',
-      icon: BarChart3,
-      filters: ['class_id', 'subject_id', 'exam_type']
-    },
-    {
-      id: 'nba_compliance',
-      name: 'NBA Compliance Report',
-      description: 'NBA accreditation ready reports with all required metrics',
+      id: 'exam_analysis',
+      name: 'Exam Analysis Report',
+      description: 'Detailed exam performance and question analysis',
       icon: FileText,
-      filters: ['class_id', 'date_from', 'date_to']
+      filters: ['exam_id', 'subject_id'],
+      category: 'Exam Analytics'
     },
     {
-      id: 'department_summary',
-      name: 'Department Summary Report',
-      description: 'High-level department performance overview',
-      icon: Users,
-      filters: ['date_from', 'date_to']
+      id: 'comprehensive_analysis',
+      name: 'Comprehensive Analysis Report',
+      description: 'Complete analysis with all metrics and insights',
+      icon: BarChart3,
+      filters: ['class_id', 'subject_id', 'exam_type'],
+      category: 'Comprehensive Analytics'
+    },
+    {
+      id: 'custom_analysis',
+      name: 'Custom Analysis Report',
+      description: 'Customizable analysis based on specific criteria',
+      icon: Filter,
+      filters: ['class_id', 'subject_id', 'exam_type', 'date_from', 'date_to'],
+      category: 'Custom Analytics'
+    },
+    
+    // Detailed CO-PO Analysis Reports (USP Features)
+    {
+      id: 'detailed_co_analysis',
+      name: 'Detailed CO Analysis Report',
+      description: 'Comprehensive Course Outcome analysis with trends, gaps, and recommendations',
+      icon: Target,
+      filters: ['subject_id', 'exam_type'],
+      category: 'CO-PO Analysis'
+    },
+    {
+      id: 'detailed_po_analysis',
+      name: 'Detailed PO Analysis Report',
+      description: 'Comprehensive Program Outcome analysis with dependency mapping',
+      icon: Layers,
+      filters: ['subject_id', 'exam_type'],
+      category: 'CO-PO Analysis'
+    },
+    {
+      id: 'co_po_mapping_analysis',
+      name: 'CO-PO Mapping Analysis Report',
+      description: 'Analysis of CO-PO relationships and mapping effectiveness',
+      icon: BarChart2,
+      filters: ['subject_id', 'class_id'],
+      category: 'CO-PO Analysis'
+    },
+    {
+      id: 'comprehensive_co_po_report',
+      name: 'Comprehensive CO-PO Report',
+      description: 'Complete CO-PO analysis with all metrics, trends, and strategic insights',
+      icon: Brain,
+      filters: ['subject_id', 'class_id', 'exam_type'],
+      category: 'CO-PO Analysis'
+    },
+    
+    // HOD-level reports
+    {
+      id: 'department_performance',
+      name: 'Department Performance Report',
+      description: 'Overall department performance and key metrics',
+      icon: Building,
+      filters: ['date_from', 'date_to'],
+      category: 'Department Analytics'
+    },
+    {
+      id: 'teacher_effectiveness',
+      name: 'Teacher Effectiveness Report',
+      description: 'Faculty performance evaluation and effectiveness analysis',
+      icon: BookOpen,
+      filters: ['teacher_id', 'subject_id', 'date_from', 'date_to'],
+      category: 'Faculty Analytics'
+    },
+    {
+      id: 'student_progress_tracking',
+      name: 'Student Progress Tracking Report',
+      description: 'Long-term student progress and improvement tracking',
+      icon: TrendingUp,
+      filters: ['class_id', 'subject_id', 'date_from', 'date_to'],
+      category: 'Student Analytics'
+    },
+    {
+      id: 'attainment_gap_analysis',
+      name: 'Attainment Gap Analysis Report',
+      description: 'Analysis of gaps in CO/PO attainment and improvement areas',
+      icon: Target,
+      filters: ['subject_id', 'class_id', 'exam_type'],
+      category: 'Attainment Analysis'
+    },
+    {
+      id: 'strategic_planning',
+      name: 'Strategic Planning Report',
+      description: 'Strategic insights for department planning and development',
+      icon: Brain,
+      filters: ['date_from', 'date_to'],
+      category: 'Strategic Analytics'
+    },
+    {
+      id: 'comparative_analysis',
+      name: 'Comparative Analysis Report',
+      description: 'Comparative analysis across classes, subjects, and time periods',
+      icon: BarChart3,
+      filters: ['class_id', 'subject_id', 'exam_type', 'date_from', 'date_to'],
+      category: 'Comparative Analytics'
+    },
+    {
+      id: 'accreditation_report',
+      name: 'Accreditation Report',
+      description: 'NBA accreditation ready reports with all required metrics',
+      icon: Award,
+      filters: ['class_id', 'date_from', 'date_to'],
+      category: 'Accreditation'
+    },
+    {
+      id: 'resource_utilization',
+      name: 'Resource Utilization Report',
+      description: 'Analysis of resource utilization and efficiency metrics',
+      icon: Gauge,
+      filters: ['date_from', 'date_to'],
+      category: 'Resource Analytics'
     }
   ]
 
@@ -107,16 +214,18 @@ const Reports = () => {
 
     setGenerating(true)
     try {
-      const reportData = await analyticsAPI.generateReport(selectedReportType, {
+      const reportData = await reportsAPI.generateReport(selectedReportType, {
         ...filters,
         department_id: user?.department_id
-      })
+      }, filters.format)
       
       // Create blob and download
       const blob = new Blob([reportData], { 
         type: filters.format === 'pdf' 
           ? 'application/pdf' 
-          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+          : filters.format === 'excel'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv'
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -129,7 +238,8 @@ const Reports = () => {
       
       toast.success('Report generated successfully!')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate report')
+      console.error('Report generation error:', error)
+      toast.error(error.response?.data?.detail || error.message || 'Failed to generate report')
     } finally {
       setGenerating(false)
     }
@@ -138,11 +248,10 @@ const Reports = () => {
   const handleQuickReport = async (reportType: string, quickFilters = {}) => {
     setGenerating(true)
     try {
-      const reportData = await analyticsAPI.generateReport(reportType, {
+      const reportData = await reportsAPI.generateReport(reportType, {
         ...quickFilters,
-        department_id: user?.department_id,
-        format: 'pdf'
-      })
+        department_id: user?.department_id
+      }, 'pdf')
       
       const blob = new Blob([reportData], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
@@ -156,7 +265,8 @@ const Reports = () => {
       
       toast.success('Quick report generated successfully!')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to generate report')
+      console.error('Quick report generation error:', error)
+      toast.error(error.response?.data?.detail || error.message || 'Failed to generate report')
     } finally {
       setGenerating(false)
     }
@@ -177,6 +287,7 @@ const Reports = () => {
           >
             <option value="pdf">PDF</option>
             <option value="excel">Excel</option>
+            <option value="csv">CSV</option>
           </select>
         </div>
       </div>
@@ -184,45 +295,72 @@ const Reports = () => {
       {/* Quick Reports */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Reports</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <button 
-            onClick={() => handleQuickReport('department_summary')}
+            onClick={() => handleQuickReport('detailed_co_analysis')}
             disabled={generating}
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <FileText className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-            <p className="text-sm font-medium text-gray-900">Department Summary</p>
-            <p className="text-xs text-gray-600">Current performance</p>
+            <Target className="h-8 w-8 text-green-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Detailed CO Analysis</p>
+            <p className="text-xs text-gray-600">Course Outcomes</p>
+          </button>
+          <button 
+            onClick={() => handleQuickReport('detailed_po_analysis')}
+            disabled={generating}
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <Layers className="h-8 w-8 text-purple-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Detailed PO Analysis</p>
+            <p className="text-xs text-gray-600">Program Outcomes</p>
+          </button>
+          <button 
+            onClick={() => handleQuickReport('comprehensive_co_po_report')}
+            disabled={generating}
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <Brain className="h-8 w-8 text-indigo-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Comprehensive CO-PO</p>
+            <p className="text-xs text-gray-600">Complete analysis</p>
+          </button>
+          <button 
+            onClick={() => handleQuickReport('department_performance')}
+            disabled={generating}
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <Building className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Department Performance</p>
+            <p className="text-xs text-gray-600">Overall metrics</p>
           </button>
           
           <button 
-            onClick={() => handleQuickReport('co_po_attainment')}
+            onClick={() => handleQuickReport('teacher_effectiveness')}
             disabled={generating}
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <Award className="h-8 w-8 text-green-500 mx-auto mb-2" />
-            <p className="text-sm font-medium text-gray-900">CO/PO Analysis</p>
-            <p className="text-xs text-gray-600">Attainment report</p>
+            <BookOpen className="h-8 w-8 text-green-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Faculty Effectiveness</p>
+            <p className="text-xs text-gray-600">Teaching evaluation</p>
           </button>
           
           <button 
-            onClick={() => handleQuickReport('nba_compliance')}
+            onClick={() => handleQuickReport('accreditation_report')}
             disabled={generating}
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <BarChart3 className="h-8 w-8 text-purple-500 mx-auto mb-2" />
-            <p className="text-sm font-medium text-gray-900">NBA Compliance</p>
-            <p className="text-xs text-gray-600">Accreditation ready</p>
+            <Award className="h-8 w-8 text-purple-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Accreditation Report</p>
+            <p className="text-xs text-gray-600">NBA compliance</p>
           </button>
           
           <button 
-            onClick={() => handleQuickReport('teacher_performance')}
+            onClick={() => handleQuickReport('strategic_planning')}
             disabled={generating}
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <Users className="h-8 w-8 text-orange-500 mx-auto mb-2" />
-            <p className="text-sm font-medium text-gray-900">Faculty Performance</p>
-            <p className="text-xs text-gray-600">Teaching effectiveness</p>
+            <Brain className="h-8 w-8 text-orange-500 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Strategic Planning</p>
+            <p className="text-xs text-gray-600">Department insights</p>
           </button>
         </div>
       </div>
@@ -230,8 +368,22 @@ const Reports = () => {
       {/* Report Type Selection */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Custom Report Generation</h3>
+        
+        {/* Group reports by category */}
+        {Object.entries(
+          reportTypes.reduce((acc, report) => {
+            const category = report.category || 'Other'
+            if (!acc[category]) acc[category] = []
+            acc[category].push(report)
+            return acc
+          }, {} as Record<string, typeof reportTypes>)
+        ).map(([category, reports]) => (
+          <div key={category} className="mb-8">
+            <h4 className="text-md font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
+              {category}
+            </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {reportTypes.map(report => {
+              {reports.map(report => {
             const Icon = report.icon
             return (
               <button
@@ -254,6 +406,8 @@ const Reports = () => {
             )
           })}
         </div>
+          </div>
+        ))}
 
         {/* Filters */}
         {selectedReport && (

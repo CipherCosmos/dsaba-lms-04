@@ -12,12 +12,12 @@ import {
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchPODefinitions } from '../../store/slices/copoSlice'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
-import { Link, ArrowRight, Target, BarChart3, Plus, Edit, Trash2, CheckCircle } from 'lucide-react'
+import { coPoMatrixAPI } from '../../services/api'
+import { Target, Edit, Trash2, CheckCircle } from 'lucide-react'
 
 const COManagement: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { subjects } = useSelector((state: RootState) => state.subjects)
-  const { departments } = useSelector((state: RootState) => state.departments)
   const { classes } = useSelector((state: RootState) => state.classes)
   const { 
     coDefinitions, 
@@ -130,19 +130,12 @@ const COManagement: React.FC = () => {
     // Load existing mappings
     if (selectedSubjectId) {
       try {
-        const response = await fetch(`/api/subjects/${selectedSubjectId}/co-po-mapping/${co.id}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          setMappingData(prev => ({
-            ...prev,
-            mappedPOs: data.mapped_pos || []
-          }))
-        }
+        const data = await coPoMatrixAPI.getBySubject(selectedSubjectId)
+        const coMapping = data.find((m: any) => m.co_code === co.code)
+        setMappingData(prev => ({
+          ...prev,
+          mappedPOs: coMapping?.mapped_pos?.map((po: any) => po.po_code) || []
+        }))
       } catch (error) {
         console.error('Error loading existing mappings:', error)
       }
@@ -165,30 +158,22 @@ const COManagement: React.FC = () => {
   }
 
   const handleMappingSave = async () => {
-    if (!selectedSubjectId || !mappingData.coId) return
+    if (!selectedSubjectId || !mappingData.coId || !selectedCO) return
     
     try {
-      const response = await fetch(`/api/subjects/${selectedSubjectId}/co-po-mapping`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          co_id: mappingData.coId,
-          mapped_pos: mappingData.mappedPOs
-        })
-      })
+      // Convert the mapped POs to the format expected by the backend
+      const coPoMatrix = mappingData.mappedPOs.map(poCode => ({
+        co_code: selectedCO.code,
+        po_code: poCode,
+        strength: 2 // Default strength, could be made configurable
+      }))
       
-      if (response.ok) {
-        alert('CO-PO mapping saved successfully!')
-        setShowMappingModal(false)
-        setSelectedCO(null)
-        setMappingData({ coId: null, mappedPOs: [] })
-      } else {
-        const error = await response.json()
-        alert(`Error saving mapping: ${error.detail}`)
-      }
+      await coPoMatrixAPI.bulkUpdate(selectedSubjectId, coPoMatrix)
+      
+      alert('CO-PO mapping saved successfully!')
+      setShowMappingModal(false)
+      setSelectedCO(null)
+      setMappingData({ coId: null, mappedPOs: [] })
     } catch (error) {
       console.error('Error saving CO-PO mapping:', error)
       alert('Failed to save CO-PO mapping')

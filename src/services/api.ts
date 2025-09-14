@@ -157,6 +157,10 @@ export const marksAPI = {
     const response = await apiClient.get(`/marks/student/${studentId}`)
     return response.data
   },
+  getLockStatus: async (examId: number) => {
+    const response = await apiClient.get(`/marks/exam/${examId}/lock-status`)
+    return response.data
+  },
   bulkCreate: async (marks: any[]) => {
     const response = await apiClient.post('/marks/bulk', marks)
     return response.data
@@ -188,11 +192,37 @@ export const analyticsAPI = {
     const response = await apiClient.get(`/analytics/subject/${subjectId}`)
     return response.data
   },
-  generateReport: async (type: string, filters: any) => {
+  getStrategicDashboardData: async (departmentId: number) => {
+    const response = await apiClient.get(`/analytics/strategic/department/${departmentId}`)
+    return response.data
+  },
+  getCOAttainment: async (subjectId: number, examType: string = 'all') => {
+    const response = await apiClient.get(`/analytics/co-attainment/${subjectId}?exam_type=${examType}`)
+    return response.data
+  },
+  getPOAttainment: async (subjectId: number, examType: string = 'all') => {
+    const response = await apiClient.get(`/analytics/po-attainment/${subjectId}?exam_type=${examType}`)
+    return response.data
+  },
+  getStudentPerformance: async (subjectId: number, classId?: number, examType: string = 'all') => {
+    const params = new URLSearchParams({ exam_type: examType })
+    if (classId) params.append('class_id', classId.toString())
+    const response = await apiClient.get(`/analytics/student-performance/${subjectId}?${params}`)
+    return response.data
+  },
+  getClassPerformance: async (subjectId: number, examType: string = 'all') => {
+    const response = await apiClient.get(`/analytics/class-performance/${subjectId}?exam_type=${examType}`)
+    return response.data
+  },
+  getCOPOMapping: async (subjectId: number) => {
+    const response = await apiClient.get(`/analytics/co-po-mapping/${subjectId}`)
+    return response.data
+  },
+  generateReport: async (type: string, filters: any, format: string = 'pdf') => {
     const response = await apiClient.post('/reports/generate', {
       report_type: type,
       filters,
-      format: filters.format || 'pdf'
+      format: format
     }, {
       responseType: 'blob'
     })
@@ -226,6 +256,32 @@ export const fileAPI = {
   
   downloadMarksTemplate: async (examId: number) => {
     const response = await apiClient.get(`/download/marks-template/${examId}`, {
+      responseType: 'blob'
+    })
+    return response.data
+  },
+}
+
+// Reports API
+export const reportsAPI = {
+  getTemplates: async () => {
+    const response = await apiClient.get('/reports/templates')
+    return response.data
+  },
+  generateReport: async (reportType: string, filters: any, format: string = 'pdf') => {
+    const response = await apiClient.post('/reports/generate', {
+      report_type: reportType,
+      filters,
+      format
+    })
+    return response.data
+  },
+  getReportStatus: async (taskId: string) => {
+    const response = await apiClient.get(`/reports/status/${taskId}`)
+    return response.data
+  },
+  downloadReport: async (taskId: string) => {
+    const response = await apiClient.get(`/reports/download/${taskId}`, {
       responseType: 'blob'
     })
     return response.data
@@ -392,20 +448,77 @@ export const attainmentAnalyticsAPI = {
     return response.data
   },
   getCOAttainment: async (subjectId: number, examType?: string) => {
-    const response = await apiClient.get(`/analytics/attainment/co/${subjectId}`, {
-      params: examType ? { exam_type: examType } : {}
+    const response = await apiClient.get(`/analytics/co-attainment/${subjectId}`, {
+      params: { exam_type: examType || 'all' }
     })
     return response.data
   },
   getPOAttainment: async (subjectId: number, examType?: string) => {
-    const response = await apiClient.get(`/analytics/attainment/po/${subjectId}`, {
-      params: examType ? { exam_type: examType } : {}
+    const response = await apiClient.get(`/analytics/po-attainment/${subjectId}`, {
+      params: { exam_type: examType || 'all' }
     })
     return response.data
   },
   getBlueprintValidation: async (subjectId: number) => {
     const response = await apiClient.get(`/analytics/attainment/blueprint-validation/${subjectId}`)
     return response.data
+  },
+  getStudentPerformance: async (subjectId: number, studentId?: number, examType?: string) => {
+    const response = await apiClient.get(`/analytics/student-performance/${subjectId}`, {
+      params: { 
+        student_id: studentId,
+        exam_type: examType || 'all'
+      }
+    })
+    return response.data
+  },
+  getClassPerformance: async (subjectId: number, examType?: string) => {
+    const response = await apiClient.get(`/analytics/class-performance/${subjectId}`, {
+      params: { exam_type: examType || 'all' }
+    })
+    return response.data
+  },
+  getCOPOMapping: async (subjectId: number) => {
+    const response = await apiClient.get(`/analytics/co-po-mapping/${subjectId}`)
+    return response.data
+  },
+}
+
+// Student Progress API
+export const studentProgressAPI = {
+  getProgress: async (studentId: number) => {
+    const response = await apiClient.get(`/student-progress/${studentId}`)
+    return response.data
+  },
+  getGoals: async (studentId: number) => {
+    const response = await apiClient.get(`/student-goals/${studentId}`)
+    return response.data
+  },
+  createGoal: async (goal: any) => {
+    const response = await apiClient.post('/student-goals', goal)
+    return response.data
+  },
+  updateGoal: async (goalId: number, goal: any) => {
+    const response = await apiClient.put(`/student-goals/${goalId}`, goal)
+    return response.data
+  },
+  deleteGoal: async (goalId: number) => {
+    await apiClient.delete(`/student-goals/${goalId}`)
+  },
+  getMilestones: async (studentId: number) => {
+    const response = await apiClient.get(`/student-milestones/${studentId}`)
+    return response.data
+  },
+  createMilestone: async (milestone: any) => {
+    const response = await apiClient.post('/student-milestones', milestone)
+    return response.data
+  },
+  updateMilestone: async (milestoneId: number, milestone: any) => {
+    const response = await apiClient.put(`/student-milestones/${milestoneId}`, milestone)
+    return response.data
+  },
+  deleteMilestone: async (milestoneId: number) => {
+    await apiClient.delete(`/student-milestones/${milestoneId}`)
   },
 }
 

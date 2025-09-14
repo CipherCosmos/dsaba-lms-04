@@ -4,6 +4,7 @@ import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
+import { studentProgressAPI } from '../../services/api'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
 import { Line, Doughnut } from 'react-chartjs-2'
 import { Target, TrendingUp, Award, Calendar, BookOpen, CheckCircle, AlertTriangle, Star, Clock, Trophy } from 'lucide-react'
@@ -27,40 +28,61 @@ const StudentProgress = () => {
   const { } = useSelector((state: RootState) => state.subjects)
   const { } = useSelector((state: RootState) => state.exams)
 
-  const [goals, setGoals] = useState([
-    { id: 1, title: 'Achieve 85% overall', target: 85, current: 0, deadline: '2024-05-30', status: 'active' },
-    { id: 2, title: 'Top 5 in class', target: 5, current: 0, deadline: '2024-05-30', status: 'active' },
-    { id: 3, title: 'All COs above 70%', target: 70, current: 0, deadline: '2024-04-30', status: 'active' },
-    { id: 4, title: 'Perfect attendance', target: 100, current: 95, deadline: '2024-06-30', status: 'active' }
-  ])
-
-  const [milestones, setMilestones] = useState<Array<{
-    id: number;
-    title: string;
-    achieved: boolean;
-    date: string | null;
-    description: string;
-  }>>([
-    { id: 1, title: 'First A+ Grade', achieved: false, date: null, description: 'Score 90% or above in any exam' },
-    { id: 2, title: 'Consistent Performer', achieved: false, date: null, description: 'Maintain 80%+ for 3 consecutive exams' },
-    { id: 3, title: 'Subject Expert', achieved: false, date: null, description: 'Score 95%+ in any subject' },
-    { id: 4, title: 'Class Leader', achieved: false, date: null, description: 'Achieve top 3 position in class' },
-    { id: 5, title: 'CO Champion', achieved: false, date: null, description: 'Achieve 80%+ in all Course Outcomes' }
-  ])
+  const [goals, setGoals] = useState<any[]>([])
+  const [milestones, setMilestones] = useState<any[]>([])
+  const [progressLoading, setProgressLoading] = useState(false)
+  const [progressError, setProgressError] = useState<string | null>(null)
 
   useEffect(() => {
     if (user?.id) {
       dispatch(fetchStudentAnalytics(user.id))
+      fetchProgressData(user.id)
     }
     dispatch(fetchSubjects())
     dispatch(fetchExams())
   }, [dispatch, user])
 
+  const fetchProgressData = async (studentId: number) => {
+    try {
+      setProgressLoading(true)
+      setProgressError(null)
+      const progressData = await studentProgressAPI.getProgress(studentId)
+      setGoals(progressData.goals || [])
+      setMilestones(progressData.milestones || [])
+    } catch (error) {
+      console.error('Error fetching progress data:', error)
+      setProgressError('Failed to load progress data')
+      // Initialize with default goals and milestones if API fails
+      initializeDefaultData()
+    } finally {
+      setProgressLoading(false)
+    }
+  }
+
+  const initializeDefaultData = () => {
+    // Set default goals if no data from API
+    setGoals([
+      { id: 1, title: 'Achieve 85% overall', target_value: 85, current_value: 0, deadline: '2024-05-30', status: 'active' },
+      { id: 2, title: 'Top 5 in class', target_value: 5, current_value: 0, deadline: '2024-05-30', status: 'active' },
+      { id: 3, title: 'All COs above 70%', target_value: 70, current_value: 0, deadline: '2024-04-30', status: 'active' },
+      { id: 4, title: 'Perfect attendance', target_value: 100, current_value: 95, deadline: '2024-06-30', status: 'active' }
+    ])
+
+    // Set default milestones if no data from API
+    setMilestones([
+      { id: 1, title: 'First A+ Grade', achieved: false, achieved_date: null, description: 'Score 90% or above in any exam' },
+      { id: 2, title: 'Consistent Performer', achieved: false, achieved_date: null, description: 'Maintain 80%+ for 3 consecutive exams' },
+      { id: 3, title: 'Subject Expert', achieved: false, achieved_date: null, description: 'Score 95%+ in any subject' },
+      { id: 4, title: 'Class Leader', achieved: false, achieved_date: null, description: 'Achieve top 3 position in class' },
+      { id: 5, title: 'CO Champion', achieved: false, achieved_date: null, description: 'Achieve 80%+ in all Course Outcomes' }
+    ])
+  }
+
   useEffect(() => {
-    if (studentAnalytics) {
-      // Update goals progress
+    if (studentAnalytics && goals.length > 0) {
+      // Update goals progress based on analytics
       setGoals(prevGoals => prevGoals.map(goal => {
-        let current = 0
+        let current = goal.current_value
         switch (goal.title) {
           case 'Achieve 85% overall':
             current = studentAnalytics.percentage
@@ -73,49 +95,65 @@ const StudentProgress = () => {
             current = coScores.length > 0 ? (coScores.filter(score => score >= 70).length / coScores.length) * 100 : 0
             break
         }
-        return { ...goal, current }
+        return { ...goal, current_value: current }
       }))
 
-      // Update milestones
+      // Update milestones based on analytics
       setMilestones(prevMilestones => prevMilestones.map(milestone => {
-        let achieved = false
-        let date = null
+        let achieved = milestone.achieved
+        let date = milestone.achieved_date
         
         switch (milestone.title) {
           case 'First A+ Grade':
             achieved = studentAnalytics.performance_trend.some(p => p.percentage >= 90)
-            if (achieved) date = new Date().toISOString()
+            if (achieved && !milestone.achieved) date = new Date().toISOString()
             break
           case 'Consistent Performer':
             const recentExams = studentAnalytics.performance_trend.slice(-3)
             achieved = recentExams.length >= 3 && recentExams.every(p => p.percentage >= 80)
-            if (achieved) date = new Date().toISOString()
+            if (achieved && !milestone.achieved) date = new Date().toISOString()
             break
           case 'Subject Expert':
             achieved = studentAnalytics.performance_trend.some(p => p.percentage >= 95)
-            if (achieved) date = new Date().toISOString()
+            if (achieved && !milestone.achieved) date = new Date().toISOString()
             break
           case 'Class Leader':
             achieved = studentAnalytics.rank <= 3
-            if (achieved) date = new Date().toISOString()
+            if (achieved && !milestone.achieved) date = new Date().toISOString()
             break
           case 'CO Champion':
             const coValues = Object.values(studentAnalytics.co_attainment)
             achieved = coValues.length > 0 && coValues.every(score => score >= 80)
-            if (achieved) date = new Date().toISOString()
+            if (achieved && !milestone.achieved) date = new Date().toISOString()
             break
         }
         
-        return { ...milestone, achieved, date: achieved ? date : null }
+        return { ...milestone, achieved, achieved_date: achieved ? date : null }
       }))
     }
-  }, [studentAnalytics])
+  }, [studentAnalytics, goals.length])
 
 
-  if (loading && !studentAnalytics) {
+  if (loading || progressLoading) {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+      </div>
+    )
+  }
+
+  if (progressError) {
+    return (
+      <div className="text-center py-12">
+        <AlertTriangle className="h-12 w-12 text-red-300 mx-auto mb-3" />
+        <p className="text-red-500 mb-2">Error loading progress data</p>
+        <p className="text-sm text-gray-400">{progressError}</p>
+        <button 
+          onClick={() => user?.id && fetchProgressData(user.id)}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Retry
+        </button>
       </div>
     )
   }
@@ -160,9 +198,9 @@ const StudentProgress = () => {
     datasets: [
       {
         data: [
-          goals.filter(g => g.current >= g.target).length,
-          goals.filter(g => g.current > 0 && g.current < g.target).length,
-          goals.filter(g => g.current === 0).length
+          goals.filter(g => g.current_value >= g.target_value).length,
+          goals.filter(g => g.current_value > 0 && g.current_value < g.target_value).length,
+          goals.filter(g => g.current_value === 0).length
         ],
         backgroundColor: [
           'rgba(34, 197, 94, 0.8)',
@@ -233,13 +271,13 @@ const StudentProgress = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Goals Progress</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {goals.filter(g => g.current >= g.target).length}/{goals.length}
+                {goals.filter(g => g.current_value >= g.target_value).length}/{goals.length}
               </p>
             </div>
           </div>
           <div className="mt-4">
             <p className="text-xs text-gray-500">
-              {((goals.filter(g => g.current >= g.target).length / goals.length) * 100).toFixed(0)}% completed
+              {((goals.filter(g => g.current_value >= g.target_value).length / goals.length) * 100).toFixed(0)}% completed
             </p>
           </div>
         </div>
@@ -333,9 +371,9 @@ const StudentProgress = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Academic Goals</h3>
         <div className="space-y-4">
           {goals.map(goal => {
-            const progressPercent = Math.min((goal.current / goal.target) * 100, 100)
-            const isCompleted = goal.current >= goal.target
-            const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+            const progressPercent = Math.min((goal.current_value / goal.target_value) * 100, 100)
+            const isCompleted = goal.current_value >= goal.target_value
+            const daysLeft = goal.deadline ? Math.ceil((new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0
             
             return (
               <div key={goal.id} className="border border-gray-200 rounded-lg p-4">
@@ -351,12 +389,14 @@ const StudentProgress = () => {
                     <div>
                       <h4 className="font-medium text-gray-900">{goal.title}</h4>
                       <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>Target: {goal.target}{goal.title.includes('%') ? '%' : ''}</span>
-                        <span>Current: {goal.current.toFixed(1)}{goal.title.includes('%') ? '%' : ''}</span>
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>{daysLeft > 0 ? `${daysLeft} days left` : 'Overdue'}</span>
-                        </div>
+                        <span>Target: {goal.target_value}{goal.title.includes('%') ? '%' : ''}</span>
+                        <span>Current: {goal.current_value.toFixed(1)}{goal.title.includes('%') ? '%' : ''}</span>
+                        {goal.deadline && (
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>{daysLeft > 0 ? `${daysLeft} days left` : 'Overdue'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -416,11 +456,11 @@ const StudentProgress = () => {
                   }`}>
                     {milestone.description}
                   </p>
-                  {milestone.achieved && milestone.date && (
+                  {milestone.achieved && milestone.achieved_date && (
                     <div className="flex items-center space-x-1 mt-2">
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       <span className="text-xs text-green-600">
-                        Achieved on {new Date(milestone.date).toLocaleDateString()}
+                        Achieved on {new Date(milestone.achieved_date).toLocaleDateString()}
                       </span>
                     </div>
                   )}

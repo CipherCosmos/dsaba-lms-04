@@ -1381,6 +1381,409 @@ class ReportGenerator:
         output.close()
         return csv_content.encode('utf-8')
     
+    def generate_detailed_po_analysis_report(self, filters: Dict[str, Any], format_type: str) -> bytes:
+        """Generate detailed PO analysis report"""
+        subject_id = filters.get('subject_id')
+        exam_type = filters.get('exam_type', 'all')
+        
+        if not subject_id:
+            raise ValueError("subject_id is required for detailed PO analysis report")
+        
+        # Handle empty string exam_type
+        if not exam_type or exam_type.strip() == '':
+            exam_type = 'all'
+        
+        # Get comprehensive PO data
+        po_data = self.get_po_attainment_data(subject_id, exam_type)
+        
+        if format_type == 'pdf':
+            return self.generate_detailed_po_analysis_pdf(po_data, filters)
+        elif format_type == 'excel':
+            return self.generate_detailed_po_analysis_excel(po_data, filters)
+        elif format_type == 'csv':
+            return self.generate_detailed_po_analysis_csv(po_data, filters)
+        else:
+            raise ValueError(f"Unsupported format: {format_type}")
+    
+    def generate_detailed_po_analysis_pdf(self, data: Dict, filters: Dict) -> bytes:
+        """Generate detailed PO analysis PDF report"""
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            alignment=1
+        )
+        story.append(Paragraph("Detailed PO Analysis Report", title_style))
+        story.append(Spacer(1, 12))
+        
+        # Summary
+        if data.get('summary'):
+            story.append(Paragraph("Summary", styles['Heading2']))
+            summary_text = data['summary'] if isinstance(data['summary'], str) else str(data['summary'])
+            story.append(Paragraph(summary_text, styles['Normal']))
+            story.append(Spacer(1, 12))
+        
+        # PO Attainment Data
+        if data.get('po_attainment'):
+            story.append(Paragraph("PO Attainment Analysis", styles['Heading2']))
+            
+            # Create table for PO data
+            po_data = []
+            po_data.append(['PO Code', 'PO Title', 'Attainment %', 'Status'])
+            
+            for po_id, po_info in data['po_attainment'].items():
+                attainment = po_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                po_data.append([
+                    po_info.get('po_code', 'N/A'),
+                    po_info.get('po_title', 'N/A'),
+                    f"{attainment:.1f}%",
+                    status
+                ])
+            
+            po_table = Table(po_data)
+            po_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(po_table)
+            story.append(Spacer(1, 12))
+        
+        # Recommendations
+        if data.get('recommendations'):
+            story.append(Paragraph("Recommendations", styles['Heading2']))
+            for i, rec in enumerate(data['recommendations'], 1):
+                story.append(Paragraph(f"{i}. {rec}", styles['Normal']))
+        
+        doc.build(story)
+        pdf_content = buffer.getvalue()
+        buffer.close()
+        return pdf_content
+    
+    def generate_detailed_po_analysis_excel(self, data: Dict, filters: Dict) -> bytes:
+        """Generate detailed PO analysis Excel report"""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "PO Analysis"
+        
+        # Headers
+        headers = ['PO Code', 'PO Title', 'Attainment %', 'Status', 'CO Contributions']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        # Data
+        row = 2
+        if data.get('po_attainment'):
+            for po_id, po_info in data['po_attainment'].items():
+                attainment = po_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                co_contributions = ', '.join([co.get('co_code', '') for co in po_info.get('co_contributions', [])])
+                
+                ws.cell(row=row, column=1, value=po_info.get('po_code', 'N/A'))
+                ws.cell(row=row, column=2, value=po_info.get('po_title', 'N/A'))
+                ws.cell(row=row, column=3, value=attainment)
+                ws.cell(row=row, column=4, value=status)
+                ws.cell(row=row, column=5, value=co_contributions)
+                row += 1
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        excel_content = buffer.getvalue()
+        buffer.close()
+        return excel_content
+    
+    def generate_detailed_po_analysis_csv(self, data: Dict, filters: Dict) -> bytes:
+        """Generate detailed PO analysis CSV report"""
+        import csv
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Headers
+        writer.writerow(['PO Code', 'PO Title', 'Attainment %', 'Status', 'CO Contributions'])
+        
+        # Data
+        if data.get('po_attainment'):
+            for po_id, po_info in data['po_attainment'].items():
+                attainment = po_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                co_contributions = ', '.join([co.get('co_code', '') for co in po_info.get('co_contributions', [])])
+                
+                writer.writerow([
+                    po_info.get('po_code', 'N/A'),
+                    po_info.get('po_title', 'N/A'),
+                    f"{attainment:.1f}%",
+                    status,
+                    co_contributions
+                ])
+        
+        csv_content = output.getvalue()
+        output.close()
+        return csv_content.encode('utf-8')
+    
+    def generate_comprehensive_co_po_report(self, filters: Dict[str, Any], format_type: str) -> bytes:
+        """Generate comprehensive CO-PO analysis report"""
+        subject_id = filters.get('subject_id')
+        exam_type = filters.get('exam_type', 'all')
+        
+        if not subject_id:
+            raise ValueError("subject_id is required for comprehensive CO-PO report")
+        
+        # Handle empty string exam_type
+        if not exam_type or exam_type.strip() == '':
+            exam_type = 'all'
+        
+        # Get both CO and PO data
+        co_data = self.get_co_attainment_data(subject_id, exam_type)
+        po_data = self.get_po_attainment_data(subject_id, exam_type)
+        
+        if format_type == 'pdf':
+            return self.generate_comprehensive_co_po_pdf(co_data, po_data, filters)
+        elif format_type == 'excel':
+            return self.generate_comprehensive_co_po_excel(co_data, po_data, filters)
+        elif format_type == 'csv':
+            return self.generate_comprehensive_co_po_csv(co_data, po_data, filters)
+        else:
+            raise ValueError(f"Unsupported format: {format_type}")
+    
+    def generate_comprehensive_co_po_pdf(self, co_data: Dict, po_data: Dict, filters: Dict) -> bytes:
+        """Generate comprehensive CO-PO PDF report"""
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib import colors
+        
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            alignment=1
+        )
+        story.append(Paragraph("Comprehensive CO-PO Analysis Report", title_style))
+        story.append(Spacer(1, 12))
+        
+        # CO Analysis Section
+        story.append(Paragraph("Course Outcomes (CO) Analysis", styles['Heading2']))
+        if co_data.get('co_attainment'):
+            co_table_data = [['CO Code', 'CO Title', 'Attainment %', 'Status']]
+            for co_id, co_info in co_data['co_attainment'].items():
+                attainment = co_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                co_table_data.append([
+                    co_info.get('co_code', 'N/A'),
+                    co_info.get('co_title', 'N/A'),
+                    f"{attainment:.1f}%",
+                    status
+                ])
+            
+            co_table = Table(co_table_data)
+            co_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(co_table)
+        
+        story.append(PageBreak())
+        
+        # PO Analysis Section
+        story.append(Paragraph("Program Outcomes (PO) Analysis", styles['Heading2']))
+        if po_data.get('po_attainment'):
+            po_table_data = [['PO Code', 'PO Title', 'Attainment %', 'Status']]
+            for po_id, po_info in po_data['po_attainment'].items():
+                attainment = po_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                po_table_data.append([
+                    po_info.get('po_code', 'N/A'),
+                    po_info.get('po_title', 'N/A'),
+                    f"{attainment:.1f}%",
+                    status
+                ])
+            
+            po_table = Table(po_table_data)
+            po_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(po_table)
+        
+        doc.build(story)
+        pdf_content = buffer.getvalue()
+        buffer.close()
+        return pdf_content
+    
+    def generate_comprehensive_co_po_excel(self, co_data: Dict, po_data: Dict, filters: Dict) -> bytes:
+        """Generate comprehensive CO-PO Excel report"""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        wb = Workbook()
+        
+        # CO Analysis Sheet
+        co_ws = wb.active
+        co_ws.title = "CO Analysis"
+        
+        co_headers = ['CO Code', 'CO Title', 'Attainment %', 'Status']
+        for col, header in enumerate(co_headers, 1):
+            cell = co_ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        row = 2
+        if co_data.get('co_attainment'):
+            for co_id, co_info in co_data['co_attainment'].items():
+                attainment = co_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                
+                co_ws.cell(row=row, column=1, value=co_info.get('co_code', 'N/A'))
+                co_ws.cell(row=row, column=2, value=co_info.get('co_title', 'N/A'))
+                co_ws.cell(row=row, column=3, value=attainment)
+                co_ws.cell(row=row, column=4, value=status)
+                row += 1
+        
+        # PO Analysis Sheet
+        po_ws = wb.create_sheet("PO Analysis")
+        
+        po_headers = ['PO Code', 'PO Title', 'Attainment %', 'Status']
+        for col, header in enumerate(po_headers, 1):
+            cell = po_ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+        
+        row = 2
+        if po_data.get('po_attainment'):
+            for po_id, po_info in po_data['po_attainment'].items():
+                attainment = po_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                
+                po_ws.cell(row=row, column=1, value=po_info.get('po_code', 'N/A'))
+                po_ws.cell(row=row, column=2, value=po_info.get('po_title', 'N/A'))
+                po_ws.cell(row=row, column=3, value=attainment)
+                po_ws.cell(row=row, column=4, value=status)
+                row += 1
+        
+        # Auto-adjust column widths
+        for ws in [co_ws, po_ws]:
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
+        
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        excel_content = buffer.getvalue()
+        buffer.close()
+        return excel_content
+    
+    def generate_comprehensive_co_po_csv(self, co_data: Dict, po_data: Dict, filters: Dict) -> bytes:
+        """Generate comprehensive CO-PO CSV report"""
+        import csv
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # CO Analysis
+        writer.writerow(['CO Analysis'])
+        writer.writerow(['CO Code', 'CO Title', 'Attainment %', 'Status'])
+        
+        if co_data.get('co_attainment'):
+            for co_id, co_info in co_data['co_attainment'].items():
+                attainment = co_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                
+                writer.writerow([
+                    co_info.get('co_code', 'N/A'),
+                    co_info.get('co_title', 'N/A'),
+                    f"{attainment:.1f}%",
+                    status
+                ])
+        
+        writer.writerow([])  # Empty row
+        
+        # PO Analysis
+        writer.writerow(['PO Analysis'])
+        writer.writerow(['PO Code', 'PO Title', 'Attainment %', 'Status'])
+        
+        if po_data.get('po_attainment'):
+            for po_id, po_info in po_data['po_attainment'].items():
+                attainment = po_info.get('attainment_percentage', 0)
+                status = 'Achieved' if attainment >= 70 else 'Not Achieved'
+                
+                writer.writerow([
+                    po_info.get('po_code', 'N/A'),
+                    po_info.get('po_title', 'N/A'),
+                    f"{attainment:.1f}%",
+                    status
+                ])
+        
+        csv_content = output.getvalue()
+        output.close()
+        return csv_content.encode('utf-8')
+    
     def get_co_po_mapping_data(self, subject_id: int) -> List[Dict]:
         """Get CO-PO mapping data for a subject"""
         # Get CO-PO mappings for the subject

@@ -212,6 +212,12 @@ const Reports = () => {
       return
     }
 
+    // Validate required filters for CO/PO reports
+    if ((selectedReportType.includes('co') || selectedReportType.includes('po')) && !filters.subject_id) {
+      toast.error('Please select a subject for CO/PO analysis reports')
+      return
+    }
+
     setGenerating(true)
     try {
       const reportData = await reportsAPI.generateReport(selectedReportType, {
@@ -248,9 +254,20 @@ const Reports = () => {
   const handleQuickReport = async (reportType: string, quickFilters = {}) => {
     setGenerating(true)
     try {
+      // Get a default subject for the HOD's department
+      const hodSubjects = subjects.filter(s => s.class_id && classes.find(c => c.id === s.class_id)?.department_id === user?.department_id)
+      const defaultSubject = hodSubjects[0]
+      
+      if (!defaultSubject && (reportType.includes('co') || reportType.includes('po'))) {
+        toast.error('No subjects available for CO/PO analysis. Please add subjects first.')
+        setGenerating(false)
+        return
+      }
+      
       const reportData = await reportsAPI.generateReport(reportType, {
         ...quickFilters,
-        department_id: user?.department_id
+        department_id: user?.department_id,
+        subject_id: defaultSubject?.id || quickFilters.subject_id
       }, 'pdf')
       
       const blob = new Blob([reportData], { type: 'application/pdf' })

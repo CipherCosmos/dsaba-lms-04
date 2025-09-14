@@ -20,11 +20,10 @@ interface AuthState {
 }
 
 // Check for existing token on app load
-const token = localStorage.getItem('token')
 const initialState: AuthState = {
   user: null,
-  isAuthenticated: !!token,
-  loading: !!token, // If token exists, we need to fetch user info
+  isAuthenticated: false, // Force login page to show for testing
+  loading: false,
   error: null,
 }
 

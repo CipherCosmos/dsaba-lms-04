@@ -167,7 +167,7 @@ const Sidebar = () => {
                     <Link
                       key={item.name}
                       to={item.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={() => toggleMobileMenu()}
                       className={`
                         flex items-center rounded-lg transition-colors group relative
                         ${isCollapsed ? 'justify-center px-3 py-2' : 'space-x-3 px-3 py-2'}

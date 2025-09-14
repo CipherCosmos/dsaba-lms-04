@@ -149,15 +149,39 @@ const HODTeacherAnalytics: React.FC = () => {
     }
   })
 
-  // Performance trends (mock data for demonstration)
-  const performanceTrends = [
-    { month: 'Jan', performance: 75 },
-    { month: 'Feb', performance: 78 },
-    { month: 'Mar', performance: 82 },
-    { month: 'Apr', performance: 85 },
-    { month: 'May', performance: 88 },
-    { month: 'Jun', performance: 90 }
-  ]
+  // Calculate performance trends from real data
+  const performanceTrends = React.useMemo(() => {
+    const monthlyData: { [key: string]: { total: number, count: number } } = {}
+    
+    // Group exams by month
+    departmentExams.forEach(exam => {
+      const examDate = new Date(exam.created_at || exam.date)
+      const monthKey = examDate.toLocaleDateString('en-US', { month: 'short' })
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { total: 0, count: 0 }
+      }
+      
+      // Calculate average performance for this exam
+      const examStudents = users.filter(u => u.role === 'student' && u.class_id === exam.class_id)
+      if (examStudents.length > 0) {
+        const avgPerformance = exam.total_marks ? (exam.total_marks / exam.max_marks) * 100 : 0
+        monthlyData[monthKey].total += avgPerformance
+        monthlyData[monthKey].count += 1
+      }
+    })
+    
+    // Convert to array format
+    return Object.entries(monthlyData)
+      .map(([month, data]) => ({
+        month,
+        performance: data.count > 0 ? Math.round(data.total / data.count) : 0
+      }))
+      .sort((a, b) => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        return months.indexOf(a.month) - months.indexOf(b.month)
+      })
+  }, [departmentExams, users])
 
   // Removed unused COLORS
 

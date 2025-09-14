@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { AppDispatch, RootState } from '../../store/store'
@@ -6,10 +6,12 @@ import { fetchExams } from '../../store/slices/examSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchMarksByExam, saveMarks } from '../../store/slices/marksSlice'
+import { marksAPI } from '../../services/api'
 import { 
-  Download, Upload, Save, Edit3, Users, FileSpreadsheet, 
-  Search, Filter, CheckCircle, AlertTriangle, TrendingUp, 
-  Calculator, Target, Award, Clock, BookOpen, BarChart3 
+  Download, Save, Users, FileSpreadsheet, 
+  Search, CheckCircle, AlertTriangle,
+  BarChart3, Copy, Upload,
+  SortAsc, SortDesc
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -26,10 +28,28 @@ const MarksEntry = () => {
   const [students, setStudents] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState<'name' | 'total' | 'percentage'>('name')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [sortOrder] = useState<'asc' | 'desc'>('asc')
   const [showStats, setShowStats] = useState(true)
   const [autoSave, setAutoSave] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [lockStatus, setLockStatus] = useState<any>(null)
+  const [loadingLockStatus, setLoadingLockStatus] = useState(false)
+  
+  // New state for enhanced features
+  const [bulkMode, setBulkMode] = useState(false)
+  const [selectedStudents, setSelectedStudents] = useState<Set<number>>(new Set())
+  const [quickFillValue, setQuickFillValue] = useState('')
+  const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false)
+  const [showValidation] = useState(true)
+  const [keyboardShortcuts, setKeyboardShortcuts] = useState(true)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadPreview, setUploadPreview] = useState<any[]>([])
+  const [uploadError, setUploadError] = useState<string>('')
+  
+  // Refs for keyboard shortcuts
+  const inputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({})
+  const tableRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     dispatch(fetchExams())
@@ -50,75 +70,75 @@ const MarksEntry = () => {
     [exams, teacherSubjects]
   )
 
-  // Filter and sort students
-  const filteredAndSortedStudents = useMemo(() => {
-    let filtered = marksData.filter(student =>
-      student.student_name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-
-    filtered.sort((a, b) => {
-      let aValue, bValue
-      switch (sortBy) {
-        case 'name':
-          aValue = a.student_name
-          bValue = b.student_name
-          break
-        case 'total':
-          aValue = a.total
-          bValue = b.total
-          break
-        case 'percentage':
-          aValue = selectedExam?.total_marks > 0 ? (a.total / selectedExam.total_marks) * 100 : 0
-          bValue = selectedExam?.total_marks > 0 ? (b.total / selectedExam.total_marks) * 100 : 0
-          break
-        default:
-          return 0
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1
-      } else {
-        return aValue < bValue ? 1 : -1
-      }
-    })
-
-    return filtered
-  }, [marksData, searchTerm, sortBy, sortOrder, selectedExam])
-
-  // Calculate statistics
-  const statistics = useMemo(() => {
-    if (!marksData.length || !selectedExam) return null
-
-    const totalStudents = marksData.length
-    const totalMarks = selectedExam.total_marks
-    const averageMarks = marksData.reduce((sum, s) => sum + s.total, 0) / totalStudents
-    const averagePercentage = totalMarks > 0 ? (averageMarks / totalMarks) * 100 : 0
+  // Enhanced calculations with proper error handling
+  const calculateTotals = useMemo(() => {
+    if (!selectedExam || !marksData.length) return { totalMarks: 0, average: 0, passRate: 0 }
     
-    const passedStudents = marksData.filter(s => 
-      totalMarks > 0 && (s.total / totalMarks) * 100 >= 50
-    ).length
+    const totalMarks = selectedExam.total_marks || 0
+    const validMarks = marksData.filter(s => s.total !== undefined && !isNaN(s.total))
+    const totalObtained = validMarks.reduce((sum, s) => sum + (s.total || 0), 0)
+    const average = validMarks.length > 0 ? totalObtained / validMarks.length : 0
+    const passCount = validMarks.filter(s => (s.total || 0) >= (totalMarks * 0.4)).length
+    const passRate = validMarks.length > 0 ? (passCount / validMarks.length) * 100 : 0
     
-    const passRate = (passedStudents / totalStudents) * 100
-
-    const gradeDistribution = {
-      A: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 90).length,
-      B: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 80 && (s.total / totalMarks) * 100 < 90).length,
-      C: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 70 && (s.total / totalMarks) * 100 < 80).length,
-      D: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 >= 60 && (s.total / totalMarks) * 100 < 70).length,
-      F: marksData.filter(s => totalMarks > 0 && (s.total / totalMarks) * 100 < 60).length
-    }
-
     return {
-      totalStudents,
-      averageMarks: averageMarks.toFixed(1),
-      averagePercentage: averagePercentage.toFixed(1),
-      passRate: passRate.toFixed(1),
-      gradeDistribution
+      totalMarks,
+      average: Math.round(average * 100) / 100,
+      passRate: Math.round(passRate * 100) / 100,
+      totalStudents: validMarks.length,
+      passCount: passCount
     }
   }, [marksData, selectedExam])
 
+  // Enhanced statistics with more details
+  const statistics = useMemo(() => {
+    if (!marksData.length || !selectedExam) return null
+    
+    const { totalMarks, average, passRate, totalStudents, passCount } = calculateTotals || {}
+    const marks = marksData.map(s => s.total || 0).filter((m: number) => !isNaN(m))
+    
+    // Grade distribution
+    const gradeDistribution = {
+      'A+': marks.filter((m: number) => m >= (totalMarks || 0) * 0.9).length,
+      'A': marks.filter((m: number) => m >= (totalMarks || 0) * 0.8 && m < (totalMarks || 0) * 0.9).length,
+      'B+': marks.filter((m: number) => m >= (totalMarks || 0) * 0.7 && m < (totalMarks || 0) * 0.8).length,
+      'B': marks.filter((m: number) => m >= (totalMarks || 0) * 0.6 && m < (totalMarks || 0) * 0.7).length,
+      'C': marks.filter((m: number) => m >= (totalMarks || 0) * 0.5 && m < (totalMarks || 0) * 0.6).length,
+      'D': marks.filter((m: number) => m >= (totalMarks || 0) * 0.4 && m < (totalMarks || 0) * 0.5).length,
+      'F': marks.filter((m: number) => m < (totalMarks || 0) * 0.4).length
+    }
+    
+    return {
+      totalMarks,
+      average,
+      passRate,
+      totalStudents: totalStudents || 0,
+      passCount: passCount || 0,
+      failCount: (totalStudents || 0) - (passCount || 0),
+      gradeDistribution,
+      highest: Math.max(...marks, 0),
+      lowest: Math.min(...marks.filter((m: number) => m > 0), 0) || 0
+    }
+  }, [marksData, selectedExam, calculateTotals])
+
+  const fetchLockStatus = async (examId: number) => {
+    try {
+      setLoadingLockStatus(true)
+      const status = await marksAPI.getLockStatus(examId)
+      setLockStatus(status)
+    } catch (error) {
+      console.error('Error fetching lock status:', error)
+      setLockStatus(null)
+    } finally {
+      setLoadingLockStatus(false)
+    }
+  }
+
   const handleExamSelect = async (exam: any) => {
     setSelectedExam(exam)
+    setLockStatus(null)
+    setSelectedStudents(new Set())
+    setBulkMode(false)
     
     // Get subject to find class
     const subject = subjects.find(s => s.id === exam.subject_id)
@@ -131,21 +151,30 @@ const MarksEntry = () => {
       // Fetch existing marks
       dispatch(fetchMarksByExam(exam.id))
       
-      // Initialize marks data structure
+      // Fetch lock status
+      fetchLockStatus(exam.id)
+      
+      // Initialize marks data structure with proper calculations
       const initialMarksData = classStudents.map(student => {
         const studentMarks: { [key: number]: number } = {}
+        let total = 0
+        
         exam.questions?.forEach((question: any) => {
           const existingMark = marks.find(m => 
             m.student_id === student.id && m.question_id === question.id
           )
-          studentMarks[question.id] = existingMark?.marks_obtained || 0
+          const markValue = existingMark?.marks_obtained || 0
+          studentMarks[question.id] = markValue
+          total += markValue
         })
         
         return {
           student_id: student.id,
           student_name: `${student.first_name} ${student.last_name}`,
+          student_roll: student.username || '',
           marks: studentMarks,
-          total: 0
+          total: Math.round(total * 100) / 100,
+          percentage: selectedExam?.total_marks > 0 ? Math.round((total / selectedExam.total_marks) * 10000) / 100 : 0
         }
       })
       
@@ -154,11 +183,23 @@ const MarksEntry = () => {
   }
 
   const handleMarksChange = (studentId: number, questionId: number, marks: number) => {
+    if (lockStatus?.is_locked) return
+    
     setMarksData(prev => prev.map(student => {
       if (student.student_id === studentId) {
         const updatedMarks = { ...student.marks, [questionId]: marks }
-        const total = Object.values(updatedMarks).reduce((sum: any, mark: any) => sum + Number(mark), 0)
-        return { ...student, marks: updatedMarks, total }
+        const total = Object.values(updatedMarks).reduce((sum: number, mark: any) => {
+          const numMark = Number(mark) || 0
+          return sum + numMark
+        }, 0)
+        const percentage = selectedExam?.total_marks > 0 ? (total / selectedExam.total_marks) * 100 : 0
+        
+        return { 
+          ...student, 
+          marks: updatedMarks, 
+          total: Math.round(total * 100) / 100,
+          percentage: Math.round(percentage * 100) / 100
+        }
       }
       return student
     }))
@@ -167,23 +208,100 @@ const MarksEntry = () => {
     if (autoSave) {
       setTimeout(() => {
         handleSaveMarks()
-      }, 2000) // Auto-save after 2 seconds of inactivity
+      }, 2000)
     }
   }
+
+  // Enhanced bulk operations
+  const handleBulkFill = (questionId: number, value: number) => {
+    if (lockStatus?.is_locked) return
+    
+    setMarksData(prev => prev.map(student => {
+      if (selectedStudents.size === 0 || selectedStudents.has(student.student_id)) {
+        const updatedMarks = { ...student.marks, [questionId]: value }
+        const total = Object.values(updatedMarks).reduce((sum: number, mark: any) => {
+          const numMark = Number(mark) || 0
+          return sum + numMark
+        }, 0)
+        const percentage = selectedExam?.total_marks > 0 ? (total / selectedExam.total_marks) * 100 : 0
+        
+        return { 
+          ...student, 
+          marks: updatedMarks, 
+          total: Math.round(total * 100) / 100,
+          percentage: Math.round(percentage * 100) / 100
+        }
+      }
+      return student
+    }))
+  }
+
+  const handleSelectStudent = (studentId: number) => {
+    const newSelected = new Set(selectedStudents)
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId)
+    } else {
+      newSelected.add(studentId)
+    }
+    setSelectedStudents(newSelected)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedStudents.size === students.length) {
+      setSelectedStudents(new Set())
+    } else {
+      setSelectedStudents(new Set(students.map(s => s.id)))
+    }
+  }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!keyboardShortcuts) return
+
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case 's':
+            e.preventDefault()
+            handleSaveMarks()
+            break
+          case 'a':
+            e.preventDefault()
+            handleSelectAll()
+            break
+          case 'b':
+            e.preventDefault()
+            setBulkMode(!bulkMode)
+            break
+          case 'f':
+            e.preventDefault()
+            document.getElementById('search-input')?.focus()
+            break
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [keyboardShortcuts, bulkMode])
 
   // Auto-save effect
   useEffect(() => {
     if (autoSave && marksData.length > 0) {
       const timer = setTimeout(() => {
         handleSaveMarks()
-      }, 5000) // Auto-save every 5 seconds
-
+      }, 5000)
       return () => clearTimeout(timer)
     }
   }, [marksData, autoSave])
 
   const handleSaveMarks = async () => {
     if (!selectedExam) return
+
+    if (lockStatus?.is_locked) {
+      toast.error(lockStatus.message || 'Marks are locked and cannot be modified')
+      return
+    }
 
     try {
       const marksToSave = []
@@ -202,111 +320,321 @@ const MarksEntry = () => {
       await dispatch(saveMarks(marksToSave)).unwrap()
       setLastSaved(new Date())
       toast.success('Marks saved successfully!', {
-        icon: <CheckCircle className="w-5 h-5 text-green-600" />,
-        duration: 3000
+        duration: 3000,
+        icon: '✅'
       })
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save marks', {
-        icon: <AlertTriangle className="w-5 h-5 text-red-600" />,
-        duration: 5000
-      })
+      toast.error(error.message || 'Failed to save marks')
     }
   }
 
-  const downloadExcelTemplate = () => {
-    if (!selectedExam || !students.length) return
+  // Enhanced filtering and sorting
+  const filteredAndSortedStudents = useMemo(() => {
+    let filtered = marksData.filter(student => 
+      student.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.student_roll.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
-    const templateData = students.map(student => {
-      const row: any = {
-        'Student ID': student.id,
-        'Student Name': `${student.first_name} ${student.last_name}`,
-        'Email': student.email
-      }
-      
-      selectedExam.questions?.forEach((question: any) => {
-        row[`Q${question.question_number} (${question.max_marks})`] = ''
+    if (showOnlyIncomplete) {
+      filtered = filtered.filter(student => {
+        const totalQuestions = selectedExam?.questions?.length || 0
+        const answeredQuestions = Object.values(student.marks).filter((m: any) => m > 0).length
+        return answeredQuestions < totalQuestions
       })
-      
-      row['Total'] = ''
-      return row
+    }
+
+    return filtered.sort((a, b) => {
+      let comparison = 0
+      switch (sortBy) {
+        case 'name':
+          comparison = a.student_name.localeCompare(b.student_name)
+          break
+        case 'total':
+          comparison = (a.total || 0) - (b.total || 0)
+          break
+        case 'percentage':
+          comparison = (a.percentage || 0) - (b.percentage || 0)
+          break
+      }
+      return sortOrder === 'asc' ? comparison : -comparison
     })
+  }, [marksData, searchTerm, sortBy, sortOrder, showOnlyIncomplete, selectedExam])
 
-    const ws = XLSX.utils.json_to_sheet(templateData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Marks')
-    XLSX.writeFile(wb, `${selectedExam.name}_Template.xlsx`)
-  }
-
-  const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // File upload functions
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
+    // Validate file type
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv' // .csv
+    ]
+
+    if (!validTypes.includes(file.type)) {
+      setUploadError('Please upload a valid Excel (.xlsx, .xls) or CSV file')
+      return
+    }
+
+    setUploadFile(file)
+    setUploadError('')
+    parseUploadedFile(file)
+  }
+
+  const parseUploadedFile = (file: File) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer)
-        const workbook = XLSX.read(data, { type: 'array' })
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json(worksheet)
-        
-        // Process uploaded data
-        const updatedMarksData = marksData.map(student => {
-          const uploadedRow = jsonData.find((row: any) => 
-            row['Student ID'] === student.student_id
-          )
-          
-          if (uploadedRow) {
-            const updatedMarks = { ...student.marks }
-            
-            selectedExam.questions?.forEach((question: any) => {
-              const columnName = `Q${question.question_number} (${question.max_marks})`
-              if (uploadedRow[columnName as keyof typeof uploadedRow] !== undefined) {
-                updatedMarks[question.id] = Number(uploadedRow[columnName as keyof typeof uploadedRow]) || 0
-              }
-            })
-            
-            const total = Object.values(updatedMarks).reduce((sum: any, mark: any) => sum + Number(mark), 0)
-            return { ...student, marks: updatedMarks, total }
-          }
-          
-          return student
-        })
-        
-        setMarksData(updatedMarksData)
-        toast.success('Excel data uploaded successfully!')
+        const data = e.target?.result
+        let workbook: XLSX.WorkBook
+
+        if (file.type === 'text/csv') {
+          // Handle CSV
+          const csvData = XLSX.utils.aoa_to_sheet((data as string).split('\n').map(row => row.split(',')))
+          workbook = XLSX.utils.book_new()
+          XLSX.utils.book_append_sheet(workbook, csvData, 'Sheet1')
+        } else {
+          // Handle Excel
+          workbook = XLSX.read(data, { type: 'binary' })
+        }
+
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+
+        // Validate and parse the data
+        const parsedData = validateAndParseMarksData(jsonData)
+        if (parsedData.error) {
+          setUploadError(parsedData.error)
+          return
+        }
+
+        setUploadPreview(parsedData.data)
       } catch (error) {
-        toast.error('Failed to process Excel file')
+        setUploadError('Error parsing file. Please check the format.')
+        console.error('File parsing error:', error)
       }
     }
-    
-    reader.readAsArrayBuffer(file)
-    event.target.value = ''
+
+    if (file.type === 'text/csv') {
+      reader.readAsText(file)
+    } else {
+      reader.readAsBinaryString(file)
+    }
   }
 
-  const exportToExcel = () => {
-    if (!selectedExam || !marksData.length) return
+  const validateAndParseMarksData = (data: any[][]) => {
+    if (!selectedExam) {
+      return { error: 'No exam selected', data: [] }
+    }
 
-    const exportData = marksData.map(student => {
+    if (data.length < 2) {
+      return { error: 'File must contain at least a header row and one data row', data: [] }
+    }
+
+    const headers = data[0]
+    const expectedHeaders = ['Roll No', 'Student Name']
+    
+    // Add question headers
+    selectedExam.questions?.forEach((question: any, index: number) => {
+      expectedHeaders.push(`Q${index + 1} (${question.max_marks})`)
+    })
+
+    // Check if required headers exist
+    const missingHeaders = expectedHeaders.filter(header => 
+      !headers.some(h => h && h.toString().toLowerCase().includes(header.toLowerCase().split(' ')[0]))
+    )
+
+    if (missingHeaders.length > 0) {
+      return { 
+        error: `Missing required columns: ${missingHeaders.join(', ')}. Please use the template format.`, 
+        data: [] 
+      }
+    }
+
+    const parsedData = []
+    const errors = []
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i]
+      if (!row || row.length === 0) continue
+
+      const studentData: any = {
+        rowIndex: i + 1,
+        rollNo: row[0]?.toString().trim() || '',
+        studentName: row[1]?.toString().trim() || '',
+        marks: {},
+        errors: []
+      }
+
+      // Parse question marks
+      selectedExam.questions?.forEach((question: any, qIndex: number) => {
+        const colIndex = 2 + qIndex // Skip Roll No and Student Name
+        const markValue = row[colIndex]
+        
+        if (markValue !== undefined && markValue !== null && markValue !== '') {
+          const numValue = parseFloat(markValue.toString())
+          if (isNaN(numValue)) {
+            studentData.errors.push(`Q${qIndex + 1}: Invalid number format`)
+          } else if (numValue < 0) {
+            studentData.errors.push(`Q${qIndex + 1}: Cannot be negative`)
+          } else if (numValue > question.max_marks) {
+            studentData.errors.push(`Q${qIndex + 1}: Exceeds max marks (${question.max_marks})`)
+          } else {
+            studentData.marks[question.id] = numValue
+          }
+        }
+      })
+
+      // Check if student exists
+      const student = students.find(s => 
+        s.username === studentData.rollNo || 
+        `${s.first_name} ${s.last_name}`.toLowerCase() === studentData.studentName.toLowerCase()
+      )
+
+      if (!student) {
+        studentData.errors.push('Student not found in class')
+      } else {
+        studentData.student_id = student.id
+        studentData.student = student
+      }
+
+      if (studentData.errors.length > 0) {
+        errors.push(`Row ${studentData.rowIndex}: ${studentData.errors.join(', ')}`)
+      }
+
+      parsedData.push(studentData)
+    }
+
+    if (errors.length > 0) {
+      return { 
+        error: `Validation errors found:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... and ${errors.length - 5} more errors` : ''}`, 
+        data: parsedData 
+      }
+    }
+
+    return { error: null, data: parsedData }
+  }
+
+  const handleUploadMarks = async () => {
+    if (!selectedExam || !uploadPreview.length) return
+
+    if (lockStatus?.is_locked) {
+      toast.error(lockStatus.message || 'Marks are locked and cannot be modified')
+      return
+    }
+
+    try {
+      const marksToSave = []
+
+      for (const studentData of uploadPreview) {
+        if (studentData.student_id) {
+          for (const questionId in studentData.marks) {
+            marksToSave.push({
+              exam_id: selectedExam.id,
+              student_id: studentData.student_id,
+              question_id: parseInt(questionId),
+              marks_obtained: studentData.marks[questionId]
+            })
+          }
+        }
+      }
+
+      if (marksToSave.length === 0) {
+        toast.error('No valid marks found to upload')
+        return
+      }
+
+      await dispatch(saveMarks(marksToSave)).unwrap()
+      
+      // Update local marks data
+      const updatedMarksData = marksData.map(student => {
+        const uploadedStudent = uploadPreview.find(u => u.student_id === student.student_id)
+        if (uploadedStudent) {
+          const updatedMarks = { ...student.marks, ...uploadedStudent.marks }
+          const total = Object.values(updatedMarks).reduce((sum: number, mark: any) => {
+            const numMark = Number(mark) || 0
+            return sum + numMark
+          }, 0)
+          const percentage = selectedExam?.total_marks > 0 ? (total / selectedExam.total_marks) * 100 : 0
+          
+          return {
+            ...student,
+            marks: updatedMarks,
+            total: Math.round(total * 100) / 100,
+            percentage: Math.round(percentage * 100) / 100
+          }
+        }
+        return student
+      })
+
+      setMarksData(updatedMarksData)
+      setShowUploadModal(false)
+      setUploadFile(null)
+      setUploadPreview([])
+      setUploadError('')
+      
+      toast.success(`Successfully uploaded marks for ${marksToSave.length} entries!`)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload marks')
+    }
+  }
+
+  // Excel export with enhanced data
+  const handleExportExcel = () => {
+    if (!selectedExam) return
+
+    const wb = XLSX.utils.book_new()
+    
+    // Prepare data with all details
+    const exportData = filteredAndSortedStudents.map(student => {
       const row: any = {
-        'Student ID': student.student_id,
-        'Student Name': student.student_name
+        'Roll No': student.student_roll,
+        'Student Name': student.student_name,
+        'Total Marks': student.total || 0,
+        'Percentage': `${student.percentage || 0}%`,
+        'Status': (student.total || 0) >= (selectedExam.total_marks * 0.4) ? 'Pass' : 'Fail'
       }
       
-      selectedExam.questions?.forEach((question: any) => {
-        row[`Q${question.question_number} (${question.max_marks})`] = student.marks[question.id] || 0
+      // Add individual question marks
+      selectedExam.questions?.forEach((question: any, index: number) => {
+        row[`Q${index + 1} (${question.max_marks})`] = student.marks[question.id] || 0
       })
-      
-      row['Total'] = student.total
-      row['Percentage'] = selectedExam.total_marks > 0 ? 
-        ((student.total / selectedExam.total_marks) * 100).toFixed(1) + '%' : '0%'
       
       return row
     })
 
     const ws = XLSX.utils.json_to_sheet(exportData)
-    const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Marks')
-    XLSX.writeFile(wb, `${selectedExam.name}_Marks.xlsx`)
+    XLSX.writeFile(wb, `${selectedExam.name}_Marks_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
+  // Excel template generation
+  const handleDownloadTemplate = () => {
+    if (!selectedExam) return
+
+    const wb = XLSX.utils.book_new()
+    
+    const templateData = students.map(student => {
+      const row: any = {
+        'Roll No': student.username || '',
+        'Student Name': `${student.first_name} ${student.last_name}`,
+        'Total Marks': '',
+        'Percentage': '',
+        'Status': ''
+      }
+      
+      selectedExam.questions?.forEach((question: any, index: number) => {
+        row[`Q${index + 1} (${question.max_marks})`] = ''
+      })
+      
+      return row
+    })
+
+    const ws = XLSX.utils.json_to_sheet(templateData)
+    XLSX.utils.book_append_sheet(wb, ws, 'Template')
+    XLSX.writeFile(wb, `${selectedExam.name}_Template.xlsx`)
   }
 
   return (
@@ -315,110 +643,78 @@ const MarksEntry = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Marks Entry</h1>
-          <p className="text-gray-600 mt-1">Enter and manage student marks efficiently</p>
+          <p className="text-gray-600">Enter and manage student marks efficiently</p>
         </div>
-        <div className="flex space-x-3">
-          {selectedExam && (
-            <>
-              <button
-                onClick={downloadExcelTemplate}
-                className="btn-secondary flex items-center space-x-2"
-              >
-                <Download size={18} />
-                <span>Template</span>
-              </button>
-              
-              <label className="btn-secondary flex items-center space-x-2 cursor-pointer">
-                <Upload size={18} />
-                <span>Upload Excel</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleExcelUpload}
-                  className="hidden"
-                />
-              </label>
-              
-              <button
-                onClick={exportToExcel}
-                className="btn-secondary flex items-center space-x-2"
-              >
-                <FileSpreadsheet size={18} />
-                <span>Export</span>
-              </button>
-            </>
-          )}
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="keyboard-shortcuts"
+              checked={keyboardShortcuts}
+              onChange={(e) => setKeyboardShortcuts(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="keyboard-shortcuts" className="text-sm text-gray-600">
+              Keyboard Shortcuts
+            </label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="auto-save"
+              checked={autoSave}
+              onChange={(e) => setAutoSave(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="auto-save" className="text-sm text-gray-600">
+              Auto Save
+            </label>
+          </div>
         </div>
       </div>
 
-      {/* Quick Stats Bar */}
-      {selectedExam && statistics && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-2">
-                <Users className="w-5 h-5 text-blue-600 mr-2" />
-                <span className="text-2xl font-bold text-gray-900">{statistics.totalStudents}</span>
-              </div>
-              <p className="text-sm text-gray-600">Students</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-2">
-                <Calculator className="w-5 h-5 text-green-600 mr-2" />
-                <span className="text-2xl font-bold text-gray-900">{statistics.averageMarks}</span>
-              </div>
-              <p className="text-sm text-gray-600">Avg Marks</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-2">
-                <TrendingUp className="w-5 h-5 text-purple-600 mr-2" />
-                <span className="text-2xl font-bold text-gray-900">{statistics.averagePercentage}%</span>
-              </div>
-              <p className="text-sm text-gray-600">Avg %</p>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-2">
-                <Award className="w-5 h-5 text-orange-600 mr-2" />
-                <span className="text-2xl font-bold text-gray-900">{statistics.passRate}%</span>
-              </div>
-              <p className="text-sm text-gray-600">Pass Rate</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Exam Selection */}
       <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Exam</h3>
+        <h3 className="text-lg font-semibold mb-4">Select Exam</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teacherExams.map(exam => {
+          {teacherExams.map((exam) => {
             const subject = subjects.find(s => s.id === exam.subject_id)
             return (
-              <button
+              <div
                 key={exam.id}
                 onClick={() => handleExamSelect(exam)}
-                className={`p-4 border-2 rounded-lg text-left transition-all ${
+                className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
                   selectedExam?.id === exam.id
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <h4 className="font-medium text-gray-900">{exam.name}</h4>
-                <p className="text-sm text-gray-600">{subject?.name}</p>
-                <div className="flex justify-between mt-2 text-xs text-gray-500">
-                  <span>{exam.questions?.length || 0} questions</span>
-                  <span>{exam.total_marks} marks</span>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-gray-900">{exam.name}</h4>
+                  <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                    {exam.exam_type}
+                  </span>
                 </div>
-              </button>
+                <p className="text-sm text-gray-600 mb-2">{subject?.name}</p>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{exam.total_marks} marks</span>
+                  <span>{exam.questions?.length || 0} questions</span>
+                </div>
+                {exam.exam_date && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(exam.exam_date).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>
       </div>
 
-      {/* Marks Entry Table */}
+      {/* Marks Entry Interface */}
       {selectedExam && (
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
                 {selectedExam.name} - Marks Entry
@@ -426,7 +722,36 @@ const MarksEntry = () => {
               <p className="text-sm text-gray-600 mt-1">
                 {students.length} students • {selectedExam.questions?.length || 0} questions • {selectedExam.total_marks} total marks
               </p>
+              {lockStatus && (
+                <div className={`mt-2 px-3 py-2 rounded-md text-sm font-medium ${
+                  lockStatus.is_locked 
+                    ? 'bg-red-100 text-red-800 border border-red-200' 
+                    : 'bg-green-100 text-green-800 border border-green-200'
+                }`}>
+                  {loadingLockStatus ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                      Checking lock status...
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      {lockStatus.is_locked ? (
+                        <AlertTriangle size={16} className="mr-2" />
+                      ) : (
+                        <CheckCircle size={16} className="mr-2" />
+                      )}
+                      {lockStatus.message}
+                      {!lockStatus.is_locked && lockStatus.days_remaining !== null && (
+                        <span className="ml-2 text-xs">
+                          (Lock date: {new Date(lockStatus.lock_date).toLocaleDateString()})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+            
             <div className="flex items-center space-x-4">
               {lastSaved && (
                 <div className="text-xs text-gray-500">
@@ -440,109 +765,204 @@ const MarksEntry = () => {
             </div>
           </div>
 
-          {/* Search and Filter Controls */}
-          <div className="mb-6 flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+          {/* Enhanced Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
+                  id="search-input"
                   type="text"
                   placeholder="Search students..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-field pl-10 w-full"
+                  className="input-field pl-10 w-64"
                 />
               </div>
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'name' | 'total' | 'percentage')}
-                className="input-field"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="total">Sort by Total</option>
-                <option value="percentage">Sort by %</option>
-              </select>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="btn-secondary px-3"
-              >
-                {sortOrder === 'asc' ? '↑' : '↓'}
-              </button>
-              <button
-                onClick={() => setShowStats(!showStats)}
-                className={`btn-secondary px-3 ${showStats ? 'bg-blue-100 text-blue-700' : ''}`}
-              >
-                <BarChart3 size={16} />
-              </button>
-              <label className="flex items-center space-x-2 cursor-pointer">
+              
+              <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={autoSave}
-                  onChange={(e) => setAutoSave(e.target.checked)}
+                  id="show-incomplete"
+                  checked={showOnlyIncomplete}
+                  onChange={(e) => setShowOnlyIncomplete(e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm text-gray-600">Auto-save</span>
-              </label>
+                <label htmlFor="show-incomplete" className="text-sm text-gray-600">
+                  Show only incomplete
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setBulkMode(!bulkMode)}
+                  className={`btn-secondary flex items-center space-x-2 ${
+                    bulkMode ? 'bg-blue-100 text-blue-700' : ''
+                  }`}
+                >
+                  <Copy size={16} />
+                  <span>Bulk Mode</span>
+                </button>
+                
+                {bulkMode && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={handleSelectAll}
+                      className="btn-secondary text-sm"
+                    >
+                      {selectedStudents.size === students.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      {selectedStudents.size} selected
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowStats(!showStats)}
+                  className="btn-secondary flex items-center space-x-2"
+                >
+                  <BarChart3 size={16} />
+                  <span>{showStats ? 'Hide' : 'Show'} Stats</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Grade Distribution Chart */}
+          {/* Statistics Panel */}
           {showStats && statistics && (
-            <div className="mb-6 bg-gray-50 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Grade Distribution</h4>
-              <div className="grid grid-cols-5 gap-4">
-                {Object.entries(statistics.gradeDistribution).map(([grade, count]) => (
-                  <div key={grade} className="text-center">
-                    <div className={`text-2xl font-bold ${
-                      grade === 'A' ? 'text-green-600' :
-                      grade === 'B' ? 'text-blue-600' :
-                      grade === 'C' ? 'text-yellow-600' :
-                      grade === 'D' ? 'text-orange-600' :
-                      'text-red-600'
-                    }`}>
-                      {count}
-                    </div>
-                    <div className="text-xs text-gray-600">Grade {grade}</div>
-                  </div>
-                ))}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{statistics.totalStudents}</div>
+                <div className="text-sm text-blue-600">Total Students</div>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{statistics.passCount}</div>
+                <div className="text-sm text-green-600">Passed</div>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{statistics.failCount}</div>
+                <div className="text-sm text-red-600">Failed</div>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{statistics.average}</div>
+                <div className="text-sm text-purple-600">Average</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{statistics.passRate}%</div>
+                <div className="text-sm text-orange-600">Pass Rate</div>
+              </div>
+              <div className="bg-indigo-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-indigo-600">{statistics.highest}</div>
+                <div className="text-sm text-indigo-600">Highest</div>
               </div>
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600 sticky left-0 bg-white">
-                    Student
+          {/* Marks Entry Table */}
+          <div ref={tableRef} className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {bulkMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.size === students.length}
+                        onChange={handleSelectAll}
+                        className="rounded"
+                      />
+                    )}
+                    <span className="ml-2">Student</span>
                   </th>
-                  {selectedExam.questions?.map((question: any) => (
-                    <th key={question.id} className="text-center py-3 px-4 font-medium text-gray-600">
-                      <div className="flex flex-col">
-                        <span>Q{question.question_number}</span>
-                        <span className="text-xs text-gray-500">({question.max_marks})</span>
+                  {selectedExam.questions?.map((question: any, index: number) => (
+                    <th key={question.id} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="flex flex-col items-center">
+                        <span>Q{index + 1}</span>
+                        <span className="text-gray-400">({question.max_marks})</span>
+                        {bulkMode && (
+                          <div className="mt-2 flex items-center space-x-1">
+                            <input
+                              type="number"
+                              placeholder="Fill"
+                              value={quickFillValue}
+                              onChange={(e) => setQuickFillValue(e.target.value)}
+                              className="w-12 h-6 text-xs text-center border rounded"
+                              min="0"
+                              max={question.max_marks}
+                            />
+                            <button
+                              onClick={() => handleBulkFill(question.id, Number(quickFillValue) || 0)}
+                              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                            >
+                              Fill
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </th>
                   ))}
-                  <th className="text-center py-3 px-4 font-medium text-gray-600">Total</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-600">%</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center justify-center space-x-2">
+                      <span>Total</span>
+                      <button
+                        onClick={() => setSortBy('total')}
+                        className="hover:text-gray-700"
+                      >
+                        {sortBy === 'total' ? (sortOrder === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />) : <SortAsc size={14} />}
+                      </button>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center justify-center space-x-2">
+                      <span>%</span>
+                      <button
+                        onClick={() => setSortBy('percentage')}
+                        className="hover:text-gray-700"
+                      >
+                        {sortBy === 'percentage' ? (sortOrder === 'asc' ? <SortAsc size={14} /> : <SortDesc size={14} />) : <SortAsc size={14} />}
+                      </button>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="bg-white divide-y divide-gray-200">
                 {filteredAndSortedStudents.map((student) => (
-                  <tr key={student.student_id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 sticky left-0 bg-white">
-                      <div>
-                        <p className="font-medium text-gray-900">{student.student_name}</p>
-                        <p className="text-xs text-gray-500">ID: {student.student_id}</p>
+                  <tr key={student.student_id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center">
+                        {bulkMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.has(student.student_id)}
+                            onChange={() => handleSelectStudent(student.student_id)}
+                            className="rounded mr-3"
+                          />
+                        )}
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {student.student_name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {student.student_roll}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     {selectedExam.questions?.map((question: any) => (
-                      <td key={question.id} className="py-3 px-4 text-center">
+                      <td key={question.id} className="px-4 py-3 text-center">
                         <div className="relative">
                           <input
+                            ref={(el) => {
+                              inputRefs.current[`${student.student_id}-${question.id}`] = el
+                            }}
                             type="number"
                             min="0"
                             max={question.max_marks}
@@ -553,8 +973,11 @@ const MarksEntry = () => {
                               question.id,
                               parseFloat(e.target.value) || 0
                             )}
+                            disabled={lockStatus?.is_locked}
                             className={`w-16 input-field text-center ${
-                              student.marks[question.id] > question.max_marks
+                              lockStatus?.is_locked
+                                ? 'bg-gray-100 cursor-not-allowed opacity-60'
+                                : student.marks[question.id] > question.max_marks
                                 ? 'border-red-300 bg-red-50'
                                 : student.marks[question.id] === question.max_marks
                                 ? 'border-green-300 bg-green-50'
@@ -562,10 +985,10 @@ const MarksEntry = () => {
                             }`}
                             placeholder="0"
                           />
-                          {student.marks[question.id] > question.max_marks && (
+                          {showValidation && student.marks[question.id] > question.max_marks && (
                             <AlertTriangle className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-4 h-4 text-red-500" />
                           )}
-                          {student.marks[question.id] === question.max_marks && (
+                          {showValidation && student.marks[question.id] === question.max_marks && (
                             <CheckCircle className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-500" />
                           )}
                         </div>
@@ -574,19 +997,27 @@ const MarksEntry = () => {
                         </div>
                       </td>
                     ))}
-                    <td className="py-3 px-4 text-center font-medium">
-                      {student.total.toFixed(1)}
+                    <td className="px-4 py-3 text-center">
+                      <div className="text-sm font-medium text-gray-900">
+                        {student.total || 0}
+                      </div>
                     </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`font-medium ${
-                        selectedExam.total_marks > 0 && 
-                        (student.total / selectedExam.total_marks) * 100 >= 50
-                          ? 'text-green-600' : 'text-red-600'
+                    <td className="px-4 py-3 text-center">
+                      <div className={`text-sm font-medium ${
+                        (student.percentage || 0) >= 80 ? 'text-green-600' :
+                        (student.percentage || 0) >= 60 ? 'text-yellow-600' :
+                        (student.percentage || 0) >= 40 ? 'text-orange-600' : 'text-red-600'
                       }`}>
-                        {selectedExam.total_marks > 0 
-                          ? ((student.total / selectedExam.total_marks) * 100).toFixed(1) + '%'
-                          : '0%'
-                        }
+                        {student.percentage || 0}%
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        (student.percentage || 0) >= 40
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {(student.percentage || 0) >= 40 ? 'Pass' : 'Fail'}
                       </span>
                     </td>
                   </tr>
@@ -595,18 +1026,34 @@ const MarksEntry = () => {
             </table>
           </div>
 
-          <div className="mt-6 flex justify-between items-center">
-            <div className="text-sm text-gray-600">
-              <p>Total Students: {students.length}</p>
-              {marksData.length > 0 && (
-                <p>
-                  Average: {(marksData.reduce((sum, s) => sum + s.total, 0) / marksData.length).toFixed(1)} / {selectedExam.total_marks}
-                </p>
-              )}
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between mt-6 pt-4 border-t">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleDownloadTemplate}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <Download size={18} />
+                <span>Download Template</span>
+              </button>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <Upload size={18} />
+                <span>Upload Excel/CSV</span>
+              </button>
+              <button
+                onClick={handleExportExcel}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <FileSpreadsheet size={18} />
+                <span>Export Excel</span>
+              </button>
             </div>
             <button
               onClick={handleSaveMarks}
-              disabled={loading || !marksData.length}
+              disabled={loading || !marksData.length || lockStatus?.is_locked}
               className="btn-primary flex items-center space-x-2 disabled:opacity-50"
             >
               {loading ? (
@@ -617,16 +1064,196 @@ const MarksEntry = () => {
               <span>{loading ? 'Saving...' : 'Save Marks'}</span>
             </button>
           </div>
+
+          {/* Keyboard Shortcuts Help */}
+          {keyboardShortcuts && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">Keyboard Shortcuts:</h4>
+              <div className="text-xs text-blue-700 space-y-1">
+                <div>Ctrl+S: Save marks</div>
+                <div>Ctrl+A: Select all students</div>
+                <div>Ctrl+B: Toggle bulk mode</div>
+                <div>Ctrl+F: Focus search</div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {teacherExams.length === 0 && (
-        <div className="card text-center py-8">
-          <Edit3 className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Exams Found</h3>
-          <p className="text-gray-600">
-            You haven't configured any exams yet. Go to Exam Configuration to create one.
-          </p>
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-full max-w-4xl mx-4 my-8 max-h-[90vh] flex flex-col shadow-xl">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Upload Marks from Excel/CSV</h3>
+              <button
+                onClick={() => {
+                  setShowUploadModal(false)
+                  setUploadFile(null)
+                  setUploadPreview([])
+                  setUploadError('')
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 flex-1 overflow-y-auto">
+              {!uploadFile ? (
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    <Upload size={48} className="mx-auto text-gray-400 mb-4" />
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">Upload Excel or CSV File</h4>
+                    <p className="text-gray-600 mb-4">
+                      Please use the template format. Download the template first to ensure proper formatting.
+                    </p>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="btn-primary cursor-pointer inline-flex items-center space-x-2"
+                    >
+                      <Upload size={18} />
+                      <span>Choose File</span>
+                    </label>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h5 className="font-medium text-blue-900 mb-2">File Format Requirements:</h5>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• First column: Roll No (must match student roll numbers)</li>
+                      <li>• Second column: Student Name (must match student names)</li>
+                      <li>• Subsequent columns: Q1 (max_marks), Q2 (max_marks), etc.</li>
+                      <li>• Supported formats: .xlsx, .xls, .csv</li>
+                      <li>• Use the template for proper formatting</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileSpreadsheet size={24} className="text-green-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">{uploadFile.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {(uploadFile.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setUploadFile(null)
+                        setUploadPreview([])
+                        setUploadError('')
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {uploadError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="flex items-start">
+                        <AlertTriangle size={20} className="text-red-600 mr-3 mt-0.5" />
+                        <div>
+                          <h5 className="font-medium text-red-800 mb-1">Validation Error</h5>
+                          <p className="text-sm text-red-700 whitespace-pre-line">{uploadError}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : uploadPreview.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-start">
+                          <CheckCircle size={20} className="text-green-600 mr-3 mt-0.5" />
+                          <div>
+                            <h5 className="font-medium text-green-800 mb-1">File Validated Successfully</h5>
+                            <p className="text-sm text-green-700">
+                              Found {uploadPreview.length} students with valid marks data.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-2 border-b">
+                          <h6 className="font-medium text-gray-900">Preview (First 10 rows)</h6>
+                        </div>
+                        <div className="overflow-x-auto max-h-64">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left">Roll No</th>
+                                <th className="px-3 py-2 text-left">Student Name</th>
+                                {selectedExam.questions?.slice(0, 5).map((q: any, index: number) => (
+                                  <th key={q.id} className="px-3 py-2 text-center">Q{index + 1}</th>
+                                ))}
+                                {selectedExam.questions && selectedExam.questions.length > 5 && (
+                                  <th className="px-3 py-2 text-center">...</th>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {uploadPreview.slice(0, 10).map((student: any, index: number) => (
+                                <tr key={index} className="border-t">
+                                  <td className="px-3 py-2">{student.rollNo}</td>
+                                  <td className="px-3 py-2">{student.studentName}</td>
+                                  {selectedExam.questions?.slice(0, 5).map((q: any) => (
+                                    <td key={q.id} className="px-3 py-2 text-center">
+                                      {student.marks[q.id] !== undefined ? student.marks[q.id] : '-'}
+                                    </td>
+                                  ))}
+                                  {selectedExam.questions && selectedExam.questions.length > 5 && (
+                                    <td className="px-3 py-2 text-center text-gray-400">...</td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {uploadFile && !uploadError && uploadPreview.length > 0 && (
+              <div className="flex items-center justify-end space-x-3 p-6 border-t bg-gray-50">
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false)
+                    setUploadFile(null)
+                    setUploadPreview([])
+                    setUploadError('')
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUploadMarks}
+                  disabled={loading}
+                  className="btn-primary flex items-center space-x-2"
+                >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  ) : (
+                    <Upload size={18} />
+                  )}
+                  <span>{loading ? 'Uploading...' : 'Upload Marks'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchTeacherAnalytics } from '../../store/slices/analyticsSlice'
@@ -77,35 +77,129 @@ const TeacherDashboard = () => {
     },
   ]
 
-  const upcomingTasks = [
-    { task: 'Grade Internal Exam 2', deadline: '2 days', priority: 'high', type: 'grading' },
-    { task: 'Submit CO-PO mapping report', deadline: '5 days', priority: 'medium', type: 'report' },
-    { task: 'Prepare question bank', deadline: '1 week', priority: 'medium', type: 'preparation' },
-    { task: 'Conduct remedial session', deadline: '3 days', priority: 'high', type: 'teaching' },
-  ]
-
-  const classPerformance = teacherSubjects.map(subject => {
-    const classStudents = users.filter(u => 
-      u.role === 'student' && u.class_id === subject.class_id
-    ).length
+  // Calculate upcoming tasks based on real data
+  const upcomingTasks = React.useMemo(() => {
+    const tasks = []
     
-    // Calculate performance based on actual data
-    const basePerformance = classStudents > 0 ? 75 + (classStudents * 2) : 70
-    const performance = Math.min(Math.round(basePerformance), 95)
-    return {
-      class: `Class ${subject.class_id}`,
-      subject: subject.name,
-      average: performance,
-      students: classStudents,
-      status: performance >= 85 ? 'excellent' : performance >= 75 ? 'good' : 'average'
+    // Find upcoming exams that need grading
+    const upcomingExams = teacherExams.filter(exam => {
+      const examDate = new Date(exam.exam_date || exam.created_at)
+      const daysUntil = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      return daysUntil > 0 && daysUntil <= 7
+    })
+    
+    upcomingExams.forEach(exam => {
+      const examDate = new Date(exam.exam_date || exam.created_at)
+      const daysUntil = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      const subject = subjects.find(s => s.id === exam.subject_id)
+      
+      tasks.push({
+        task: `Grade ${exam.name}`,
+        deadline: daysUntil === 1 ? '1 day' : `${daysUntil} days`,
+        priority: daysUntil <= 2 ? 'high' : 'medium',
+        type: 'grading'
+      })
+    })
+    
+    // Add CO-PO mapping task if teacher has subjects
+    if (teacherSubjects.length > 0) {
+      tasks.push({
+        task: 'Submit CO-PO mapping report',
+        deadline: '5 days',
+        priority: 'medium',
+        type: 'report'
+      })
     }
-  })
+    
+    // Add question bank preparation task
+    if (teacherSubjects.length > 0) {
+      tasks.push({
+        task: 'Prepare question bank',
+        deadline: '1 week',
+        priority: 'medium',
+        type: 'preparation'
+      })
+    }
+    
+    return tasks.slice(0, 4) // Limit to 4 tasks
+  }, [teacherExams, subjects, teacherSubjects])
 
-  const atRiskStudents = [
-    { name: 'John Doe', class: 'CSE-A', percentage: 45, subjects: ['Data Structures', 'DBMS'] },
-    { name: 'Jane Smith', class: 'CSE-B', percentage: 52, subjects: ['Algorithms'] },
-    { name: 'Mike Johnson', class: 'CSE-A', percentage: 38, subjects: ['Data Structures', 'OS'] },
-  ]
+  // Calculate class performance based on real exam data
+  const classPerformance = React.useMemo(() => {
+    return teacherSubjects.map(subject => {
+      const classStudents = users.filter(u => 
+        u.role === 'student' && u.class_id === subject.class_id
+      )
+      
+      // Get exams for this subject
+      const subjectExams = teacherExams.filter(exam => exam.subject_id === subject.id)
+      
+      // Calculate average performance from actual exam data
+      let averagePerformance = 0
+      if (subjectExams.length > 0) {
+        const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
+        const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.max_marks || 0), 0)
+        averagePerformance = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0
+      }
+      
+      return {
+        class: `Class ${subject.class_id}`,
+        subject: subject.name,
+        average: averagePerformance,
+        students: classStudents.length,
+        status: averagePerformance >= 85 ? 'excellent' : averagePerformance >= 75 ? 'good' : 'average'
+      }
+    })
+  }, [teacherSubjects, users, teacherExams])
+
+  // Calculate at-risk students based on real performance data
+  const atRiskStudents = React.useMemo(() => {
+    const atRisk = []
+    
+    // Get all students in teacher's classes
+    const allStudents = users.filter(u => 
+      u.role === 'student' && 
+      teacherSubjects.some(subject => subject.class_id === u.class_id)
+    )
+    
+    // For each student, calculate their average performance across teacher's subjects
+    allStudents.forEach(student => {
+      const studentSubjects = teacherSubjects.filter(subject => subject.class_id === student.class_id)
+      let totalPercentage = 0
+      let subjectCount = 0
+      const strugglingSubjects = []
+      
+      studentSubjects.forEach(subject => {
+        const subjectExams = teacherExams.filter(exam => exam.subject_id === subject.id)
+        if (subjectExams.length > 0) {
+          const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
+          const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.max_marks || 0), 0)
+          if (maxMarks > 0) {
+            const percentage = (totalMarks / maxMarks) * 100
+            totalPercentage += percentage
+            subjectCount++
+            
+            if (percentage < 50) {
+              strugglingSubjects.push(subject.name)
+            }
+          }
+        }
+      })
+      
+      const averagePercentage = subjectCount > 0 ? totalPercentage / subjectCount : 0
+      
+      if (averagePercentage < 60 && strugglingSubjects.length > 0) {
+        atRisk.push({
+          name: student.name,
+          class: `Class ${student.class_id}`,
+          percentage: Math.round(averagePercentage),
+          subjects: strugglingSubjects
+        })
+      }
+    })
+    
+    return atRisk.slice(0, 3) // Limit to 3 students
+  }, [users, teacherSubjects, teacherExams])
 
   if (loading && !teacherAnalytics) {
     return (

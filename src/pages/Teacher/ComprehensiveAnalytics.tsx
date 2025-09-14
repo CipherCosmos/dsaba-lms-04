@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
+import { analyticsAPI } from '../../services/api'
 import { 
   BarChart3, TrendingUp, Users, Target, Award, BookOpen, 
-  Download, Filter, Search, Eye, EyeOff, RefreshCw,
-  PieChart, Activity, Zap, Star, AlertTriangle, CheckCircle
+  Download, Eye, EyeOff, RefreshCw
 } from 'lucide-react'
 
 interface COAttainmentData {
@@ -84,22 +84,20 @@ const ComprehensiveAnalytics = () => {
 
     setLoading(true)
     try {
-      const baseUrl = `/api/analytics`
-      
-      // Fetch all analytics data in parallel
-      const [coResponse, poResponse, studentResponse, classResponse, mappingResponse] = await Promise.all([
-        fetch(`${baseUrl}/co-attainment/${selectedSubjectId}?exam_type=${examType}`),
-        fetch(`${baseUrl}/po-attainment/${selectedSubjectId}?exam_type=${examType}`),
-        fetch(`${baseUrl}/student-performance/${selectedSubjectId}?exam_type=${examType}`),
-        fetch(`${baseUrl}/class-performance/${selectedSubjectId}?exam_type=${examType}`),
-        fetch(`${baseUrl}/co-po-mapping/${selectedSubjectId}`)
+      // Fetch all analytics data in parallel using API service
+      const [coData, poData, studentData, classData, mappingData] = await Promise.all([
+        analyticsAPI.getCOAttainment(selectedSubjectId, examType),
+        analyticsAPI.getPOAttainment(selectedSubjectId, examType),
+        analyticsAPI.getStudentPerformance(selectedSubjectId, undefined, examType),
+        analyticsAPI.getClassPerformance(selectedSubjectId, examType),
+        analyticsAPI.getCOPOMapping(selectedSubjectId)
       ])
 
-      if (coResponse.ok) setCOAttainment(await coResponse.json())
-      if (poResponse.ok) setPOAttainment(await poResponse.json())
-      if (studentResponse.ok) setStudentPerformance(await studentResponse.json())
-      if (classResponse.ok) setClassPerformance(await classResponse.json())
-      if (mappingResponse.ok) setCoPoMapping(await mappingResponse.json())
+      setCOAttainment(coData || {})
+      setPOAttainment(poData || {})
+      setStudentPerformance(studentData || {})
+      setClassPerformance(classData || null)
+      setCoPoMapping(mappingData || [])
 
     } catch (error) {
       console.error('Error fetching analytics data:', error)
@@ -415,53 +413,174 @@ const ComprehensiveAnalytics = () => {
               {/* CO Analysis Tab */}
               {activeTab === 'co' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Course Outcome (CO) Analysis</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Course Outcome (CO) Analysis</h3>
+                    <button
+                      onClick={() => setShowDetails(!showDetails)}
+                      className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
+                    >
+                      {showDetails ? <EyeOff size={16} /> : <Eye size={16} />}
+                      <span>{showDetails ? 'Hide Details' : 'Show Details'}</span>
+                    </button>
+                  </div>
+                  
+                  {/* CO Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <Target className="w-8 h-8 text-blue-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-blue-600 font-medium">Total COs</p>
+                          <p className="text-2xl font-bold text-blue-900">{Object.keys(coAttainment).length}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <Award className="w-8 h-8 text-green-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-green-600 font-medium">Achieved COs</p>
+                          <p className="text-2xl font-bold text-green-900">
+                            {Object.values(coAttainment).filter(co => co.status === 'Achieved').length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <TrendingUp className="w-8 h-8 text-purple-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-purple-600 font-medium">Avg Attainment</p>
+                          <p className="text-2xl font-bold text-purple-900">
+                            {Object.values(coAttainment).length > 0 ? 
+                              (Object.values(coAttainment).reduce((sum, co) => sum + co.attainment, 0) / Object.values(coAttainment).length).toFixed(1) : 0}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="space-y-4">
-                    {Object.entries(coAttainment).map(([coCode, data]) => (
-                      <div key={coCode} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h4 className="font-medium text-gray-900">{coCode}: {data.co_title}</h4>
-                            <p className="text-sm text-gray-600">Target: {data.target}%</p>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-2xl font-bold ${
-                              data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {data.attainment.toFixed(1)}%
-                            </div>
-                            <div className={`text-sm ${
-                              data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {data.status}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              data.status === 'Achieved' ? 'bg-green-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${Math.min(data.attainment, 100)}%` }}
-                          ></div>
-                        </div>
-
-                        {showDetails && data.exam_details.length > 0 && (
-                          <div className="mt-4 space-y-2">
-                            <h5 className="text-sm font-medium text-gray-700">Exam Details:</h5>
-                            {data.exam_details.map((exam, index) => (
-                              <div key={index} className="flex justify-between text-sm text-gray-600">
-                                <span>{exam.exam_name}</span>
-                                <span>{exam.attainment.toFixed(1)}% ({exam.obtained}/{exam.possible})</span>
+                    {Object.entries(coAttainment).map(([coCode, data]) => {
+                      const gap = data.target - data.attainment
+                      const priority = gap > 20 ? 'High' : gap > 10 ? 'Medium' : 'Low'
+                      const trend = data.exam_details && data.exam_details.length > 1 ? 
+                        (data.exam_details[data.exam_details.length - 1].attainment > data.exam_details[0].attainment ? 'Improving' : 'Declining') : 'Stable'
+                      
+                      return (
+                        <div key={coCode} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900 text-lg">{coCode}</h4>
+                              <p className="text-gray-600 mt-1">{data.co_title}</p>
+                              <div className="flex items-center space-x-4 mt-2">
+                                <span className="text-sm text-gray-500">Target: {data.target}%</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  priority === 'High' ? 'bg-red-100 text-red-800' : 
+                                  priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 
+                                  'bg-green-100 text-green-800'
+                                }`}>
+                                  {priority} Priority
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  trend === 'Improving' ? 'bg-green-100 text-green-800' : 
+                                  trend === 'Declining' ? 'bg-red-100 text-red-800' : 
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {trend}
+                                </span>
                               </div>
-                            ))}
+                            </div>
+                            <div className="text-right">
+                              <div className={`text-3xl font-bold ${
+                                data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {data.attainment.toFixed(1)}%
+                              </div>
+                              <div className={`text-sm font-medium ${
+                                data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {data.status}
+                              </div>
+                              {gap > 0 && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Gap: {gap.toFixed(1)}%
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          
+                          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                            <div 
+                              className={`h-3 rounded-full transition-all duration-500 ${
+                                data.status === 'Achieved' ? 'bg-green-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(data.attainment, 100)}%` }}
+                            ></div>
+                          </div>
+                          
+                          {showDetails && data.exam_details && data.exam_details.length > 0 && (
+                            <div className="mt-6 space-y-4">
+                              <h5 className="font-semibold text-gray-700 flex items-center">
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                                Exam-wise Performance
+                              </h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {data.exam_details.map((exam: any, index: number) => (
+                                  <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span className="font-medium text-sm text-gray-700">{exam.exam_name}</span>
+                                      <span className={`text-sm font-bold ${
+                                        exam.attainment >= 70 ? 'text-green-600' : 'text-red-600'
+                                      }`}>
+                                        {exam.attainment.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className={`h-2 rounded-full ${
+                                          exam.attainment >= 70 ? 'bg-green-500' : 'bg-red-500'
+                                        }`}
+                                        style={{ width: `${Math.min(exam.attainment, 100)}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Recommendations */}
+                          {gap > 0 && (
+                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <h6 className="font-medium text-yellow-800 mb-2">Recommendations:</h6>
+                              <ul className="text-sm text-yellow-700 space-y-1">
+                                {priority === 'High' && (
+                                  <>
+                                    <li>• Conduct remedial classes for this CO</li>
+                                    <li>• Review teaching methodology and materials</li>
+                                    <li>• Provide additional practice exercises</li>
+                                  </>
+                                )}
+                                {priority === 'Medium' && (
+                                  <>
+                                    <li>• Increase practice sessions</li>
+                                    <li>• Review assessment methods</li>
+                                    <li>• Provide targeted feedback</li>
+                                  </>
+                                )}
+                                {priority === 'Low' && (
+                                  <>
+                                    <li>• Monitor progress closely</li>
+                                    <li>• Provide additional support if needed</li>
+                                  </>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -469,55 +588,180 @@ const ComprehensiveAnalytics = () => {
               {/* PO Analysis Tab */}
               {activeTab === 'po' && (
                 <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Program Outcome (PO) Analysis</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Program Outcome (PO) Analysis</h3>
+                    <button
+                      onClick={() => setShowDetails(!showDetails)}
+                      className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
+                    >
+                      {showDetails ? <EyeOff size={16} /> : <Eye size={16} />}
+                      <span>{showDetails ? 'Hide Details' : 'Show Details'}</span>
+                    </button>
+                  </div>
+                  
+                  {/* PO Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-indigo-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <Award className="w-8 h-8 text-indigo-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-indigo-600 font-medium">Total POs</p>
+                          <p className="text-2xl font-bold text-indigo-900">{Object.keys(poAttainment).length}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <Target className="w-8 h-8 text-green-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-green-600 font-medium">Achieved POs</p>
+                          <p className="text-2xl font-bold text-green-900">
+                            {Object.values(poAttainment).filter(po => po.status === 'Achieved').length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <TrendingUp className="w-8 h-8 text-purple-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-purple-600 font-medium">Avg Attainment</p>
+                          <p className="text-2xl font-bold text-purple-900">
+                            {Object.values(poAttainment).length > 0 ? 
+                              (Object.values(poAttainment).reduce((sum, po) => sum + po.attainment, 0) / Object.values(poAttainment).length).toFixed(1) : 0}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="space-y-4">
-                    {Object.entries(poAttainment).map(([poCode, data]) => (
-                      <div key={poCode} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h4 className="font-medium text-gray-900">{poCode}</h4>
-                            <p className="text-sm text-gray-600">
-                              Mapped COs: {data.mapped_cos.map((co: any) => co.co_code).join(', ')}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-2xl font-bold ${
-                              data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {data.attainment.toFixed(1)}%
-                            </div>
-                            <div className={`text-sm ${
-                              data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {data.status}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              data.status === 'Achieved' ? 'bg-green-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${Math.min(data.attainment, 100)}%` }}
-                          ></div>
-                        </div>
-
-                        {showDetails && data.mapped_cos.length > 0 && (
-                          <div className="mt-4 space-y-2">
-                            <h5 className="text-sm font-medium text-gray-700">Contributing COs:</h5>
-                            {data.mapped_cos.map((co: any, index: number) => (
-                              <div key={index} className="flex justify-between text-sm text-gray-600">
-                                <span>{co.co_code} (Strength: {co.strength})</span>
-                                <span>{co.attainment.toFixed(1)}%</span>
+                    {Object.entries(poAttainment).map(([poCode, data]) => {
+                      const gap = 70 - data.attainment // Assuming 70% target
+                      const priority = gap > 20 ? 'High' : gap > 10 ? 'Medium' : 'Low'
+                      const totalCOs = data.mapped_cos ? data.mapped_cos.length : 0
+                      const strongCOs = data.mapped_cos ? data.mapped_cos.filter((co: any) => co.attainment >= 70).length : 0
+                      
+                      return (
+                        <div key={poCode} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900 text-lg">{poCode}</h4>
+                              <p className="text-gray-600 mt-1">
+                                Mapped COs: {data.mapped_cos ? data.mapped_cos.map((co: any) => co.co_code).join(', ') : 'None'}
+                              </p>
+                              <div className="flex items-center space-x-4 mt-2">
+                                <span className="text-sm text-gray-500">Target: 70%</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  priority === 'High' ? 'bg-red-100 text-red-800' : 
+                                  priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 
+                                  'bg-green-100 text-green-800'
+                                }`}>
+                                  {priority} Priority
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  COs: {strongCOs}/{totalCOs} Strong
+                                </span>
                               </div>
-                            ))}
+                            </div>
+                            <div className="text-right">
+                              <div className={`text-3xl font-bold ${
+                                data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {data.attainment.toFixed(1)}%
+                              </div>
+                              <div className={`text-sm font-medium ${
+                                data.status === 'Achieved' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {data.status}
+                              </div>
+                              {gap > 0 && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Gap: {gap.toFixed(1)}%
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          
+                          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                            <div 
+                              className={`h-3 rounded-full transition-all duration-500 ${
+                                data.status === 'Achieved' ? 'bg-green-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(data.attainment, 100)}%` }}
+                            ></div>
+                          </div>
+                          
+                          {showDetails && data.mapped_cos && data.mapped_cos.length > 0 && (
+                            <div className="mt-6 space-y-4">
+                              <h5 className="font-semibold text-gray-700 flex items-center">
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                                Contributing COs
+                              </h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {data.mapped_cos.map((co: any, index: number) => (
+                                  <div key={index} className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span className="font-medium text-sm text-gray-700">{co.co_code}</span>
+                                      <span className={`text-sm font-bold ${
+                                        co.attainment >= 70 ? 'text-green-600' : 'text-red-600'
+                                      }`}>
+                                        {co.attainment.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center mb-2">
+                                      <span className="text-xs text-gray-500">Strength: {co.strength || 'Medium'}</span>
+                                      <span className={`text-xs px-2 py-1 rounded-full ${
+                                        co.attainment >= 70 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {co.attainment >= 70 ? 'Strong' : 'Weak'}
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                      <div 
+                                        className={`h-2 rounded-full ${
+                                          co.attainment >= 70 ? 'bg-green-500' : 'bg-red-500'
+                                        }`}
+                                        style={{ width: `${Math.min(co.attainment, 100)}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Recommendations */}
+                          {gap > 0 && (
+                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                              <h6 className="font-medium text-yellow-800 mb-2">Recommendations:</h6>
+                              <ul className="text-sm text-yellow-700 space-y-1">
+                                {priority === 'High' && (
+                                  <>
+                                    <li>• Focus on improving weak contributing COs</li>
+                                    <li>• Review CO-PO mapping weights</li>
+                                    <li>• Conduct comprehensive assessment</li>
+                                  </>
+                                )}
+                                {priority === 'Medium' && (
+                                  <>
+                                    <li>• Strengthen contributing COs</li>
+                                    <li>• Review assessment strategies</li>
+                                    <li>• Provide targeted support</li>
+                                  </>
+                                )}
+                                {priority === 'Low' && (
+                                  <>
+                                    <li>• Monitor PO progress closely</li>
+                                    <li>• Maintain current CO performance</li>
+                                  </>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

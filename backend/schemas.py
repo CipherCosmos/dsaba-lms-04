@@ -306,7 +306,7 @@ class HODAnalyticsResponse(BaseModel):
 class ReportGenerateRequest(BaseModel):
     report_type: str
     filters: Dict[str, Any] = {}
-    format: str = Field(default="pdf", pattern="^(pdf|excel)$")
+    format: str = Field(default="pdf", pattern="^(pdf|excel|csv)$")
     
 class ReportTemplate(BaseModel):
     id: str
@@ -559,3 +559,67 @@ class BulkCOPOMatrixUpdate(BaseModel):
 class BulkQuestionCOWeightUpdate(BaseModel):
     question_id: int
     co_weights: List[QuestionCOWeightCreate]
+
+# Student Goals and Milestones schemas
+class StudentGoalBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    target_value: float
+    current_value: float = 0
+    deadline: Optional[datetime] = None
+    status: str = "active"
+    goal_type: str
+
+class StudentGoalCreate(StudentGoalBase):
+    student_id: int
+
+class StudentGoalUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    target_value: Optional[float] = None
+    current_value: Optional[float] = None
+    deadline: Optional[datetime] = None
+    status: Optional[str] = None
+    goal_type: Optional[str] = None
+
+class StudentGoalResponse(StudentGoalBase):
+    id: int
+    student_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class StudentMilestoneBase(BaseModel):
+    title: str
+    description: str
+    achieved: bool = False
+    achieved_date: Optional[datetime] = None
+    milestone_type: str
+    criteria: Optional[Dict[str, Any]] = None
+
+class StudentMilestoneCreate(StudentMilestoneBase):
+    student_id: int
+
+class StudentMilestoneUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    achieved: Optional[bool] = None
+    achieved_date: Optional[datetime] = None
+    milestone_type: Optional[str] = None
+    criteria: Optional[Dict[str, Any]] = None
+
+class StudentMilestoneResponse(StudentMilestoneBase):
+    id: int
+    student_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class StudentProgressResponse(BaseModel):
+    goals: List[StudentGoalResponse]
+    milestones: List[StudentMilestoneResponse]
+    analytics: Dict[str, Any]

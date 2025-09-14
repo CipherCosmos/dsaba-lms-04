@@ -6,7 +6,46 @@ from schemas import *
 from auth import get_password_hash
 import openpyxl
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
+
+# Utility functions for marks lock-in period
+def is_marks_locked(exam_date: datetime) -> bool:
+    """Check if marks are locked (more than 7 days after exam date)"""
+    if not exam_date:
+        return False  # If no exam date, marks are not locked
+    
+    lock_in_period = timedelta(days=7)
+    return datetime.now(exam_date.tzinfo) > exam_date + lock_in_period
+
+def get_lock_in_status(exam_date: datetime) -> Dict[str, Any]:
+    """Get detailed lock-in status for an exam"""
+    if not exam_date:
+        return {
+            "is_locked": False,
+            "days_remaining": None,
+            "lock_date": None,
+            "message": "No exam date set"
+        }
+    
+    lock_in_period = timedelta(days=7)
+    lock_date = exam_date + lock_in_period
+    now = datetime.now(exam_date.tzinfo)
+    
+    if now > lock_date:
+        return {
+            "is_locked": True,
+            "days_remaining": 0,
+            "lock_date": lock_date,
+            "message": "Marks are locked - 7-day lock-in period has expired"
+        }
+    else:
+        days_remaining = (lock_date - now).days
+        return {
+            "is_locked": False,
+            "days_remaining": days_remaining,
+            "lock_date": lock_date,
+            "message": f"Marks can be modified for {days_remaining} more days"
+        }
 
 # Department CRUD
 def get_all_departments(db: Session):
@@ -289,7 +328,12 @@ def update_exam(db: Session, exam_id: int, exam: ExamUpdate):
     
     # Handle questions update separately
     if questions_data is not None:
-        # Delete existing questions
+        # First, delete all marks associated with questions for this exam
+        questions_to_delete = db.query(Question).filter(Question.exam_id == exam_id).all()
+        for question in questions_to_delete:
+            db.query(Mark).filter(Mark.question_id == question.id).delete()
+        
+        # Then delete existing questions
         db.query(Question).filter(Question.exam_id == exam_id).delete()
         
         # Add new questions
@@ -314,9 +358,15 @@ def update_exam(db: Session, exam_id: int, exam: ExamUpdate):
 def delete_exam(db: Session, exam_id: int):
     db_exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if db_exam:
-        # Delete related questions and marks first
-        db.query(Mark).filter(Mark.exam_id == exam_id).delete()
+        # First, delete all marks associated with questions for this exam
+        questions_to_delete = db.query(Question).filter(Question.exam_id == exam_id).all()
+        for question in questions_to_delete:
+            db.query(Mark).filter(Mark.question_id == question.id).delete()
+        
+        # Then delete questions
         db.query(Question).filter(Question.exam_id == exam_id).delete()
+        
+        # Finally delete the exam
         db.delete(db_exam)
         db.commit()
         return True
@@ -335,11 +385,20 @@ def get_questions_by_exam(db: Session, exam_id: int):
 
 # Mark CRUD
 def get_marks_by_exam_id(db: Session, exam_id: int):
-    return db.query(Mark).options(
+    marks = db.query(Mark).options(
         joinedload(Mark.student),
         joinedload(Mark.question),
         joinedload(Mark.exam)
     ).filter(Mark.exam_id == exam_id).all()
+    
+    # Get exam to check lock-in status
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    lock_status = get_lock_in_status(exam.exam_date) if exam else {"is_locked": False, "message": "Exam not found"}
+    
+    return {
+        "marks": marks,
+        "lock_status": lock_status
+    }
 
 def get_marks_by_student_id(db: Session, student_id: int):
     return db.query(Mark).options(
@@ -357,6 +416,12 @@ def get_student_marks_for_exam(db: Session, exam_id: int, student_id: int):
 
 def bulk_create_marks_db(db: Session, marks: List[MarkCreate]):
     try:
+        # Check lock-in status for the first mark's exam (assuming all marks are for the same exam)
+        if marks:
+            exam = db.query(Exam).filter(Exam.id == marks[0].exam_id).first()
+            if exam and is_marks_locked(exam.exam_date):
+                raise ValueError("Marks are locked - 7-day lock-in period has expired")
+        
         # Group marks by exam/student/question for efficient processing
         for mark_data in marks:
             # Validate mark against question max_marks
@@ -391,10 +456,23 @@ def bulk_create_marks_db(db: Session, marks: List[MarkCreate]):
         db.rollback()
         raise e
 
+def get_exam_lock_status(db: Session, exam_id: int):
+    """Get lock-in status for a specific exam"""
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        return {"error": "Exam not found"}
+    
+    return get_lock_in_status(exam.exam_date)
+
 def update_mark(db: Session, mark_id: int, mark: MarkUpdate):
     db_mark = db.query(Mark).filter(Mark.id == mark_id).first()
     if not db_mark:
         return None
+    
+    # Check if marks are locked for this exam
+    exam = db.query(Exam).filter(Exam.id == db_mark.exam_id).first()
+    if exam and is_marks_locked(exam.exam_date):
+        raise ValueError("Marks are locked - 7-day lock-in period has expired")
     
     # Validate mark against question max_marks
     question = db.query(Question).filter(Question.id == db_mark.question_id).first()
@@ -1280,4 +1358,106 @@ def get_performance_trends(student_analysis: Dict) -> Dict:
         'improving_students': [],
         'declining_students': [],
         'consistent_students': []
+    }
+
+# Student Goals CRUD
+def get_student_goals(db: Session, student_id: int) -> List[StudentGoal]:
+    """Get all goals for a student"""
+    return db.query(StudentGoal).filter(StudentGoal.student_id == student_id).all()
+
+def get_student_goal_by_id(db: Session, goal_id: int, student_id: int) -> Optional[StudentGoal]:
+    """Get a specific goal for a student"""
+    return db.query(StudentGoal).filter(
+        StudentGoal.id == goal_id,
+        StudentGoal.student_id == student_id
+    ).first()
+
+def create_student_goal(db: Session, goal: StudentGoalCreate) -> StudentGoal:
+    """Create a new goal for a student"""
+    db_goal = StudentGoal(**goal.dict())
+    db.add(db_goal)
+    db.commit()
+    db.refresh(db_goal)
+    return db_goal
+
+def update_student_goal(db: Session, goal_id: int, student_id: int, goal_update: StudentGoalUpdate) -> Optional[StudentGoal]:
+    """Update a student's goal"""
+    db_goal = get_student_goal_by_id(db, goal_id, student_id)
+    if not db_goal:
+        return None
+    
+    update_data = goal_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_goal, field, value)
+    
+    db.commit()
+    db.refresh(db_goal)
+    return db_goal
+
+def delete_student_goal(db: Session, goal_id: int, student_id: int) -> bool:
+    """Delete a student's goal"""
+    db_goal = get_student_goal_by_id(db, goal_id, student_id)
+    if not db_goal:
+        return False
+    
+    db.delete(db_goal)
+    db.commit()
+    return True
+
+# Student Milestones CRUD
+def get_student_milestones(db: Session, student_id: int) -> List[StudentMilestone]:
+    """Get all milestones for a student"""
+    return db.query(StudentMilestone).filter(StudentMilestone.student_id == student_id).all()
+
+def get_student_milestone_by_id(db: Session, milestone_id: int, student_id: int) -> Optional[StudentMilestone]:
+    """Get a specific milestone for a student"""
+    return db.query(StudentMilestone).filter(
+        StudentMilestone.id == milestone_id,
+        StudentMilestone.student_id == student_id
+    ).first()
+
+def create_student_milestone(db: Session, milestone: StudentMilestoneCreate) -> StudentMilestone:
+    """Create a new milestone for a student"""
+    db_milestone = StudentMilestone(**milestone.dict())
+    db.add(db_milestone)
+    db.commit()
+    db.refresh(db_milestone)
+    return db_milestone
+
+def update_student_milestone(db: Session, milestone_id: int, student_id: int, milestone_update: StudentMilestoneUpdate) -> Optional[StudentMilestone]:
+    """Update a student's milestone"""
+    db_milestone = get_student_milestone_by_id(db, milestone_id, student_id)
+    if not db_milestone:
+        return None
+    
+    update_data = milestone_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_milestone, field, value)
+    
+    db.commit()
+    db.refresh(db_milestone)
+    return db_milestone
+
+def delete_student_milestone(db: Session, milestone_id: int, student_id: int) -> bool:
+    """Delete a student's milestone"""
+    db_milestone = get_student_milestone_by_id(db, milestone_id, student_id)
+    if not db_milestone:
+        return False
+    
+    db.delete(db_milestone)
+    db.commit()
+    return True
+
+def get_student_progress_data(db: Session, student_id: int) -> Dict[str, Any]:
+    """Get comprehensive progress data for a student including goals, milestones, and analytics"""
+    from analytics import get_student_analytics
+    
+    goals = get_student_goals(db, student_id)
+    milestones = get_student_milestones(db, student_id)
+    analytics = get_student_analytics(db, student_id)
+    
+    return {
+        'goals': goals,
+        'milestones': milestones,
+        'analytics': analytics
     }

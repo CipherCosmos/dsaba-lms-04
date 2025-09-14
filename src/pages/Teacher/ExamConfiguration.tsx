@@ -7,8 +7,7 @@ import toast from 'react-hot-toast'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchExams, createExam, updateExam, deleteExam } from '../../store/slices/examSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { fetchCODefinitions, fetchPODefinitions } from '../../store/slices/copoSlice'
-import { coAPI, poAPI } from '../../services/api'
+import { coAPI, poAPI, attainmentAnalyticsAPI } from '../../services/api'
 import { Plus, Edit2, Trash2, Settings, Calendar, Clock, FileText, Target, Layers, CheckCircle, X } from 'lucide-react'
 
 const questionSchema = yup.object({
@@ -37,8 +36,8 @@ const ExamConfiguration = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { exams, loading } = useSelector((state: RootState) => state.exams)
   const { subjects } = useSelector((state: RootState) => state.subjects)
+  const { classes } = useSelector((state: RootState) => state.classes)
   const { user } = useSelector((state: RootState) => state.auth)
-  const { coDefinitions, poDefinitions } = useSelector((state: RootState) => state.copo)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<any>(null)
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
@@ -48,6 +47,7 @@ const ExamConfiguration = () => {
   const [loadingPOs, setLoadingPOs] = useState(false)
   const [coPoMapping, setCoPoMapping] = useState<any[]>([])
   const [autoMapPOs, setAutoMapPOs] = useState(true)
+  const [expandedMappings, setExpandedMappings] = useState<Set<number>>(new Set())
 
   const {
     register,
@@ -116,18 +116,19 @@ const ExamConfiguration = () => {
 
       // Get the subject to find its department
       const subject = subjects.find(s => s.id === subjectId)
-      if (subject?.department_id) {
-        // Fetch POs for the department
-        const poResponse = await poAPI.getByDepartment(subject.department_id)
-        setAvailablePOs(poResponse || [])
+      if (subject?.class_id) {
+        // Get the class to find department_id
+        const classData = classes.find(c => c.id === subject.class_id)
+        if (classData?.department_id) {
+          // Fetch POs for the department
+          const poResponse = await poAPI.getByDepartment(classData.department_id)
+          setAvailablePOs(poResponse || [])
+        }
         
         // Fetch CO-PO mapping for auto-mapping
         try {
-          const response = await fetch(`/api/analytics/co-po-mapping/${subjectId}`)
-          if (response.ok) {
-            const mapping = await response.json()
-            setCoPoMapping(mapping)
-          }
+          const mapping = await attainmentAnalyticsAPI.getCOPOMapping(subjectId)
+          setCoPoMapping(mapping)
         } catch (error) {
           console.warn('Could not fetch CO-PO mapping:', error)
           setCoPoMapping([])
@@ -258,17 +259,33 @@ const ExamConfiguration = () => {
       co_mapping: [],
       po_mapping: []
     })
+    
+    // Scroll to the bottom to show the new question
+    setTimeout(() => {
+      const questionsContainer = document.querySelector('.flex-1.overflow-y-auto.space-y-4')
+      if (questionsContainer) {
+        questionsContainer.scrollTo({ top: questionsContainer.scrollHeight, behavior: 'smooth' })
+      }
+    }, 100)
+  }
+
+  const toggleMappingExpansion = (index: number) => {
+    const newExpanded = new Set(expandedMappings)
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index)
+    } else {
+      newExpanded.add(index)
+    }
+    setExpandedMappings(newExpanded)
   }
 
   // CO/PO Selection Component
   const COPOSelector = ({ 
-    questionIndex, 
     selectedCOs, 
     selectedPOs, 
     onCOChange, 
     onPOChange 
   }: {
-    questionIndex: number
     selectedCOs: string[]
     selectedPOs: string[]
     onCOChange: (cos: string[]) => void
@@ -530,14 +547,17 @@ const ExamConfiguration = () => {
       {/* Create/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 my-8 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">
-              {editingExam ? 'Edit Exam' : 'Create New Exam'}
-            </h2>
+          <div className="bg-white rounded-lg w-full max-w-4xl mx-4 my-8 max-h-[90vh] flex flex-col shadow-xl overflow-y-auto">
+            <div className="p-6 bg-white">
+              <h2 className="text-lg font-semibold mb-4">
+                {editingExam ? 'Edit Exam' : 'Create New Exam'}
+              </h2>
+            </div>
             
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col bg-white">
               {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="px-6 pt-6 pb-4 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Exam Name
@@ -572,10 +592,12 @@ const ExamConfiguration = () => {
                     <p className="text-red-500 text-sm mt-1">{errors.subject_id.message}</p>
                   )}
                 </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
+              <div className="px-6 py-4 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Exam Type
                   </label>
@@ -615,79 +637,112 @@ const ExamConfiguration = () => {
                     placeholder="180"
                   />
                 </div>
+                </div>
               </div>
 
               {/* Questions Section */}
-              <div className="border-t pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">Questions</h3>
-                  <div className="flex items-center space-x-4">
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium">Total Marks: {totalMarks}</span>
-                      {selectedSubjectId && (availableCOs.length > 0 || availablePOs.length > 0) && (
-                        <span className="ml-4 text-xs text-gray-500">
-                          {availableCOs.length} COs • {availablePOs.length} POs available
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addQuestion}
-                      className="btn-secondary text-sm"
-                    >
-                      <Plus size={16} className="mr-1" />
-                      Add Question
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Stats */}
-                {watchedQuestions && watchedQuestions.length > 0 && (
-                  <div className="bg-blue-50 rounded-lg p-4 mb-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Total Questions:</span>
-                        <span className="ml-2 font-medium">{watchedQuestions.length}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Unique COs:</span>
-                        <span className="ml-2 font-medium">
-                          {Array.from(new Set(watchedQuestions.flatMap(q => q.co_mapping || []))).length}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Unique POs:</span>
-                        <span className="ml-2 font-medium">
-                          {Array.from(new Set(watchedQuestions.flatMap(q => q.po_mapping || []))).length}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Avg Marks:</span>
-                        <span className="ml-2 font-medium">
-                          {(totalMarks / watchedQuestions.length).toFixed(1)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-gray-900">Question {index + 1}</h4>
-                        {fields.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => remove(index)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+              <div className="border-t pt-6 flex-1 flex flex-col bg-white px-6 min-h-0">
+                {/* Sticky Header */}
+                <div className="sticky top-0 bg-white border-b border-gray-200 pb-4 mb-6 z-20 shadow-sm rounded-t-lg -mx-6 px-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Questions</h3>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium">Total Marks: {totalMarks}</span>
+                        {selectedSubjectId && (availableCOs.length > 0 || availablePOs.length > 0) && (
+                          <span className="ml-4 text-xs text-gray-500">
+                            {availableCOs.length} COs • {availablePOs.length} POs available
+                          </span>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        onClick={addQuestion}
+                        className="btn-primary text-sm"
+                      >
+                        <Plus size={16} className="mr-1" />
+                        Add Question
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Quick Stats - Always visible */}
+                  {watchedQuestions && watchedQuestions.length > 0 && (
+                    <div className="bg-blue-50 rounded-lg p-3 mt-3">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Total Questions:</span>
+                          <span className="ml-2 font-medium">{watchedQuestions.length}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Unique COs:</span>
+                          <span className="ml-2 font-medium">
+                            {Array.from(new Set(watchedQuestions.flatMap(q => q.co_mapping || []))).length}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Unique POs:</span>
+                          <span className="ml-2 font-medium">
+                            {Array.from(new Set(watchedQuestions.flatMap(q => q.po_mapping || []))).length}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Avg Marks:</span>
+                          <span className="ml-2 font-medium">
+                            {(totalMarks / watchedQuestions.length).toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {/* Questions List */}
+                <div className="flex-1 overflow-y-auto space-y-4 bg-gray-50 rounded-lg p-4 min-h-0">
+                  {fields.map((field, index) => (
+                    <div key={field.id} id={`question-${index}`} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-blue-300 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <h4 className="font-medium text-gray-900">Question {index + 1}</h4>
+                          <div className="flex items-center space-x-2 text-sm text-gray-500">
+                            <span className="px-2 py-1 bg-gray-100 rounded">
+                              {watchedQuestions?.[index]?.section || 'A'}
+                            </span>
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                              {watchedQuestions?.[index]?.max_marks || 0} marks
+                            </span>
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                              {watchedQuestions?.[index]?.difficulty || 'medium'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Scroll to this question
+                              const element = document.getElementById(`question-${index}`)
+                              element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            title="Scroll to question"
+                          >
+                            <Target size={16} />
+                          </button>
+                          {fields.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => remove(index)}
+                              className="text-red-600 hover:text-red-800"
+                              title="Delete question"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Question No.
@@ -759,32 +814,72 @@ const ExamConfiguration = () => {
                         </div>
                       </div>
 
-                      {/* CO/PO Mapping Section */}
+                      {/* CO/PO Mapping Section - Collapsible */}
                       <div className="mt-4">
-                        <div className="border-t pt-4">
+                        <div className="border-t pt-4 bg-gray-50 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-3">
-                            <h5 className="text-sm font-medium text-gray-700">CO/PO Mapping</h5>
-                            <label className="flex items-center space-x-2 text-xs text-gray-600">
-                              <input
-                                type="checkbox"
-                                checked={autoMapPOs}
-                                onChange={(e) => setAutoMapPOs(e.target.checked)}
-                                className="rounded"
-                              />
-                              <span>Auto-map POs from COs</span>
-                            </label>
+                            <div className="flex items-center space-x-2">
+                              <h5 className="text-sm font-medium text-gray-700">CO/PO Mapping</h5>
+                              {((watchedQuestions?.[index]?.co_mapping?.length || 0) > 0 || (watchedQuestions?.[index]?.po_mapping?.length || 0) > 0) && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                  {(watchedQuestions?.[index]?.co_mapping?.length || 0) + (watchedQuestions?.[index]?.po_mapping?.length || 0)} selected
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <label className="flex items-center space-x-2 text-xs text-gray-600">
+                                <input
+                                  type="checkbox"
+                                  checked={autoMapPOs}
+                                  onChange={(e) => setAutoMapPOs(e.target.checked)}
+                                  className="rounded"
+                                />
+                                <span>Auto-map POs</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => toggleMappingExpansion(index)}
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                {expandedMappings.has(index) ? 'Hide Details' : 'Show Details'}
+                              </button>
+                            </div>
                           </div>
-                          {selectedSubjectId ? (
-                            <COPOSelector
-                              questionIndex={index}
-                              selectedCOs={watchedQuestions?.[index]?.co_mapping || []}
-                              selectedPOs={watchedQuestions?.[index]?.po_mapping || []}
-                              onCOChange={(cos) => setValue(`questions.${index}.co_mapping`, cos)}
-                              onPOChange={(pos) => setValue(`questions.${index}.po_mapping`, pos)}
-                            />
-                          ) : (
-                            <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">
-                              Please select a subject first to configure CO/PO mappings
+                          
+                          {/* Quick Summary */}
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {(watchedQuestions?.[index]?.co_mapping || []).filter((co): co is string => typeof co === 'string').map((co: string) => (
+                                <span key={co} className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                  {co}
+                                </span>
+                              ))}
+                              {(watchedQuestions?.[index]?.po_mapping || []).filter((po): po is string => typeof po === 'string').map((po: string) => (
+                                <span key={po} className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                                  {po}
+                                </span>
+                              ))}
+                              {(!watchedQuestions?.[index]?.co_mapping?.length && !watchedQuestions?.[index]?.po_mapping?.length) && (
+                                <span className="text-gray-500">No mappings selected</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Detailed Mapping - Collapsible */}
+                          {expandedMappings.has(index) && (
+                            <div className="mt-3">
+                              {selectedSubjectId ? (
+                                <COPOSelector
+                                  selectedCOs={(watchedQuestions?.[index]?.co_mapping || []).filter((co): co is string => typeof co === 'string')}
+                                  selectedPOs={(watchedQuestions?.[index]?.po_mapping || []).filter((po): po is string => typeof po === 'string')}
+                                  onCOChange={(cos) => setValue(`questions.${index}.co_mapping`, cos)}
+                                  onPOChange={(pos) => setValue(`questions.${index}.po_mapping`, pos)}
+                                />
+                              ) : (
+                                <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">
+                                  Please select a subject first to configure CO/PO mappings
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -806,7 +901,8 @@ const ExamConfiguration = () => {
                 )}
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
+              {/* Form Buttons - Fixed at bottom */}
+              <div className="flex justify-end space-x-3 pt-4 border-t bg-white px-6 pb-6">
                 <button
                   type="button"
                   onClick={closeModal}
@@ -830,6 +926,50 @@ const ExamConfiguration = () => {
       {loading && (
         <div className="text-center py-4">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto"></div>
+        </div>
+      )}
+
+      {/* Question Navigation Sidebar */}
+      {isModalOpen && watchedQuestions && watchedQuestions.length > 3 && (
+        <div className="fixed left-6 top-1/2 transform -translate-y-1/2 z-[60]">
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-h-96 overflow-y-auto">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">Questions</h4>
+            <div className="space-y-1">
+              {watchedQuestions.map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => {
+                    const element = document.getElementById(`question-${index}`)
+                    element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  }}
+                  className="w-full text-left px-2 py-1 text-xs rounded hover:bg-gray-100 flex items-center justify-between"
+                >
+                  <span>Q{index + 1}</span>
+                  <div className="flex items-center space-x-1">
+                    <span className="text-gray-400">{watchedQuestions[index]?.section || 'A'}</span>
+                    <span className="text-blue-600">{watchedQuestions[index]?.max_marks || 0}m</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Action Button */}
+      {isModalOpen && (
+        <div className="fixed bottom-6 right-6 z-[70]">
+          {/* Add Question Button */}
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+            title="Add New Question"
+          >
+            <Plus size={24} />
+            <span className="hidden sm:inline">Add Question</span>
+          </button>
         </div>
       )}
     </div>

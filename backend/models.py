@@ -288,3 +288,36 @@ class AttainmentAudit(Base):
     
     subject = relationship("Subject", back_populates="attainment_audit")
     user = relationship("User", foreign_keys=[user_id])
+
+class StudentGoal(Base):
+    __tablename__ = "student_goals"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text)
+    target_value = Column(Float, nullable=False)
+    current_value = Column(Float, default=0)
+    deadline = Column(DateTime(timezone=True))
+    status = Column(String(20), default="active")  # active, completed, paused, cancelled
+    goal_type = Column(String(50), nullable=False)  # academic, attendance, co_attainment, etc.
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    student = relationship("User", foreign_keys=[student_id])
+
+class StudentMilestone(Base):
+    __tablename__ = "student_milestones"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    achieved = Column(Boolean, default=False)
+    achieved_date = Column(DateTime(timezone=True))
+    milestone_type = Column(String(50), nullable=False)  # grade, performance, attendance, etc.
+    criteria = Column(JSON)  # Store criteria for achievement
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    student = relationship("User", foreign_keys=[student_id])

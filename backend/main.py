@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, Response
 from sqlalchemy.orm import Session, joinedload
 import uvicorn
 import os
@@ -517,7 +517,27 @@ def get_marks_by_exam(
         # Students can only see their own marks
         return get_student_marks_for_exam(db, exam_id, current_user.id)
     
-    return get_marks_by_exam_id(db, exam_id)
+    result = get_marks_by_exam_id(db, exam_id)
+    return result["marks"] if isinstance(result, dict) else result
+
+@app.get("/marks/exam/{exam_id}/lock-status")
+def get_exam_lock_status_endpoint(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get lock-in status for an exam's marks"""
+    # Verify access to exam
+    exam = get_exam_by_id_db(db, exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if current_user.role.value == 'teacher':
+        subject = get_subject_by_id(db, exam.subject_id)
+        if not subject or subject.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to view this exam")
+    
+    return get_exam_lock_status(db, exam_id)
 
 @app.get("/marks/student/{student_id}")
 def get_student_marks(
@@ -560,6 +580,10 @@ def bulk_create_marks(
         # For now, simple broadcast; in production, use channel-specific
         # Note: WebSocket broadcast would need to be handled asynchronously
         # await manager.broadcast(f"Marks updated for exam {marks[0].exam_id}")
+        
+        # Return just the marks list, not the dictionary with lock_status
+        if isinstance(result, dict) and 'marks' in result:
+            return result['marks']
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -672,7 +696,10 @@ def get_co_po_mapping(
     
     # Temporarily remove authentication for teachers as requested
     # TODO: Implement proper teacher authentication later
-    co_po_matrix = get_co_po_matrix_by_subject(db, subject_id)
+    # Use the report generator for CO-PO mapping
+    from report_generator import ReportGenerator
+    generator = ReportGenerator(db)
+    co_po_matrix = generator.get_co_po_mapping_data(subject_id)
     return co_po_matrix
 
 @app.get("/analytics/co-attainment/{subject_id}")
@@ -686,7 +713,10 @@ def get_co_attainment_analysis(
     
     # Temporarily remove authentication for teachers as requested
     # TODO: Implement proper teacher authentication later
-    analysis = get_co_attainment_analysis_db(db, subject_id, exam_type)
+    # Use the report generator for CO attainment analysis
+    from report_generator import ReportGenerator
+    generator = ReportGenerator(db)
+    analysis = generator.get_co_attainment_data(subject_id, exam_type)
     return analysis
 
 @app.get("/analytics/po-attainment/{subject_id}")
@@ -700,7 +730,10 @@ def get_po_attainment_analysis(
     
     # Temporarily remove authentication for teachers as requested
     # TODO: Implement proper teacher authentication later
-    analysis = get_po_attainment_analysis_db(db, subject_id, exam_type)
+    # Use the report generator for PO attainment analysis
+    from report_generator import ReportGenerator
+    generator = ReportGenerator(db)
+    analysis = generator.get_po_attainment_data(subject_id, exam_type)
     return analysis
 
 @app.get("/analytics/student-performance/{subject_id}")
@@ -715,7 +748,10 @@ def get_student_performance_analysis(
     
     # Temporarily remove authentication for teachers as requested
     # TODO: Implement proper teacher authentication later
-    analysis = get_student_performance_analysis_db(db, subject_id, student_id, exam_type)
+    # Use the report generator for student performance analysis
+    from report_generator import ReportGenerator
+    generator = ReportGenerator(db)
+    analysis = generator.get_student_performance_data(subject_id, exam_type)
     return analysis
 
 @app.get("/analytics/class-performance/{subject_id}")
@@ -729,29 +765,52 @@ def get_class_performance_analysis(
     
     # Temporarily remove authentication for teachers as requested
     # TODO: Implement proper teacher authentication later
-    analysis = get_class_performance_analysis_db(db, subject_id, exam_type)
+    # Use the report generator for class performance analysis
+    from report_generator import ReportGenerator
+    generator = ReportGenerator(db)
+    analysis = generator.get_class_analytics_data(subject_id, exam_type)
     return analysis
 
-# Reports endpoints - now async
+# Reports endpoints - direct generation
 @app.post("/reports/generate")
 def generate_report_endpoint(
     request: ReportGenerateRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role.value not in ['hod', 'admin']:
+    if current_user.role.value not in ['hod', 'admin', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not TASKS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Background tasks not available")
-    
-    # Trigger async task
-    task = generate_async_report.delay(request.report_type, request.filters, request.format)
-    
-    return {
-        "task_id": task.id,
-        "status": "started",
-        "message": "Report generation started asynchronously. Poll /reports/status/{task_id} for updates."
-    }
+    try:
+        from report_generator import ReportGenerator
+        
+        # Generate report directly
+        generator = ReportGenerator(db)
+        report_data = generator.generate_report(
+            request.report_type, 
+            request.filters, 
+            request.format
+        )
+        
+        # Generate filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{request.report_type}_{timestamp}.{request.format}"
+        
+        # Return file response
+        media_type_map = {
+            'pdf': 'application/pdf',
+            'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv': 'text/csv'
+        }
+        
+        return Response(
+            content=report_data,
+            media_type=media_type_map.get(request.format, 'application/octet-stream'),
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
 
 @app.get("/reports/status/{task_id}")
 def get_report_status(task_id: str):
@@ -783,10 +842,36 @@ def get_report_templates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role.value not in ['hod', 'admin']:
+    if current_user.role.value not in ['hod', 'admin', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    return get_available_report_templates()
+    from report_generator import get_available_report_types
+    return get_available_report_types()
+
+@app.get("/reports/download/{task_id}")
+def download_report(task_id: str):
+    if not TASKS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Background tasks not available")
+    
+    task = generate_async_report.AsyncResult(task_id)
+    if task.state != 'SUCCESS':
+        raise HTTPException(status_code=400, detail="Report not ready for download")
+    
+    # Get the file path from task result
+    result = task.result
+    if not result or 'file_path' not in result:
+        raise HTTPException(status_code=404, detail="Report file not found")
+    
+    file_path = result['file_path']
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Report file not found on disk")
+    
+    filename = os.path.basename(file_path)
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/octet-stream'
+    )
 
 # Dashboard endpoints
 @app.get("/dashboard/stats")
@@ -944,11 +1029,11 @@ def get_department_pos(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role.value not in ['admin', 'hod']:
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # HODs can only see their own department
-    if current_user.role.value == 'hod' and current_user.department_id != department_id:
+    # HODs and teachers can only see their own department
+    if current_user.role.value in ['hod', 'teacher'] and current_user.department_id != department_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     return get_po_definitions_by_department(db, department_id)
@@ -960,11 +1045,11 @@ def create_department_po(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role.value not in ['admin', 'hod']:
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # HODs can only create for their own department
-    if current_user.role.value == 'hod' and current_user.department_id != department_id:
+    # HODs and teachers can only create for their own department
+    if current_user.role.value in ['hod', 'teacher'] and current_user.department_id != department_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     po_definition.department_id = department_id
@@ -977,11 +1062,11 @@ def update_po_definition_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role.value not in ['admin', 'hod']:
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # HODs can only update their own department's POs
-    if current_user.role.value == 'hod':
+    # HODs and teachers can only update their own department's POs
+    if current_user.role.value in ['hod', 'teacher']:
         existing_po = get_po_definition_by_id(db, po_id)
         if not existing_po:
             raise HTTPException(status_code=404, detail="PO definition not found")
@@ -1001,11 +1086,11 @@ def delete_po_definition_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role.value not in ['admin', 'hod']:
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # HODs can only delete their own department's POs
-    if current_user.role.value == 'hod':
+    # HODs and teachers can only delete their own department's POs
+    if current_user.role.value in ['hod', 'teacher']:
         existing_po = get_po_definition_by_id(db, po_id)
         if not existing_po:
             raise HTTPException(status_code=404, detail="PO definition not found")
@@ -1101,7 +1186,7 @@ def bulk_update_assessment_weights_endpoint(
     return result
 
 # CO-PO Matrix endpoints
-@app.get("/subjects/{subject_id}/co-po-matrix", response_model=List[COPOMatrixResponse])
+@app.get("/subjects/{subject_id}/co-po-matrix")
 def get_subject_co_po_matrix(
     subject_id: int,
     db: Session = Depends(get_db),
@@ -1602,6 +1687,155 @@ def get_strategic_dashboard_data_endpoint(
         return calculate_strategic_dashboard_data(db, department_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Student Progress API endpoints
+@app.get("/student-progress/{student_id}", response_model=StudentProgressResponse)
+def get_student_progress(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive progress data for a student"""
+    # Students can only see their own progress
+    if current_user.role.value == 'student' and current_user.id != student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    progress_data = get_student_progress_data(db, student_id)
+    return progress_data
+
+@app.get("/student-goals/{student_id}", response_model=List[StudentGoalResponse])
+def get_student_goals_endpoint(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all goals for a student"""
+    if current_user.role.value == 'student' and current_user.id != student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    return get_student_goals(db, student_id)
+
+@app.post("/student-goals", response_model=StudentGoalResponse)
+def create_student_goal_endpoint(
+    goal: StudentGoalCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new goal for a student"""
+    if current_user.role.value == 'student' and current_user.id != goal.student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    return create_student_goal(db, goal)
+
+@app.put("/student-goals/{goal_id}", response_model=StudentGoalResponse)
+def update_student_goal_endpoint(
+    goal_id: int,
+    goal_update: StudentGoalUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a student's goal"""
+    # Get the goal to check ownership
+    goal = db.query(StudentGoal).filter(StudentGoal.id == goal_id).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    
+    if current_user.role.value == 'student' and current_user.id != goal.student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    updated_goal = update_student_goal(db, goal_id, goal.student_id, goal_update)
+    if not updated_goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    
+    return updated_goal
+
+@app.delete("/student-goals/{goal_id}")
+def delete_student_goal_endpoint(
+    goal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a student's goal"""
+    # Get the goal to check ownership
+    goal = db.query(StudentGoal).filter(StudentGoal.id == goal_id).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    
+    if current_user.role.value == 'student' and current_user.id != goal.student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    success = delete_student_goal(db, goal_id, goal.student_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    
+    return {"message": "Goal deleted successfully"}
+
+@app.get("/student-milestones/{student_id}", response_model=List[StudentMilestoneResponse])
+def get_student_milestones_endpoint(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all milestones for a student"""
+    if current_user.role.value == 'student' and current_user.id != student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    return get_student_milestones(db, student_id)
+
+@app.post("/student-milestones", response_model=StudentMilestoneResponse)
+def create_student_milestone_endpoint(
+    milestone: StudentMilestoneCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new milestone for a student"""
+    if current_user.role.value == 'student' and current_user.id != milestone.student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    return create_student_milestone(db, milestone)
+
+@app.put("/student-milestones/{milestone_id}", response_model=StudentMilestoneResponse)
+def update_student_milestone_endpoint(
+    milestone_id: int,
+    milestone_update: StudentMilestoneUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a student's milestone"""
+    # Get the milestone to check ownership
+    milestone = db.query(StudentMilestone).filter(StudentMilestone.id == milestone_id).first()
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    
+    if current_user.role.value == 'student' and current_user.id != milestone.student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    updated_milestone = update_student_milestone(db, milestone_id, milestone.student_id, milestone_update)
+    if not updated_milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    
+    return updated_milestone
+
+@app.delete("/student-milestones/{milestone_id}")
+def delete_student_milestone_endpoint(
+    milestone_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a student's milestone"""
+    # Get the milestone to check ownership
+    milestone = db.query(StudentMilestone).filter(StudentMilestone.id == milestone_id).first()
+    if not milestone:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    
+    if current_user.role.value == 'student' and current_user.id != milestone.student_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    success = delete_student_milestone(db, milestone_id, milestone.student_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    
+    return {"message": "Milestone deleted successfully"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

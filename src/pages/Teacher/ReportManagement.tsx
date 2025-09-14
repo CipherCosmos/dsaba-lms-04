@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
+import { reportsAPI } from '../../services/api'
 import { 
-  FileText, Download, Calendar, Filter, Search, RefreshCw, 
+  FileText, Download, RefreshCw, 
   BarChart3, PieChart, TrendingUp, Users, Target, Award,
-  Eye, EyeOff, Settings, Printer, Share2, Archive
+  Eye, EyeOff, Share2, Archive
 } from 'lucide-react'
 
 interface ReportTemplate {
@@ -35,6 +36,10 @@ const ReportManagement = () => {
   const [generating, setGenerating] = useState(false)
   const [generatedReports, setGeneratedReports] = useState<any[]>([])
   const [showPreview, setShowPreview] = useState(false)
+  const [reportTemplates, setReportTemplates] = useState<ReportTemplate[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
+  const [taskStatus, setTaskStatus] = useState<string>('')
 
   // Filter subjects for current teacher
   const teacherSubjects = useMemo(() => 
@@ -42,85 +47,63 @@ const ReportManagement = () => {
     [subjects, user?.id]
   )
 
-  const reportTemplates: ReportTemplate[] = [
-    {
-      id: 'co-attainment',
-      name: 'CO Attainment Report',
-      description: 'Detailed Course Outcome attainment analysis with targets and achievements',
-      category: 'attainment',
-      format: 'pdf',
-      icon: Target,
-      color: 'blue'
-    },
-    {
-      id: 'po-attainment',
-      name: 'PO Attainment Report',
-      description: 'Program Outcome attainment analysis with CO mappings',
-      category: 'attainment',
-      format: 'pdf',
-      icon: Award,
-      color: 'green'
-    },
-    {
-      id: 'student-performance',
-      name: 'Student Performance Report',
-      description: 'Individual student performance analysis with grades and trends',
-      category: 'performance',
-      format: 'excel',
-      icon: Users,
-      color: 'purple'
-    },
-    {
-      id: 'class-analytics',
-      name: 'Class Analytics Report',
-      description: 'Comprehensive class performance with statistics and comparisons',
-      category: 'performance',
-      format: 'pdf',
-      icon: BarChart3,
-      color: 'orange'
-    },
-    {
-      id: 'comprehensive',
-      name: 'Comprehensive Report',
-      description: 'Complete analysis including CO/PO attainment, student performance, and recommendations',
-      category: 'comprehensive',
-      format: 'pdf',
-      icon: FileText,
-      color: 'indigo'
-    },
-    {
-      id: 'grade-distribution',
-      name: 'Grade Distribution Report',
-      description: 'Grade distribution analysis with charts and statistics',
-      category: 'academic',
-      format: 'excel',
-      icon: PieChart,
-      color: 'pink'
-    },
-    {
-      id: 'performance-trends',
-      name: 'Performance Trends Report',
-      description: 'Performance trends analysis across different exams and time periods',
-      category: 'performance',
-      format: 'pdf',
-      icon: TrendingUp,
-      color: 'teal'
-    },
-    {
-      id: 'raw-data',
-      name: 'Raw Data Export',
-      description: 'Export all raw data in JSON/CSV format for external analysis',
-      category: 'academic',
-      format: 'json',
-      icon: Archive,
-      color: 'gray'
+  // Icon mapping for report templates
+  const getTemplateIcon = (templateId: string) => {
+    const iconMap: { [key: string]: any } = {
+      'student_performance': Users,
+      'co_po_attainment': Target,
+      'teacher_performance': Award,
+      'class_analytics': BarChart3,
+      'comprehensive': FileText,
+      'grade_distribution': PieChart,
+      'performance_trends': TrendingUp,
+      'raw_data': Archive
     }
-  ]
+    return iconMap[templateId] || FileText
+  }
+
+  const getTemplateColor = (templateId: string) => {
+    const colorMap: { [key: string]: string } = {
+      'student_performance': 'purple',
+      'co_po_attainment': 'blue',
+      'teacher_performance': 'green',
+      'class_analytics': 'orange',
+      'comprehensive': 'indigo',
+      'grade_distribution': 'pink',
+      'performance_trends': 'teal',
+      'raw_data': 'gray'
+    }
+    return colorMap[templateId] || 'blue'
+  }
 
   useEffect(() => {
     dispatch(fetchSubjects())
     loadGeneratedReports()
+    fetchReportTemplates()
   }, [dispatch])
+
+  const fetchReportTemplates = async () => {
+    setLoadingTemplates(true)
+    try {
+      const templates = await reportsAPI.getTemplates()
+      const formattedTemplates = templates.map((template: any) => ({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        category: template.id.includes('attainment') ? 'attainment' : 
+                 template.id.includes('performance') ? 'performance' : 'academic',
+        format: template.id.includes('raw') ? 'json' : 'pdf',
+        icon: getTemplateIcon(template.id),
+        color: getTemplateColor(template.id),
+        filters: template.filters || []
+      }))
+      setReportTemplates(formattedTemplates)
+    } catch (error) {
+      console.error('Error fetching report templates:', error)
+    } finally {
+      setLoadingTemplates(false)
+    }
+  }
 
   const loadGeneratedReports = () => {
     // Load previously generated reports from localStorage
@@ -141,47 +124,109 @@ const ReportManagement = () => {
 
     setGenerating(true)
     try {
-      const reportData = {
-        template: selectedTemplate,
-        subjectId: selectedSubjectId,
-        filters: reportFilters,
-        generatedAt: new Date().toISOString(),
-        generatedBy: user?.id
+      const filters = {
+        subject_id: selectedSubjectId,
+        exam_type: reportFilters.examType === 'all' ? undefined : reportFilters.examType,
+        include_charts: reportFilters.includeCharts,
+        include_details: reportFilters.includeDetails,
+        include_recommendations: reportFilters.includeRecommendations
       }
 
-      // Simulate report generation
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      const response = await reportsAPI.generateReport(
+        selectedTemplate.id,
+        filters,
+        selectedTemplate.format
+      )
 
-      const report = {
+      // Create blob and download directly
+      const blob = new Blob([response], { 
+        type: selectedTemplate.format === 'pdf' ? 'application/pdf' : 
+              selectedTemplate.format === 'excel' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+              'text/csv'
+      })
+      
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${selectedTemplate.name}_${new Date().toISOString().split('T')[0]}.${selectedTemplate.format}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      // Add to generated reports
+      const newReport = {
         id: Date.now().toString(),
-        ...reportData,
-        status: 'completed',
-        downloadUrl: `#report-${Date.now()}`,
-        size: Math.floor(reportData.content.length * 0.5) + 500 // Estimate based on content length
+        name: selectedTemplate.name,
+        type: selectedTemplate.id,
+        format: selectedTemplate.format,
+        generatedAt: new Date().toISOString(),
+        size: blob.size,
+        status: 'completed'
       }
-
-      saveGeneratedReport(report)
-      setShowPreview(true)
+      
+      setGeneratedReports(prev => [newReport, ...prev])
+      setTaskStatus('Report generated successfully!')
+      
     } catch (error) {
       console.error('Error generating report:', error)
+      setTaskStatus('Error generating report')
     } finally {
       setGenerating(false)
     }
   }
 
-  const downloadReport = (report: any) => {
-    // Simulate download
-    const blob = new Blob([`Report: ${report.template.name}\nGenerated: ${report.generatedAt}`], { 
-      type: 'text/plain' 
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${report.template.name}-${report.generatedAt}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  const pollReportStatus = async (taskId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const status = await reportsAPI.getReportStatus(taskId)
+        setTaskStatus(status.status)
+        
+        if (status.status === 'completed') {
+          clearInterval(pollInterval)
+          setGenerating(false)
+          
+          const report = {
+            id: taskId,
+            template: selectedTemplate,
+            subjectId: selectedSubjectId,
+            filters: reportFilters,
+            generatedAt: new Date().toISOString(),
+            generatedBy: user?.id,
+            status: 'completed',
+            downloadUrl: taskId,
+            size: status.file_size || 0
+          }
+          
+          saveGeneratedReport(report)
+          setShowPreview(true)
+        } else if (status.status === 'failed') {
+          clearInterval(pollInterval)
+          setGenerating(false)
+          console.error('Report generation failed')
+        }
+      } catch (error) {
+        console.error('Error polling report status:', error)
+        clearInterval(pollInterval)
+        setGenerating(false)
+      }
+    }, 2000) // Poll every 2 seconds
+  }
+
+  const downloadReport = async (report: any) => {
+    try {
+      const blob = await reportsAPI.downloadReport(report.downloadUrl)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${report.template.name}-${new Date(report.generatedAt).toISOString().split('T')[0]}.${report.template.format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error downloading report:', error)
+    }
   }
 
   const getCategoryColor = (category: string) => {
@@ -256,8 +301,14 @@ const ReportManagement = () => {
           {/* Report Templates */}
           <div className="card">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Report Templates</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {reportTemplates.map(template => (
+            {loadingTemplates ? (
+              <div className="text-center py-8">
+                <RefreshCw className="h-8 w-8 text-gray-400 mx-auto mb-3 animate-spin" />
+                <p className="text-gray-600">Loading report templates...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {reportTemplates.map(template => (
                 <div
                   key={template.id}
                   onClick={() => setSelectedTemplate(template)}
@@ -286,7 +337,8 @@ const ReportManagement = () => {
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Report Filters */}
@@ -372,9 +424,15 @@ const ReportManagement = () => {
                   <FileText className="w-5 h-5" />
                 )}
                 <span>
-                  {generating ? 'Generating Report...' : `Generate ${selectedTemplate.name}`}
+                  {generating ? `Generating Report... (${taskStatus})` : `Generate ${selectedTemplate.name}`}
                 </span>
               </button>
+              {generating && (
+                <div className="mt-3 text-sm text-gray-600 text-center">
+                  <p>Report generation is in progress. This may take a few minutes.</p>
+                  <p className="text-xs mt-1">Status: {taskStatus}</p>
+                </div>
+              )}
             </div>
           )}
         </div>

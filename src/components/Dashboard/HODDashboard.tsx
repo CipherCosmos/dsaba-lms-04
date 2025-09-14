@@ -65,25 +65,9 @@ const HODDashboard = () => {
     },
   ]
 
-  const performanceMetrics = hodAnalytics?.subject_performance?.slice(0, 5) || [
-    { subject_name: 'Data Structures', average_percentage: 85, pass_rate: 92 },
-    { subject_name: 'Database Systems', average_percentage: 78, pass_rate: 88 },
-    { subject_name: 'Computer Networks', average_percentage: 82, pass_rate: 90 },
-    { subject_name: 'Operating Systems', average_percentage: 76, pass_rate: 85 },
-    { subject_name: 'Software Engineering', average_percentage: 88, pass_rate: 94 },
-  ]
+  const performanceMetrics = hodAnalytics?.subject_performance?.slice(0, 5) || []
 
-  const facultyPerformance = hodAnalytics?.teacher_performance?.slice(0, 4) || 
-    departmentUsers.filter(u => u.role === 'teacher').slice(0, 4).map(teacher => {
-      const teacherSubjects = departmentSubjects.filter(s => s.teacher_id === teacher.id)
-      const performance = teacherSubjects.length > 0 ? 75 + (teacherSubjects.length * 5) : 70
-      return {
-        teacher_name: `${teacher.first_name} ${teacher.last_name}`,
-        subjects_taught: teacherSubjects.length,
-        average_class_performance: Math.min(performance, 95),
-        status: performance >= 85 ? 'excellent' : performance >= 75 ? 'good' : 'needs_improvement'
-      }
-    })
+  const facultyPerformance = hodAnalytics?.teacher_performance?.slice(0, 4) || []
 
   const actionItems = []
 
@@ -274,19 +258,29 @@ const HODDashboard = () => {
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Overall Compliance</span>
-              <span className="text-sm font-medium text-green-600">85%</span>
+              <span className="text-sm font-medium text-green-600">
+                {hodAnalytics?.nba_compliance?.overall_compliance || 0}%
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">CO Attainment</span>
-              <span className="text-sm font-medium">78%</span>
+              <span className="text-sm font-medium">
+                {hodAnalytics?.nba_compliance?.co_attainment || 0}%
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">PO Attainment</span>
-              <span className="text-sm font-medium">75%</span>
+              <span className="text-sm font-medium">
+                {hodAnalytics?.nba_compliance?.po_attainment || 0}%
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Threshold Status</span>
-              <span className="text-sm font-medium text-green-600">Met</span>
+              <span className={`text-sm font-medium ${
+                (hodAnalytics?.nba_compliance?.overall_compliance || 0) >= 70 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {(hodAnalytics?.nba_compliance?.overall_compliance || 0) >= 70 ? 'Met' : 'Not Met'}
+              </span>
             </div>
           </div>
         </div>
@@ -314,10 +308,16 @@ const HODDashboard = () => {
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
           <div className="space-y-2 text-sm">
-            <p className="text-gray-600">• Internal exam results updated</p>
-            <p className="text-gray-600">• New teacher assignments made</p>
-            <p className="text-gray-600">• Curriculum review completed</p>
-            <p className="text-gray-600">• Student feedback collected</p>
+            {hodAnalytics?.recent_updates?.length > 0 ? (
+              hodAnalytics.recent_updates.slice(0, 4).map((update: any, index: number) => (
+                <p key={index} className="text-gray-600">• {update.message}</p>
+              ))
+            ) : (
+              <>
+                <p className="text-gray-600">• No recent updates available</p>
+                <p className="text-gray-600">• Check back later for updates</p>
+              </>
+            )}
           </div>
         </div>
       </div>

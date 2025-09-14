@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
@@ -98,11 +98,60 @@ const StudentDashboard = () => {
     { name: 'Exam Schedule', icon: Calendar, href: '/student/exams', color: 'bg-orange-500' },
   ]
 
-  const studyReminders = [
-    { subject: 'Data Structures', task: 'Review tree algorithms', priority: 'high', dueDate: 'Tomorrow' },
-    { subject: 'DBMS', task: 'Complete normalization exercises', priority: 'medium', dueDate: '3 days' },
-    { subject: 'OS', task: 'Study process scheduling', priority: 'medium', dueDate: '5 days' },
-  ]
+  // Calculate study reminders based on real upcoming exams and performance
+  const studyReminders = React.useMemo(() => {
+    const reminders = []
+    
+    // Generate reminders based on upcoming exams
+    upcomingExams.forEach(exam => {
+      const subject = classSubjects.find(s => s.id === exam.subject_id)
+      if (subject) {
+        const examDate = new Date(exam.exam_date || exam.created_at)
+        const daysUntil = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+        
+        let priority = 'medium'
+        let task = 'Prepare for exam'
+        
+        if (daysUntil <= 2) {
+          priority = 'high'
+          task = 'Final exam preparation'
+        } else if (daysUntil <= 5) {
+          priority = 'high'
+          task = 'Intensive study session'
+        } else {
+          task = 'Start exam preparation'
+        }
+        
+        reminders.push({
+          subject: subject.name,
+          task: task,
+          priority: priority,
+          dueDate: daysUntil === 1 ? 'Tomorrow' : `${daysUntil} days`
+        })
+      }
+    })
+    
+    // Add performance-based reminders for struggling subjects
+    if (studentAnalytics?.co_attainment) {
+      Object.entries(studentAnalytics.co_attainment).forEach(([co, percentage]) => {
+        if (percentage < 60) {
+          const subject = classSubjects.find(s => s.name.toLowerCase().includes(co.toLowerCase()) || 
+            co.toLowerCase().includes(s.name.toLowerCase()))
+          
+          if (subject && !reminders.some(r => r.subject === subject.name)) {
+            reminders.push({
+              subject: subject.name,
+              task: 'Focus on weak areas',
+              priority: 'high',
+              dueDate: 'This week'
+            })
+          }
+        }
+      })
+    }
+    
+    return reminders.slice(0, 3) // Limit to 3 reminders
+  }, [upcomingExams, classSubjects, studentAnalytics])
 
   const achievements = []
   if (studentAnalytics) {

@@ -5,7 +5,7 @@ import { fetchHODAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { fetchStrategicDashboardData } from '../../store/slices/advancedAnalyticsSlice'
+import { analyticsAPI } from '../../services/api'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { 
@@ -152,37 +152,45 @@ interface RiskManagementIntervention {
 
 const StrategicDashboard: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
-  const { hodAnalytics, loading } = useSelector((state: RootState) => state.analytics)
+  const { loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
   const { departments } = useSelector((state: RootState) => state.departments)
   const { } = useSelector((state: RootState) => state.users)
   const { } = useSelector((state: RootState) => state.subjects)
-  const { 
-    strategicDashboard, 
-    strategicDashboardLoading, 
-    strategicDashboardError 
-  } = useSelector((state: RootState) => state.advancedAnalytics)
   const [activeTab, setActiveTab] = useState('departmental_intelligence')
+  const [strategicData, setStrategicData] = useState<any>(null)
+  const [strategicLoading, setStrategicLoading] = useState(false)
+  const [strategicError, setStrategicError] = useState<string | null>(null)
   
-  // Extract data from strategic dashboard
-  const departmentalIntelligence = strategicDashboard?.departmental_intelligence || null
-  const strategicPerformance = strategicDashboard?.strategic_performance || null
-  const riskManagement = strategicDashboard?.risk_management || null
 
   useEffect(() => {
     if (user?.department_id) {
       dispatch(fetchHODAnalytics(user.department_id))
-      dispatch(fetchStrategicDashboardData(user.department_id))
+      fetchStrategicDashboardData(user.department_id)
     }
     dispatch(fetchDepartments())
     dispatch(fetchUsers())
     dispatch(fetchSubjects())
   }, [dispatch, user])
 
+  const fetchStrategicDashboardData = async (departmentId: number) => {
+    try {
+      setStrategicLoading(true)
+      setStrategicError(null)
+      const data = await analyticsAPI.getStrategicDashboardData(departmentId)
+      setStrategicData(data)
+    } catch (error) {
+      console.error('Error fetching strategic dashboard data:', error)
+      setStrategicError('Failed to load strategic dashboard data')
+    } finally {
+      setStrategicLoading(false)
+    }
+  }
+
 
   const department = departments.find(d => d.id === user?.department_id)
 
-  if (loading || strategicDashboardLoading) {
+  if (loading || strategicLoading) {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
@@ -190,25 +198,37 @@ const StrategicDashboard: React.FC = () => {
     )
   }
 
-  if (strategicDashboardError) {
+  if (strategicError) {
     return (
       <div className="text-center py-12">
         <AlertTriangle className="h-12 w-12 text-red-300 mx-auto mb-3" />
-        <p className="text-red-500">Error loading strategic dashboard data</p>
-        <p className="text-sm text-gray-400">{strategicDashboardError}</p>
+        <p className="text-red-500 mb-2">Error loading strategic dashboard</p>
+        <p className="text-sm text-gray-400">{strategicError}</p>
+        <button 
+          onClick={() => user?.department_id && fetchStrategicDashboardData(user.department_id)}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Retry
+        </button>
       </div>
     )
   }
 
-  if (!hodAnalytics && !strategicDashboard) {
+  if (!strategicData) {
     return (
       <div className="text-center py-12">
         <Building className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-gray-500">No analytics data available</p>
+        <p className="text-gray-500">No strategic dashboard data available</p>
         <p className="text-sm text-gray-400">Department data will appear once exams are conducted</p>
       </div>
     )
   }
+
+  // Use real data from API
+  const departmentalIntelligence = strategicData?.departmental_intelligence
+  const strategicPerformance = strategicData?.strategic_performance
+  const riskManagement = strategicData?.risk_management
+  const facultyDevelopment = strategicData?.faculty_development
 
   const getAlertColor = (type: string) => {
     switch (type) {
@@ -261,16 +281,24 @@ const StrategicDashboard: React.FC = () => {
     datasets: [
       {
         label: 'Current Status',
-        data: departmentalIntelligence?.compliance_monitoring.current_status ? 
-          Object.values(departmentalIntelligence.compliance_monitoring.current_status) : [],
+        data: departmentalIntelligence?.compliance_monitoring?.current_status ? 
+          [
+            departmentalIntelligence.compliance_monitoring.current_status.co_attainment || 0,
+            departmentalIntelligence.compliance_monitoring.current_status.po_attainment || 0,
+            departmentalIntelligence.compliance_monitoring.current_status.student_success || 0
+          ] : [0, 0, 0],
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1
       },
       {
         label: 'NBA Thresholds',
-        data: departmentalIntelligence?.compliance_monitoring.nba_thresholds ? 
-          Object.values(departmentalIntelligence.compliance_monitoring.nba_thresholds) : [],
+        data: departmentalIntelligence?.compliance_monitoring?.nba_thresholds ? 
+          [
+            departmentalIntelligence.compliance_monitoring.nba_thresholds.co_attainment || 0,
+            departmentalIntelligence.compliance_monitoring.nba_thresholds.po_attainment || 0,
+            departmentalIntelligence.compliance_monitoring.nba_thresholds.student_success || 0
+          ] : [0, 0, 0],
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
         borderColor: 'rgba(34, 197, 94, 1)',
         borderWidth: 1
@@ -279,11 +307,11 @@ const StrategicDashboard: React.FC = () => {
   }
 
   const longitudinalTrendsData = {
-    labels: strategicPerformance?.longitudinal_trends.map(t => t.semester) || [],
+    labels: strategicPerformance?.longitudinal_trends?.map((t: any) => t.semester) || [],
     datasets: [
       {
         label: 'Overall Performance',
-        data: strategicPerformance?.longitudinal_trends.map(t => t.overall_performance) || [],
+        data: strategicPerformance?.longitudinal_trends?.map((t: any) => t.overall_performance) || [],
         borderColor: 'rgba(59, 130, 246, 1)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4,
@@ -291,7 +319,7 @@ const StrategicDashboard: React.FC = () => {
       },
       {
         label: 'CO Attainment',
-        data: strategicPerformance?.longitudinal_trends.map(t => t.co_attainment) || [],
+        data: strategicPerformance?.longitudinal_trends?.map((t: any) => t.co_attainment) || [],
         borderColor: 'rgba(34, 197, 94, 1)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         tension: 0.4,
@@ -299,7 +327,7 @@ const StrategicDashboard: React.FC = () => {
       },
       {
         label: 'PO Attainment',
-        data: strategicPerformance?.longitudinal_trends.map(t => t.po_attainment) || [],
+        data: strategicPerformance?.longitudinal_trends?.map((t: any) => t.po_attainment) || [],
         borderColor: 'rgba(168, 85, 247, 1)',
         backgroundColor: 'rgba(168, 85, 247, 0.1)',
         tension: 0.4,
@@ -309,25 +337,25 @@ const StrategicDashboard: React.FC = () => {
   }
 
   const classComparisonData = {
-    labels: strategicPerformance?.cross_sectional_analysis.class_comparison.map(c => c.class) || [],
+    labels: strategicPerformance?.cross_sectional_analysis?.class_comparison?.map((c: any) => c.class) || [],
     datasets: [
       {
         label: 'Average Performance',
-        data: strategicPerformance?.cross_sectional_analysis.class_comparison.map(c => c.average_performance) || [],
+        data: strategicPerformance?.cross_sectional_analysis?.class_comparison?.map((c: any) => c.average_performance) || [],
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 1
       },
       {
         label: 'CO Attainment',
-        data: strategicPerformance?.cross_sectional_analysis.class_comparison.map(c => c.co_attainment) || [],
+        data: strategicPerformance?.cross_sectional_analysis?.class_comparison?.map((c: any) => c.co_attainment) || [],
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
         borderColor: 'rgba(34, 197, 94, 1)',
         borderWidth: 1
       },
       {
         label: 'PO Attainment',
-        data: strategicPerformance?.cross_sectional_analysis.class_comparison.map(c => c.po_attainment) || [],
+        data: strategicPerformance?.cross_sectional_analysis?.class_comparison?.map((c: any) => c.po_attainment) || [],
         backgroundColor: 'rgba(168, 85, 247, 0.8)',
         borderColor: 'rgba(168, 85, 247, 1)',
         borderWidth: 1
@@ -393,25 +421,25 @@ const StrategicDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {departmentalIntelligence.compliance_monitoring.compliance_score}%
+                  {departmentalIntelligence?.compliance_monitoring?.compliance_score?.toFixed(1) || 0}%
                 </div>
                 <div className="text-sm text-gray-600">Compliance Score</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600 mb-2">
-                  {departmentalIntelligence.compliance_monitoring.current_status.co_attainment}%
+                  {departmentalIntelligence?.compliance_monitoring?.current_status?.co_attainment?.toFixed(1) || 0}%
                 </div>
                 <div className="text-sm text-gray-600">CO Attainment</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-purple-600 mb-2">
-                  {departmentalIntelligence.compliance_monitoring.current_status.po_attainment}%
+                  {departmentalIntelligence?.compliance_monitoring?.current_status?.po_attainment?.toFixed(1) || 0}%
                 </div>
                 <div className="text-sm text-gray-600">PO Attainment</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-orange-600 mb-2">
-                  {departmentalIntelligence.compliance_monitoring.current_status.student_success}%
+                  {departmentalIntelligence?.compliance_monitoring?.current_status?.student_success?.toFixed(1) || 0}%
                 </div>
                 <div className="text-sm text-gray-600">Student Success</div>
               </div>
@@ -434,17 +462,17 @@ const StrategicDashboard: React.FC = () => {
           <div className="card">
             <h3 className="text-lg font-medium text-gray-900 mb-4">System Alerts</h3>
             <div className="space-y-3">
-              {departmentalIntelligence.compliance_monitoring.alerts.map((alert, index) => (
+              {departmentalIntelligence?.compliance_monitoring?.alerts?.map((alert: any, index: number) => (
                 <div key={index} className={`flex items-center space-x-3 p-3 rounded-lg ${getAlertColor(alert.type)}`}>
                   <AlertTriangle className="h-5 w-5" />
                   <div className="flex-1">
                     <p className="text-sm font-medium">{alert.message}</p>
                   </div>
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(alert.priority)}`}>
-                    {alert.priority.toUpperCase()}
+                    {alert.priority?.toUpperCase()}
                   </span>
                 </div>
-              ))}
+              )) || []}
             </div>
           </div>
 
@@ -464,7 +492,7 @@ const StrategicDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {departmentalIntelligence.subject_performance_ranking.map((subject, index) => (
+                  {departmentalIntelligence?.subject_performance_ranking?.map((subject: any, index: number) => (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         #{index + 1}
@@ -476,16 +504,16 @@ const StrategicDashboard: React.FC = () => {
                         {subject.teacher}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {subject.outcome_achievement}%
+                        {subject.outcome_achievement?.toFixed(1) || 0}%
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {subject.student_satisfaction}%
+                        {subject.student_satisfaction?.toFixed(1) || 0}%
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {subject.overall_score}%
+                        {subject.overall_score?.toFixed(1) || 0}%
                       </td>
                     </tr>
-                  ))}
+                  )) || []}
                 </tbody>
               </table>
             </div>
@@ -536,33 +564,33 @@ const StrategicDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <div className="text-3xl font-bold text-blue-600 mb-2">
-                  {strategicPerformance.exam_difficulty_calibration.calibration_score}%
+                  {strategicPerformance?.exam_difficulty_calibration?.calibration_score?.toFixed(1) || 0}%
                 </div>
                 <div className="text-sm text-gray-600 mb-4">Calibration Score</div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Easy Questions</span>
-                    <span>{strategicPerformance.exam_difficulty_calibration.difficulty_distribution.easy}%</span>
+                    <span>{strategicPerformance?.exam_difficulty_calibration?.difficulty_distribution?.easy?.toFixed(1) || 0}%</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Medium Questions</span>
-                    <span>{strategicPerformance.exam_difficulty_calibration.difficulty_distribution.medium}%</span>
+                    <span>{strategicPerformance?.exam_difficulty_calibration?.difficulty_distribution?.medium?.toFixed(1) || 0}%</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Hard Questions</span>
-                    <span>{strategicPerformance.exam_difficulty_calibration.difficulty_distribution.hard}%</span>
+                    <span>{strategicPerformance?.exam_difficulty_calibration?.difficulty_distribution?.hard?.toFixed(1) || 0}%</span>
                   </div>
                 </div>
               </div>
               <div>
                 <h4 className="font-medium text-gray-900 mb-2">Recommendations</h4>
                 <ul className="space-y-1 text-sm text-gray-600">
-                  {strategicPerformance.exam_difficulty_calibration.recommendations.map((rec, index) => (
+                  {strategicPerformance?.exam_difficulty_calibration?.recommendations?.map((rec: string, index: number) => (
                     <li key={index} className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span>{rec}</span>
                     </li>
-                  ))}
+                  )) || []}
                 </ul>
               </div>
             </div>
@@ -583,7 +611,7 @@ const StrategicDashboard: React.FC = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Success Rate</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {riskManagement.success_prediction.overall_success_rate}%
+                    {riskManagement?.success_prediction?.overall_success_rate?.toFixed(1) || 0}%
                   </p>
                 </div>
               </div>
@@ -597,7 +625,7 @@ const StrategicDashboard: React.FC = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Graduation Rate</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {riskManagement.success_prediction.predicted_graduation_rate}%
+                    {riskManagement?.success_prediction?.predicted_graduation_rate?.toFixed(1) || 0}%
                   </p>
                 </div>
               </div>
@@ -611,7 +639,7 @@ const StrategicDashboard: React.FC = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">At-Risk Students</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {riskManagement.success_prediction.at_risk_percentage}%
+                    {riskManagement?.success_prediction?.at_risk_percentage?.toFixed(1) || 0}%
                   </p>
                 </div>
               </div>
@@ -625,7 +653,7 @@ const StrategicDashboard: React.FC = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Intervention Effectiveness</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {riskManagement.success_prediction.intervention_effectiveness}%
+                    {riskManagement?.success_prediction?.intervention_effectiveness?.toFixed(1) || 0}%
                   </p>
                 </div>
               </div>
@@ -648,7 +676,7 @@ const StrategicDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {riskManagement.at_risk_student_pipeline.map((student) => (
+                  {riskManagement?.at_risk_student_pipeline?.map((student: any) => (
                     <tr key={student.student_id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {student.student_name}
@@ -658,22 +686,22 @@ const StrategicDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRiskColor(student.risk_level)}`}>
-                          {student.risk_level.toUpperCase()}
+                          {student.risk_level?.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {student.predicted_outcome}%
+                        {student.predicted_outcome?.toFixed(1) || 0}%
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(student.intervention_status)}`}>
-                          {student.intervention_status.toUpperCase()}
+                          {student.intervention_status?.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {student.risk_factors.join(', ')}
+                        {student.risk_factors?.join(', ') || 'N/A'}
                       </td>
                     </tr>
-                  ))}
+                  )) || []}
                 </tbody>
               </table>
             </div>
@@ -683,7 +711,7 @@ const StrategicDashboard: React.FC = () => {
           <div className="card">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Remedial Planning</h3>
             <div className="space-y-4">
-              {riskManagement.remedial_planning.map((plan, index) => (
+              {riskManagement?.remedial_planning?.map((plan: any, index: number) => (
                 <div key={index} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-gray-900">{plan.area}</h4>
@@ -696,27 +724,27 @@ const StrategicDashboard: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-gray-600">Current Performance:</span>
-                      <span className="ml-2 font-medium">{plan.current_performance}%</span>
+                      <span className="ml-2 font-medium">{plan.current_performance?.toFixed(1) || 0}%</span>
                     </div>
                     <div>
                       <span className="text-gray-600">Target Performance:</span>
-                      <span className="ml-2 font-medium">{plan.target_performance}%</span>
+                      <span className="ml-2 font-medium">{plan.target_performance?.toFixed(1) || 0}%</span>
                     </div>
                     <div>
                       <span className="text-gray-600">Expected Outcome:</span>
-                      <span className="ml-2 font-medium">{plan.expected_outcome}%</span>
+                      <span className="ml-2 font-medium">{plan.expected_outcome?.toFixed(1) || 0}%</span>
                     </div>
                   </div>
                   <p className="text-sm text-gray-600">{plan.intervention_strategy}</p>
                 </div>
-              ))}
+              )) || []}
             </div>
           </div>
         </div>
       )}
 
       {/* Faculty Development Tab */}
-      {activeTab === 'faculty_development' && departmentalIntelligence && (
+      {activeTab === 'faculty_development' && (departmentalIntelligence || facultyDevelopment) && (
         <div className="space-y-6">
           {/* Faculty Effectiveness Metrics */}
           <div className="card">
@@ -734,7 +762,7 @@ const StrategicDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {departmentalIntelligence.faculty_effectiveness_metrics.map((faculty, index) => (
+                  {(departmentalIntelligence?.faculty_effectiveness_metrics || facultyDevelopment?.faculty_effectiveness_metrics)?.map((faculty: any, index: number) => (
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {faculty.teacher}
@@ -743,19 +771,19 @@ const StrategicDashboard: React.FC = () => {
                         {faculty.subjects_taught}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {faculty.average_outcome_achievement}%
+                        {faculty.average_outcome_achievement?.toFixed(1) || 0}%
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {faculty.student_satisfaction}%
+                        {faculty.student_satisfaction?.toFixed(1) || 0}%
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 flex items-center">
                         {getTrendIcon(faculty.improvement_trend)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {faculty.effectiveness_score}%
+                        {faculty.effectiveness_score?.toFixed(1) || 0}%
                       </td>
                     </tr>
-                  ))}
+                  )) || []}
                 </tbody>
               </table>
             </div>
@@ -769,7 +797,7 @@ const StrategicDashboard: React.FC = () => {
                 <div>
                   <h4 className="font-medium text-gray-900 mb-3">Faculty Workload</h4>
                   <div className="space-y-3">
-                    {riskManagement.resource_allocation.faculty_workload.map((faculty, index) => (
+                    {riskManagement?.resource_allocation?.faculty_workload?.map((faculty: any, index: number) => (
                       <div key={index} className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900">{faculty.teacher}</span>
                         <div className="flex items-center space-x-4">
@@ -785,17 +813,17 @@ const StrategicDashboard: React.FC = () => {
                               style={{ width: `${faculty.utilization_percentage}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600">{faculty.utilization_percentage}%</span>
+                          <span className="text-sm text-gray-600">{faculty.utilization_percentage?.toFixed(1) || 0}%</span>
                         </div>
                       </div>
-                    ))}
+                    )) || []}
                   </div>
                 </div>
 
                 <div>
                   <h4 className="font-medium text-gray-900 mb-3">Resource Requirements</h4>
                   <div className="space-y-3">
-                    {riskManagement.resource_allocation.resource_requirements.map((resource, index) => (
+                    {riskManagement?.resource_allocation?.resource_requirements?.map((resource: any, index: number) => (
                       <div key={index} className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900">{resource.resource}</span>
                         <div className="flex items-center space-x-4">
@@ -803,11 +831,11 @@ const StrategicDashboard: React.FC = () => {
                             {resource.current_availability}/{resource.required_amount}
                           </span>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(resource.priority)}`}>
-                            {resource.priority.toUpperCase()}
+                            {resource.priority?.toUpperCase()}
                           </span>
                         </div>
                       </div>
-                    ))}
+                    )) || []}
                   </div>
                 </div>
               </div>

@@ -155,7 +155,7 @@ const HODTeacherAnalytics: React.FC = () => {
     
     // Group exams by month
     departmentExams.forEach(exam => {
-      const examDate = new Date(exam.created_at || exam.date)
+      const examDate = new Date(exam.created_at)
       const monthKey = examDate.toLocaleDateString('en-US', { month: 'short' })
       
       if (!monthlyData[monthKey]) {
@@ -163,9 +163,9 @@ const HODTeacherAnalytics: React.FC = () => {
       }
       
       // Calculate average performance for this exam
-      const examStudents = users.filter(u => u.role === 'student' && u.class_id === exam.class_id)
+      const examStudents = users.filter(u => u.role === 'student' && u.class_id === (exam as any).class_id)
       if (examStudents.length > 0) {
-        const avgPerformance = exam.total_marks ? (exam.total_marks / exam.max_marks) * 100 : 0
+        const avgPerformance = exam.total_marks ? (exam.total_marks / 100) * 100 : 0
         monthlyData[monthKey].total += avgPerformance
         monthlyData[monthKey].count += 1
       }

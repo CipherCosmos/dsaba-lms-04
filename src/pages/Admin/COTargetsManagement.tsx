@@ -5,7 +5,8 @@ import {
   fetchCOTargets,
   bulkUpdateCOTargets,
   setSelectedSubject,
-  clearErrors
+  clearErrors,
+  fetchCODefinitions
 } from '../../store/slices/copoSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 
@@ -16,7 +17,9 @@ const COTargetsManagement: React.FC = () => {
     coTargets, 
     coTargetsLoading, 
     coTargetsError,
-    selectedSubjectId 
+    selectedSubjectId,
+    coDefinitions,
+    coDefinitionsLoading
   } = useSelector((state: RootState) => state.copo)
 
   const [targets, setTargets] = useState<any[]>([])
@@ -29,6 +32,7 @@ const COTargetsManagement: React.FC = () => {
 
   useEffect(() => {
     if (selectedSubjectId) {
+      dispatch(fetchCODefinitions(selectedSubjectId))
       dispatch(fetchCOTargets(selectedSubjectId))
     }
   }, [dispatch, selectedSubjectId])
@@ -51,8 +55,22 @@ const COTargetsManagement: React.FC = () => {
   }
 
   const handleAddTarget = () => {
+    if (coDefinitions.length === 0) {
+      alert('Please create CO definitions first')
+      return
+    }
+    
+    // Find COs that don't have targets yet
+    const existingCoIds = targets.map(t => t.co_id)
+    const availableCOs = coDefinitions.filter(co => !existingCoIds.includes(co.id))
+    
+    if (availableCOs.length === 0) {
+      alert('All COs already have targets')
+      return
+    }
+    
     const newTarget = {
-      co_code: '',
+      co_id: availableCOs[0].id,
       target_pct: 70,
       l1_threshold: 60,
       l2_threshold: 70,
@@ -181,7 +199,7 @@ const COTargetsManagement: React.FC = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      CO Code
+                      CO
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Target %
@@ -207,15 +225,22 @@ const COTargetsManagement: React.FC = () => {
                     <tr key={index}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {isEditing ? (
-                          <input
-                            type="text"
-                            value={target.co_code}
-                            onChange={(e) => handleTargetChange(index, 'co_code', e.target.value)}
+                          <select
+                            value={target.co_id || ''}
+                            onChange={(e) => handleTargetChange(index, 'co_id', Number(e.target.value))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="e.g., CO1"
-                          />
+                          >
+                            <option value="">Select CO</option>
+                            {coDefinitions.map(co => (
+                              <option key={co.id} value={co.id}>
+                                {co.code} - {co.title}
+                              </option>
+                            ))}
+                          </select>
                         ) : (
-                          <span className="text-sm font-medium text-gray-900">{target.co_code}</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {coDefinitions.find(co => co.id === target.co_id)?.code || 'N/A'}
+                          </span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

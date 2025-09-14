@@ -5,11 +5,15 @@ interface Question {
   id: number
   question_number: string
   max_marks: number
-  co_mapping: string[]
-  po_mapping: string[]
+  co_weights: Array<{
+    co_id: number
+    co_code: string
+    weight_pct: number
+  }>
   section: 'A' | 'B' | 'C'
   blooms_level: string
   difficulty: 'easy' | 'medium' | 'hard'
+  exam_id: number
 }
 
 interface Exam {

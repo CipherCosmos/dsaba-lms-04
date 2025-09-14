@@ -7,7 +7,7 @@ import {
   ClipboardList, BarChart3, FileText, Settings,
   TrendingUp, Award, PieChart, Target, Layers, Gauge, Brain,
   UserCheck, BookMarked, BarChart2, FileBarChart, 
-  Calendar, Shield, Monitor, Database, Activity,
+  Activity,
   ChevronLeft, ChevronRight, Menu, X
 } from 'lucide-react'
 

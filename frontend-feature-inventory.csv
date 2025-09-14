@@ -1,0 +1,38 @@
+frontend_path,feature_name,current_data_source,expected_behavior,required_backend_endpoint,status
+src/pages/Login.tsx,User Authentication,backend,Authenticate users with JWT tokens,POST /auth/login,✅ WORKING
+src/pages/Dashboard.tsx,Role-based Dashboard Router,backend,Route to appropriate dashboard based on user role,GET /auth/me,✅ WORKING
+src/components/Dashboard/AdminDashboard.tsx,Admin Dashboard Overview,backend,Display system stats and recent activity,GET /dashboard/stats,✅ WORKING
+src/components/Dashboard/HODDashboard.tsx,HOD Dashboard Overview,backend,Display department-specific stats and analytics,GET /analytics/hod/{department_id},✅ WORKING
+src/components/Dashboard/TeacherDashboard.tsx,Teacher Dashboard Overview,backend,Display teacher-specific stats and classes,GET /analytics/teacher/{teacher_id},✅ WORKING
+src/components/Dashboard/StudentDashboard.tsx,Student Dashboard Overview,backend,Display student-specific stats and progress,GET /analytics/student/{student_id},✅ WORKING
+src/pages/Admin/DepartmentManagement.tsx,Department CRUD Operations,backend,Manage departments with full CRUD,GET/POST/PUT/DELETE /departments,✅ WORKING
+src/pages/Admin/ClassManagement.tsx,Class CRUD Operations,backend,Manage classes with full CRUD,GET/POST/PUT/DELETE /classes,✅ WORKING
+src/pages/Admin/SubjectManagement.tsx,Subject CRUD Operations,backend,Manage subjects with full CRUD,GET/POST/PUT/DELETE /subjects,✅ WORKING
+src/pages/Admin/UserManagement.tsx,User CRUD Operations,backend,Manage users with full CRUD and password reset,GET/POST/PUT/DELETE /users,✅ WORKING
+src/pages/Admin/COManagement.tsx,CO Definition Management,backend,Manage Course Outcomes for subjects,GET/POST/PUT/DELETE /subjects/{id}/cos,✅ WORKING
+src/pages/Admin/POManagement.tsx,PO Definition Management,backend,Manage Program Outcomes for departments,GET/POST/PUT/DELETE /departments/{id}/pos,✅ WORKING
+src/pages/Admin/COTargetsManagement.tsx,CO Targets Management,backend,Set and manage CO targets for subjects,GET/PUT /subjects/{id}/co-targets,✅ WORKING
+src/pages/HOD/HODAnalytics.tsx,HOD Analytics Dashboard,backend,Display department analytics and NBA compliance,GET /analytics/hod/{department_id},✅ WORKING
+src/pages/HOD/StrategicDashboard.tsx,Strategic Dashboard,backend,Display strategic KPIs and department metrics,GET /analytics/strategic/department/{department_id},✅ WORKING
+src/pages/HOD/HODSubjects.tsx,HOD Subject Management,backend,View and manage department subjects,GET /subjects,✅ WORKING
+src/pages/HOD/HODClasses.tsx,HOD Class Management,backend,View and manage department classes,GET /classes,✅ WORKING
+src/pages/HOD/HODUsers.tsx,HOD User Management,backend,View and manage department users,GET /users,✅ WORKING
+src/pages/HOD/HODStudentAnalytics.tsx,HOD Student Analytics,backend,Analyze student performance across department,GET /analytics/student/{student_id},⚠️ PARTIAL (404 for empty DB)
+src/pages/HOD/HODTeacherAnalytics.tsx,HOD Teacher Analytics,backend,Analyze teacher performance in department,GET /analytics/teacher/{teacher_id},⚠️ PARTIAL (404 for empty DB)
+src/pages/HOD/HODReportManagement.tsx,HOD Report Management,backend,Generate and manage reports for department,GET/POST /reports,✅ WORKING
+src/pages/HOD/Reports.tsx,HOD Reports Generation,backend,Generate various reports with filters,POST /reports/generate,⚠️ PARTIAL (timeout on POST)
+src/pages/Teacher/ExamConfiguration.tsx,Exam Configuration,backend,Create and manage exams with questions,GET/POST/PUT/DELETE /exams,✅ WORKING
+src/pages/Teacher/MarksEntry.tsx,Marks Entry System,backend,Enter and manage student marks,GET/POST/PUT /marks,✅ WORKING
+src/pages/Teacher/TeacherAnalytics.tsx,Teacher Analytics,backend,View teacher-specific analytics,GET /analytics/teacher/{teacher_id},⚠️ PARTIAL (404 for empty DB)
+src/pages/Teacher/AttainmentAnalytics.tsx,Attainment Analytics,backend,Analyze CO/PO attainment for subjects,GET /analytics/co-attainment/{subject_id},✅ WORKING
+src/pages/Teacher/ComprehensiveAnalytics.tsx,Comprehensive Analytics,backend,Advanced analytics with charts and insights,Multiple analytics endpoints,✅ WORKING
+src/pages/Teacher/ReportManagement.tsx,Teacher Report Management,backend,Generate teacher-specific reports,GET/POST /reports,✅ WORKING
+src/pages/Student/StudentAnalytics.tsx,Student Analytics,backend,View personal analytics and performance,GET /analytics/student/{student_id},⚠️ PARTIAL (404 for empty DB)
+src/pages/Student/StudentProgress.tsx,Student Progress Tracking,backend,Track goals and milestones,GET/POST/PUT/DELETE /student-goals,✅ WORKING
+src/components/Layout/Sidebar.tsx,Navigation Menu,backend,Role-based navigation menu,GET /auth/me,✅ WORKING
+src/components/Layout/Header.tsx,Application Header,backend,User info and logout functionality,GET /auth/me,✅ WORKING
+src/components/Layout/Layout.tsx,Main Layout Wrapper,backend,Common layout for all pages,None,✅ WORKING
+src/components/Auth/ProtectedRoute.tsx,Route Protection,backend,Protect routes based on user roles,GET /auth/me,✅ WORKING
+src/components/ErrorDisplay.tsx,Error Display Component,frontend,Display error messages and loading states,None,✅ WORKING
+src/components/PWA/PWAInstallPrompt.tsx,PWA Installation,frontend,Prompt users to install PWA,None,✅ WORKING
+src/components/PWA/PWAStatus.tsx,PWA Status Display,frontend,Show PWA installation status,None,✅ WORKING

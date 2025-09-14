@@ -2,27 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-
-class UserRole(str, Enum):
-    admin = "admin"
-    hod = "hod"
-    teacher = "teacher"
-    student = "student"
-
-class ExamType(str, Enum):
-    internal1 = "internal1"
-    internal2 = "internal2"
-    final = "final"
-
-class QuestionSection(str, Enum):
-    A = "A"
-    B = "B"
-    C = "C"
-
-class Difficulty(str, Enum):
-    easy = "easy"
-    medium = "medium"
-    hard = "hard"
+from models import UserRole, ExamType, QuestionSection, Difficulty, POType, AttainmentLevel, IndirectSource
 
 # Authentication schemas
 class LoginRequest(BaseModel):
@@ -375,7 +355,7 @@ class PODefinitionResponse(PODefinitionBase):
 
 # CO Target schemas
 class COTargetBase(BaseModel):
-    co_code: str = Field(..., max_length=10)
+    co_id: int
     target_pct: float = Field(..., ge=0, le=100)
     l1_threshold: float = Field(default=60.0, ge=0, le=100)
     l2_threshold: float = Field(default=70.0, ge=0, le=100)
@@ -385,7 +365,7 @@ class COTargetCreate(COTargetBase):
     subject_id: int
 
 class COTargetUpdate(BaseModel):
-    co_code: Optional[str] = Field(None, max_length=10)
+    co_id: Optional[int] = None
     target_pct: Optional[float] = Field(None, ge=0, le=100)
     l1_threshold: Optional[float] = Field(None, ge=0, le=100)
     l2_threshold: Optional[float] = Field(None, ge=0, le=100)
@@ -423,16 +403,16 @@ class AssessmentWeightResponse(AssessmentWeightBase):
 
 # CO-PO Matrix schemas
 class COPOMatrixBase(BaseModel):
-    co_code: str = Field(..., max_length=10)
-    po_code: str = Field(..., max_length=10)
+    co_id: int
+    po_id: int
     strength: int = Field(..., ge=1, le=3)
 
 class COPOMatrixCreate(COPOMatrixBase):
     subject_id: int
 
 class COPOMatrixUpdate(BaseModel):
-    co_code: Optional[str] = Field(None, max_length=10)
-    po_code: Optional[str] = Field(None, max_length=10)
+    co_id: Optional[int] = None
+    po_id: Optional[int] = None
     strength: Optional[int] = Field(None, ge=1, le=3)
 
 class COPOMatrixResponse(COPOMatrixBase):
@@ -446,14 +426,14 @@ class COPOMatrixResponse(COPOMatrixBase):
 
 # Question CO Weight schemas
 class QuestionCOWeightBase(BaseModel):
-    co_code: str = Field(..., max_length=10)
+    co_id: int
     weight_pct: float = Field(..., ge=0, le=100)
 
 class QuestionCOWeightCreate(QuestionCOWeightBase):
     question_id: int
 
 class QuestionCOWeightUpdate(BaseModel):
-    co_code: Optional[str] = Field(None, max_length=10)
+    co_id: Optional[int] = None
     weight_pct: Optional[float] = Field(None, ge=0, le=100)
 
 class QuestionCOWeightResponse(QuestionCOWeightBase):
@@ -467,8 +447,8 @@ class QuestionCOWeightResponse(QuestionCOWeightBase):
 # Indirect Attainment schemas
 class IndirectAttainmentBase(BaseModel):
     source: str = Field(..., max_length=100)
-    po_code: Optional[str] = Field(None, max_length=10)
-    co_code: Optional[str] = Field(None, max_length=10)
+    po_id: Optional[int] = None
+    co_id: Optional[int] = None
     value_pct: float = Field(..., ge=0, le=100)
     term: Optional[str] = Field(None, max_length=20)
 
@@ -477,8 +457,8 @@ class IndirectAttainmentCreate(IndirectAttainmentBase):
 
 class IndirectAttainmentUpdate(BaseModel):
     source: Optional[str] = Field(None, max_length=100)
-    po_code: Optional[str] = Field(None, max_length=10)
-    co_code: Optional[str] = Field(None, max_length=10)
+    po_id: Optional[int] = None
+    co_id: Optional[int] = None
     value_pct: Optional[float] = Field(None, ge=0, le=100)
     term: Optional[str] = Field(None, max_length=20)
 

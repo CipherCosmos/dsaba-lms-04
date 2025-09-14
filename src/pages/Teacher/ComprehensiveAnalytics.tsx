@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
@@ -8,8 +8,56 @@ import {
   Download, Eye, EyeOff, RefreshCw
 } from 'lucide-react'
 
+// Error Boundary Component
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+}
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('ComprehensiveAnalytics Error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="card text-center py-12">
+          <div className="text-red-500 mb-4">
+            <BookOpen className="h-12 w-12 mx-auto mb-2" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Analytics</h3>
+            <p className="text-gray-600">Something went wrong while loading the analytics data.</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
 interface COAttainmentData {
   [key: string]: {
+    co_id: number
     co_code: string
     co_title: string
     target: number
@@ -71,7 +119,7 @@ const ComprehensiveAnalytics = () => {
 
   // Filter subjects for current teacher
   const teacherSubjects = useMemo(() => 
-    subjects.filter(s => s.teacher_id === user?.id),
+    subjects?.filter(s => s && s.teacher_id === user?.id) || [],
     [subjects, user?.id]
   )
 
@@ -114,27 +162,40 @@ const ComprehensiveAnalytics = () => {
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
-    if (!classPerformance) return null
-
-    const coValues = Object.values(coAttainment)
-    const poValues = Object.values(poAttainment)
+    const coValues = Object.values(coAttainment || {})
+    const poValues = Object.values(poAttainment || {})
+    const studentValues = Object.values(studentPerformance || {})
     
     return {
       totalCOs: coValues.length,
-      achievedCOs: coValues.filter(co => co.status === 'Achieved').length,
+      achievedCOs: coValues.filter(co => co && co.status === 'Achieved').length,
       totalPOs: poValues.length,
-      achievedPOs: poValues.filter(po => po.status === 'Achieved').length,
+      achievedPOs: poValues.filter(po => po && po.status === 'Achieved').length,
+      totalStudents: studentValues.length,
       averageCOAttainment: coValues.length > 0 ? 
-        coValues.reduce((sum, co) => sum + co.attainment, 0) / coValues.length : 0,
+        coValues.reduce((sum, co) => sum + (co?.attainment || 0), 0) / coValues.length : 0,
       averagePOAttainment: poValues.length > 0 ? 
-        poValues.reduce((sum, po) => sum + po.attainment, 0) / poValues.length : 0,
-      classStats: classPerformance
+        poValues.reduce((sum, po) => sum + (po?.attainment || 0), 0) / poValues.length : 0,
+      averageStudentPerformance: studentValues.length > 0 ?
+        studentValues.reduce((sum, student) => sum + (student?.overall_percentage || 0), 0) / studentValues.length : 0,
+      classStats: classPerformance || {
+        total_students: studentValues.length,
+        average_percentage: studentValues.length > 0 ?
+          studentValues.reduce((sum, student) => sum + (student?.overall_percentage || 0), 0) / studentValues.length : 0,
+        highest_percentage: studentValues.length > 0 ? Math.max(...studentValues.map(s => s?.overall_percentage || 0)) : 0,
+        lowest_percentage: studentValues.length > 0 ? Math.min(...studentValues.map(s => s?.overall_percentage || 0)) : 0,
+        pass_rate: studentValues.length > 0 ? 
+          (studentValues.filter(s => (s?.overall_percentage || 0) >= 40).length / studentValues.length) * 100 : 0,
+        grade_distribution: {},
+        performance_trends: {},
+        student_rankings: studentValues.sort((a, b) => (b?.overall_percentage || 0) - (a?.overall_percentage || 0))
+      }
     }
-  }, [coAttainment, poAttainment, classPerformance])
+  }, [coAttainment, poAttainment, classPerformance, studentPerformance])
 
   const exportReport = () => {
     const reportData = {
-      subject: teacherSubjects.find(s => s.id === selectedSubjectId)?.name,
+      subject: teacherSubjects?.find(s => s && s.id === selectedSubjectId)?.name || 'Unknown Subject',
       examType,
       generatedAt: new Date().toISOString(),
       coAttainment,
@@ -238,9 +299,35 @@ const ComprehensiveAnalytics = () => {
         <div className="card text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
           <p className="text-gray-600">Loading analytics data...</p>
+          <p className="text-sm text-gray-500 mt-2">Fetching CO/PO attainment, student performance, and class analytics...</p>
         </div>
       ) : (
         <>
+          {/* Data Status Indicator */}
+          <div className="card mb-6">
+            <div className="flex items-center justify-between">
+              <h4 className="text-md font-medium text-gray-700">Data Status</h4>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${Object.keys(coAttainment || {}).length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <span className="text-sm text-gray-600">CO Data ({Object.keys(coAttainment || {}).length})</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${Object.keys(poAttainment || {}).length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <span className="text-sm text-gray-600">PO Data ({Object.keys(poAttainment || {}).length})</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${Object.keys(studentPerformance || {}).length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <span className="text-sm text-gray-600">Students ({Object.keys(studentPerformance || {}).length})</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${coPoMapping && coPoMapping.length > 0 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <span className="text-sm text-gray-600">CO-PO Mapping ({coPoMapping?.length || 0})</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Summary Statistics */}
           {summaryStats && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -253,7 +340,7 @@ const ComprehensiveAnalytics = () => {
                       {summaryStats.achievedCOs}/{summaryStats.totalCOs}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {summaryStats.averageCOAttainment.toFixed(1)}% avg
+                      {summaryStats.averageCOAttainment?.toFixed(1) || '0.0'}% avg
                     </p>
                   </div>
                 </div>
@@ -268,7 +355,7 @@ const ComprehensiveAnalytics = () => {
                       {summaryStats.achievedPOs}/{summaryStats.totalPOs}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {summaryStats.averagePOAttainment.toFixed(1)}% avg
+                      {summaryStats.averagePOAttainment?.toFixed(1) || '0.0'}% avg
                     </p>
                   </div>
                 </div>
@@ -280,10 +367,10 @@ const ComprehensiveAnalytics = () => {
                   <div>
                     <p className="text-sm text-gray-600">Class Performance</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {summaryStats.classStats.average_percentage.toFixed(1)}%
+                      {summaryStats.classStats?.average_percentage?.toFixed(1) || '0.0'}%
                     </p>
                     <p className="text-xs text-gray-500">
-                      {summaryStats.classStats.pass_rate.toFixed(1)}% pass rate
+                      {summaryStats.classStats?.pass_rate?.toFixed(1) || '0.0'}% pass rate
                     </p>
                   </div>
                 </div>
@@ -295,10 +382,10 @@ const ComprehensiveAnalytics = () => {
                   <div>
                     <p className="text-sm text-gray-600">Students</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {summaryStats.classStats.total_students}
+                      {summaryStats.classStats?.total_students || 0}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {summaryStats.classStats.highest_percentage.toFixed(1)}% highest
+                      {summaryStats.classStats?.highest_percentage?.toFixed(1) || '0.0'}% highest
                     </p>
                   </div>
                 </div>
@@ -334,20 +421,29 @@ const ComprehensiveAnalytics = () => {
             </div>
 
             <div className="p-6">
-              {/* Overview Tab */}
-              {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-gray-900">Analytics Overview</h3>
+          {/* Overview Tab */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Analytics Overview</h3>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500">Exam Type:</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm font-medium">
+                    {examType === 'all' ? 'All Exams' : examType.charAt(0).toUpperCase() + examType.slice(1)}
+                  </span>
+                </div>
+              </div>
                   
                   {/* CO-PO Mapping Heatmap */}
                   <div>
                     <h4 className="text-md font-medium text-gray-700 mb-4">CO-PO Mapping Matrix</h4>
-                    <div className="overflow-x-auto">
+                    {coPoMapping && coPoMapping.length > 0 ? (
+                      <div className="overflow-x-auto">
                       <table className="min-w-full">
                         <thead>
                           <tr className="border-b border-gray-200">
                             <th className="text-left py-2 px-3 font-medium text-gray-600">CO</th>
-                            {Object.keys(poAttainment).map(poCode => (
+                            {Object.keys(poAttainment || {}).map(poCode => (
                               <th key={poCode} className="text-center py-2 px-3 font-medium text-gray-600">
                                 {poCode}
                               </th>
@@ -355,32 +451,59 @@ const ComprehensiveAnalytics = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {coPoMapping.map(co => (
-                            <tr key={co.co_code} className="border-b border-gray-100">
-                              <td className="py-2 px-3 font-medium text-gray-900">{co.co_code}</td>
-                              {Object.keys(poAttainment).map(poCode => {
-                                const mapping = co.mapped_pos.find((p: any) => p.po_code === poCode)
-                                return (
-                                  <td key={poCode} className="text-center py-2 px-3">
-                                    {mapping ? (
-                                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                        mapping.strength === 3 ? 'bg-red-100 text-red-800' :
-                                        mapping.strength === 2 ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-green-100 text-green-800'
-                                      }`}>
-                                        {mapping.strength}
-                                      </span>
-                                    ) : (
-                                      <span className="text-gray-300">-</span>
-                                    )}
+                          {(() => {
+                            try {
+                              return coPoMapping?.filter(co => co && co.co_code)?.map(co => (
+                                <tr key={co?.co_code || 'unknown'} className="border-b border-gray-100">
+                                  <td className="py-2 px-3 font-medium text-gray-900">{co?.co_code || 'N/A'}</td>
+                                  {Object.keys(poAttainment || {}).map(poCode => {
+                                    try {
+                                      const mapping = co?.mapped_pos?.find((p: any) => p && p.po_code === poCode)
+                                      return (
+                                        <td key={poCode} className="text-center py-2 px-3">
+                                          {mapping ? (
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                              mapping.strength === 3 ? 'bg-red-100 text-red-800' :
+                                              mapping.strength === 2 ? 'bg-yellow-100 text-yellow-800' :
+                                              'bg-green-100 text-green-800'
+                                            }`}>
+                                              {mapping.strength}
+                                            </span>
+                                          ) : (
+                                            <span className="text-gray-300">-</span>
+                                          )}
+                                        </td>
+                                      )
+                                    } catch (error) {
+                                      console.error('Error rendering PO mapping:', error)
+                                      return (
+                                        <td key={poCode} className="text-center py-2 px-3">
+                                          <span className="text-gray-300">-</span>
+                                        </td>
+                                      )
+                                    }
+                                  })}
+                                </tr>
+                              )) || []
+                            } catch (error) {
+                              console.error('Error rendering CO-PO mapping:', error)
+                              return (
+                                <tr>
+                                  <td colSpan={Object.keys(poAttainment || {}).length + 1} className="text-center py-4 text-gray-500">
+                                    Error loading CO-PO mapping data
                                   </td>
-                                )
-                              })}
-                            </tr>
-                          ))}
+                                </tr>
+                              )
+                            }
+                          })()}
                         </tbody>
                       </table>
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No CO-PO mapping data available</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Grade Distribution */}
@@ -388,7 +511,7 @@ const ComprehensiveAnalytics = () => {
                     <div>
                       <h4 className="text-md font-medium text-gray-700 mb-4">Grade Distribution</h4>
                       <div className="grid grid-cols-7 gap-2">
-                        {Object.entries(classPerformance.grade_distribution).map(([grade, count]) => (
+                        {Object.entries(classPerformance?.grade_distribution || {}).map(([grade, count]) => (
                           <div key={grade} className="text-center">
                             <div className={`text-2xl font-bold ${
                               grade === 'A+' ? 'text-green-600' :
@@ -425,13 +548,13 @@ const ComprehensiveAnalytics = () => {
                   </div>
                   
                   {/* CO Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <div className="flex items-center">
                         <Target className="w-8 h-8 text-blue-600 mr-3" />
                         <div>
                           <p className="text-sm text-blue-600 font-medium">Total COs</p>
-                          <p className="text-2xl font-bold text-blue-900">{Object.keys(coAttainment).length}</p>
+                          <p className="text-2xl font-bold text-blue-900">{Object.keys(coAttainment || {}).length}</p>
                         </div>
                       </div>
                     </div>
@@ -441,7 +564,7 @@ const ComprehensiveAnalytics = () => {
                         <div>
                           <p className="text-sm text-green-600 font-medium">Achieved COs</p>
                           <p className="text-2xl font-bold text-green-900">
-                            {Object.values(coAttainment).filter(co => co.status === 'Achieved').length}
+                            {Object.values(coAttainment || {}).filter(co => co && co.status === 'Achieved').length}
                           </p>
                         </div>
                       </div>
@@ -452,8 +575,19 @@ const ComprehensiveAnalytics = () => {
                         <div>
                           <p className="text-sm text-purple-600 font-medium">Avg Attainment</p>
                           <p className="text-2xl font-bold text-purple-900">
-                            {Object.values(coAttainment).length > 0 ? 
-                              (Object.values(coAttainment).reduce((sum, co) => sum + co.attainment, 0) / Object.values(coAttainment).length).toFixed(1) : 0}%
+                            {summaryStats?.averageCOAttainment?.toFixed(1) || '0.0'}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <BarChart3 className="w-8 h-8 text-orange-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-orange-600 font-medium">Target Achievement</p>
+                          <p className="text-2xl font-bold text-orange-900">
+                            {Object.values(coAttainment || {}).length > 0 ? 
+                              Math.round((Object.values(coAttainment || {}).filter(co => co && co.status === 'Achieved').length / Object.values(coAttainment || {}).length) * 100) : 0}%
                           </p>
                         </div>
                       </div>
@@ -461,7 +595,7 @@ const ComprehensiveAnalytics = () => {
                   </div>
                   
                   <div className="space-y-4">
-                    {Object.entries(coAttainment).map(([coCode, data]) => {
+                    {Object.entries(coAttainment || {}).map(([coCode, data]) => {
                       const gap = data.target - data.attainment
                       const priority = gap > 20 ? 'High' : gap > 10 ? 'Medium' : 'Low'
                       const trend = data.exam_details && data.exam_details.length > 1 ? 
@@ -600,13 +734,13 @@ const ComprehensiveAnalytics = () => {
                   </div>
                   
                   {/* PO Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div className="bg-indigo-50 p-4 rounded-lg">
                       <div className="flex items-center">
                         <Award className="w-8 h-8 text-indigo-600 mr-3" />
                         <div>
                           <p className="text-sm text-indigo-600 font-medium">Total POs</p>
-                          <p className="text-2xl font-bold text-indigo-900">{Object.keys(poAttainment).length}</p>
+                          <p className="text-2xl font-bold text-indigo-900">{Object.keys(poAttainment || {}).length}</p>
                         </div>
                       </div>
                     </div>
@@ -616,7 +750,7 @@ const ComprehensiveAnalytics = () => {
                         <div>
                           <p className="text-sm text-green-600 font-medium">Achieved POs</p>
                           <p className="text-2xl font-bold text-green-900">
-                            {Object.values(poAttainment).filter(po => po.status === 'Achieved').length}
+                            {Object.values(poAttainment || {}).filter(po => po && po.status === 'Achieved').length}
                           </p>
                         </div>
                       </div>
@@ -627,8 +761,19 @@ const ComprehensiveAnalytics = () => {
                         <div>
                           <p className="text-sm text-purple-600 font-medium">Avg Attainment</p>
                           <p className="text-2xl font-bold text-purple-900">
-                            {Object.values(poAttainment).length > 0 ? 
-                              (Object.values(poAttainment).reduce((sum, po) => sum + po.attainment, 0) / Object.values(poAttainment).length).toFixed(1) : 0}%
+                            {summaryStats?.averagePOAttainment?.toFixed(1) || '0.0'}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <BarChart3 className="w-8 h-8 text-orange-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-orange-600 font-medium">Target Achievement</p>
+                          <p className="text-2xl font-bold text-orange-900">
+                            {Object.values(poAttainment || {}).length > 0 ? 
+                              Math.round((Object.values(poAttainment || {}).filter(po => po && po.status === 'Achieved').length / Object.values(poAttainment || {}).length) * 100) : 0}%
                           </p>
                         </div>
                       </div>
@@ -636,11 +781,11 @@ const ComprehensiveAnalytics = () => {
                   </div>
                   
                   <div className="space-y-4">
-                    {Object.entries(poAttainment).map(([poCode, data]) => {
+                    {Object.entries(poAttainment || {}).map(([poCode, data]) => {
                       const gap = 70 - data.attainment // Assuming 70% target
                       const priority = gap > 20 ? 'High' : gap > 10 ? 'Medium' : 'Low'
                       const totalCOs = data.mapped_cos ? data.mapped_cos.length : 0
-                      const strongCOs = data.mapped_cos ? data.mapped_cos.filter((co: any) => co.attainment >= 70).length : 0
+                      const strongCOs = data.mapped_cos ? data.mapped_cos.filter((co: any) => co && co.attainment >= 70).length : 0
                       
                       return (
                         <div key={poCode} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
@@ -648,7 +793,7 @@ const ComprehensiveAnalytics = () => {
                             <div className="flex-1">
                               <h4 className="font-semibold text-gray-900 text-lg">{poCode}</h4>
                               <p className="text-gray-600 mt-1">
-                                Mapped COs: {data.mapped_cos ? data.mapped_cos.map((co: any) => co.co_code).join(', ') : 'None'}
+                                Mapped COs: {data.mapped_cos ? data.mapped_cos.map((co: any) => co?.co_code || 'N/A').join(', ') : 'None'}
                               </p>
                               <div className="flex items-center space-x-4 mt-2">
                                 <span className="text-sm text-gray-500">Target: 70%</span>
@@ -699,7 +844,7 @@ const ComprehensiveAnalytics = () => {
                                 Contributing COs
                               </h5>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {data.mapped_cos.map((co: any, index: number) => (
+                                {(data.mapped_cos || []).map((co: any, index: number) => (
                                   <div key={index} className="bg-gray-50 p-3 rounded-lg">
                                     <div className="flex justify-between items-center mb-2">
                                       <span className="font-medium text-sm text-gray-700">{co.co_code}</span>
@@ -779,6 +924,52 @@ const ComprehensiveAnalytics = () => {
                       <span>{showDetails ? 'Hide' : 'Show'} Details</span>
                     </button>
                   </div>
+
+                  {/* Student Performance Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <Users className="w-8 h-8 text-blue-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-blue-600 font-medium">Total Students</p>
+                          <p className="text-2xl font-bold text-blue-900">{summaryStats?.totalStudents || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <TrendingUp className="w-8 h-8 text-green-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-green-600 font-medium">Average Score</p>
+                          <p className="text-2xl font-bold text-green-900">
+                            {summaryStats?.averageStudentPerformance?.toFixed(1) || '0.0'}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <Award className="w-8 h-8 text-purple-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-purple-600 font-medium">Pass Rate</p>
+                          <p className="text-2xl font-bold text-purple-900">
+                            {summaryStats?.classStats?.pass_rate?.toFixed(1) || '0.0'}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 p-4 rounded-lg">
+                      <div className="flex items-center">
+                        <BarChart3 className="w-8 h-8 text-orange-600 mr-3" />
+                        <div>
+                          <p className="text-sm text-orange-600 font-medium">Highest Score</p>
+                          <p className="text-2xl font-bold text-orange-900">
+                            {summaryStats?.classStats?.highest_percentage?.toFixed(1) || '0.0'}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="overflow-x-auto">
                     <table className="min-w-full">
@@ -792,7 +983,8 @@ const ComprehensiveAnalytics = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.values(studentPerformance)
+                        {Object.values(studentPerformance || {})
+                          .filter(student => student && typeof student.overall_percentage === 'number')
                           .sort((a, b) => b.overall_percentage - a.overall_percentage)
                           .map((student) => (
                           <tr key={student.student_id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -825,7 +1017,7 @@ const ComprehensiveAnalytics = () => {
                             {showDetails && (
                               <td className="py-3 px-4">
                                 <div className="space-y-1">
-                                  {student.exam_details.map((exam, index) => (
+                                  {(student.exam_details || []).map((exam, index) => (
                                     <div key={index} className="flex justify-between text-xs text-gray-600">
                                       <span>{exam.exam_name}</span>
                                       <span>{exam.percentage.toFixed(1)}%</span>
@@ -843,16 +1035,16 @@ const ComprehensiveAnalytics = () => {
               )}
 
               {/* Class Analysis Tab */}
-              {activeTab === 'class' && classPerformance && (
+              {activeTab === 'class' && (
                 <div className="space-y-6">
                   <h3 className="text-lg font-semibold text-gray-900">Class Performance Analysis</h3>
                   
                   {/* Class Statistics */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="card">
                       <div className="text-center">
                         <div className="text-3xl font-bold text-blue-600 mb-2">
-                          {classPerformance.average_percentage.toFixed(1)}%
+                          {classPerformance?.average_percentage?.toFixed(1) || '0.0'}%
                         </div>
                         <div className="text-sm text-gray-600">Class Average</div>
                       </div>
@@ -861,7 +1053,7 @@ const ComprehensiveAnalytics = () => {
                     <div className="card">
                       <div className="text-center">
                         <div className="text-3xl font-bold text-green-600 mb-2">
-                          {classPerformance.pass_rate.toFixed(1)}%
+                          {classPerformance?.pass_rate?.toFixed(1) || '0.0'}%
                         </div>
                         <div className="text-sm text-gray-600">Pass Rate</div>
                       </div>
@@ -870,9 +1062,18 @@ const ComprehensiveAnalytics = () => {
                     <div className="card">
                       <div className="text-center">
                         <div className="text-3xl font-bold text-purple-600 mb-2">
-                          {classPerformance.total_students}
+                          {summaryStats?.classStats?.total_students || 0}
                         </div>
                         <div className="text-sm text-gray-600">Total Students</div>
+                      </div>
+                    </div>
+                    
+                    <div className="card">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-orange-600 mb-2">
+                          {summaryStats?.classStats?.highest_percentage?.toFixed(1) || '0.0'}%
+                        </div>
+                        <div className="text-sm text-gray-600">Highest Score</div>
                       </div>
                     </div>
                   </div>
@@ -884,13 +1085,13 @@ const ComprehensiveAnalytics = () => {
                       <div className="flex justify-between text-sm">
                         <span>Highest Score</span>
                         <span className="font-medium text-green-600">
-                          {classPerformance.highest_percentage.toFixed(1)}%
+                          {classPerformance?.highest_percentage?.toFixed(1) || '0.0'}%
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Lowest Score</span>
                         <span className="font-medium text-red-600">
-                          {classPerformance.lowest_percentage.toFixed(1)}%
+                          {classPerformance?.lowest_percentage?.toFixed(1) || '0.0'}%
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
@@ -900,9 +1101,9 @@ const ComprehensiveAnalytics = () => {
                             width: '100%',
                             background: `linear-gradient(to right, 
                               red 0%, 
-                              red ${(classPerformance.lowest_percentage / classPerformance.highest_percentage) * 100}%, 
-                              yellow ${(50 / classPerformance.highest_percentage) * 100}%, 
-                              green ${(80 / classPerformance.highest_percentage) * 100}%, 
+                              red ${classPerformance ? (classPerformance.lowest_percentage / classPerformance.highest_percentage) * 100 : 0}%, 
+                              yellow ${classPerformance ? (50 / classPerformance.highest_percentage) * 100 : 0}%, 
+                              green ${classPerformance ? (80 / classPerformance.highest_percentage) * 100 : 0}%, 
                               green 100%)`
                           }}
                         ></div>
@@ -914,7 +1115,7 @@ const ComprehensiveAnalytics = () => {
                   <div className="card">
                     <h4 className="text-md font-medium text-gray-700 mb-4">Top Performers</h4>
                     <div className="space-y-2">
-                      {classPerformance.student_rankings.slice(0, 5).map((student, index) => (
+                      {classPerformance?.student_rankings?.slice(0, 5)?.map((student, index) => (
                         <div key={student.student_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                           <div className="flex items-center space-x-3">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
@@ -945,4 +1146,12 @@ const ComprehensiveAnalytics = () => {
   )
 }
 
-export default ComprehensiveAnalytics
+const ComprehensiveAnalyticsWithErrorBoundary = () => {
+  return (
+    <ErrorBoundary>
+      <ComprehensiveAnalytics />
+    </ErrorBoundary>
+  )
+}
+
+export default ComprehensiveAnalyticsWithErrorBoundary

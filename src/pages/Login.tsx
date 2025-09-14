@@ -42,12 +42,8 @@ interface DemoCredential {
   icon: typeof Shield
 }
 
-const demoCredentials: DemoCredential[] = [
-  { role: 'Admin', username: 'admin', password: 'admin123', color: 'bg-red-50 border-red-200', icon: Shield },
-  { role: 'HOD', username: 'hod', password: 'hod123', color: 'bg-blue-50 border-blue-200', icon: KeyRound },
-  { role: 'Teacher', username: 'teacher', password: 'teacher123', color: 'bg-green-50 border-green-200', icon: User },
-  { role: 'Student', username: 'student', password: 'student123', color: 'bg-yellow-50 border-yellow-200', icon: GraduationCap },
-]
+// Demo credentials removed for production
+const demoCredentials: DemoCredential[] = []
 
 const Login = () => {
   const dispatch = useDispatch<AppDispatch>()

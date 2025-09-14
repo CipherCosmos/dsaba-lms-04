@@ -131,10 +131,10 @@ const COManagement: React.FC = () => {
     if (selectedSubjectId) {
       try {
         const data = await coPoMatrixAPI.getBySubject(selectedSubjectId)
-        const coMapping = data.find((m: any) => m.co_code === co.code)
+        const coMapping = data.find((m: any) => m.co_id === co.id)
         setMappingData(prev => ({
           ...prev,
-          mappedPOs: coMapping?.mapped_pos?.map((po: any) => po.po_code) || []
+          mappedPOs: coMapping?.mapped_pos?.map((po: any) => po.po_id) || []
         }))
       } catch (error) {
         console.error('Error loading existing mappings:', error)
@@ -162,9 +162,9 @@ const COManagement: React.FC = () => {
     
     try {
       // Convert the mapped POs to the format expected by the backend
-      const coPoMatrix = mappingData.mappedPOs.map(poCode => ({
-        co_code: selectedCO.code,
-        po_code: poCode,
+      const coPoMatrix = mappingData.mappedPOs.map(poId => ({
+        co_id: selectedCO.id,
+        po_id: poId,
         strength: 2 // Default strength, could be made configurable
       }))
       

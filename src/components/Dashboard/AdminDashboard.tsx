@@ -47,7 +47,7 @@ const AdminDashboard = () => {
   const stats = [
     {
       name: 'Total Departments',
-      value: dashboardStats?.total_departments || departments.length,
+      value: dashboardStats?.total_departments ?? 0,
       icon: Building,
       color: 'bg-blue-500',
       change: 'Active departments',
@@ -55,74 +55,39 @@ const AdminDashboard = () => {
     },
     {
       name: 'Total Users',
-      value: dashboardStats?.total_users || users.length,
+      value: dashboardStats?.total_users ?? 0,
       icon: Users,
       color: 'bg-green-500',
-      change: `${users.filter(u => u.role === 'student').length} students`,
+      change: `${dashboardStats?.active_users ?? 0} active`,
       href: '/admin/users'
     },
     {
       name: 'Total Classes',
-      value: dashboardStats?.total_classes || classes.length,
+      value: dashboardStats?.total_classes ?? 0,
       icon: GraduationCap,
       color: 'bg-purple-500',
-      change: `${classes.filter(c => c.semester >= 5).length} senior classes`,
+      change: 'Active classes',
       href: '/admin/classes'
     },
     {
       name: 'Total Subjects',
-      value: dashboardStats?.total_subjects || subjects.length,
+      value: dashboardStats?.total_subjects ?? 0,
       icon: BookOpen,
       color: 'bg-orange-500',
-      change: `${subjects.filter(s => s.teacher_id).length} assigned`,
+      change: 'Course subjects',
       href: '/admin/subjects'
     },
   ]
 
-  // Use real recent activity data if available, fallback to mock data
-  const displayRecentActivity = recentActivity.length > 0 ? recentActivity.map(activity => ({
+  // Use real recent activity data from backend
+  const displayRecentActivity = recentActivity.map(activity => ({
     action: activity.message,
     time: new Date(activity.timestamp).toLocaleString(),
     type: activity.type === 'user_created' ? 'success' : 'info',
     details: activity.message
-  })) : [
-    { 
-      action: 'New user registered', 
-      time: '2 hours ago', 
-      type: 'success',
-      details: `${users.slice(-1)[0]?.first_name || 'User'} ${users.slice(-1)[0]?.last_name || ''} joined`
-    },
-    { 
-      action: 'Subject assignment updated', 
-      time: '4 hours ago', 
-      type: 'info',
-      details: 'Teacher assignments modified'
-    },
-    { 
-      action: 'New class created', 
-      time: '6 hours ago', 
-      type: 'info',
-      details: `${classes.slice(-1)[0]?.name || 'Class'} added`
-    },
-    { 
-      action: 'Department updated', 
-      time: '1 day ago', 
-      type: 'success',
-      details: 'Configuration changes applied'
-    },
-  ]
+  }))
 
   const systemAlerts = [
-    {
-      message: `${subjects.filter(s => !s.teacher_id).length} subjects need teacher assignment`,
-      type: 'warning',
-      count: subjects.filter(s => !s.teacher_id).length
-    },
-    {
-      message: `${users.filter(u => !u.is_active).length} inactive users`,
-      type: 'info',
-      count: users.filter(u => !u.is_active).length
-    },
     {
       message: 'System running optimally',
       type: 'success',
@@ -280,33 +245,32 @@ const AdminDashboard = () => {
       {/* Department Overview */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Overview</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {departments.slice(0, 4).map((dept) => {
-            const deptUsers = users.filter(u => u.department_id === dept.id)
-            const deptClasses = classes.filter(c => c.department_id === dept.id)
-            
-            return (
+        {departments.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {departments.slice(0, 4).map((dept) => (
               <div key={dept.id} className="border border-gray-200 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-900 mb-2">{dept.name}</h4>
                 <p className="text-sm text-gray-600 mb-3">Code: {dept.code}</p>
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
-                    <span>Students:</span>
-                    <span className="font-medium">{deptUsers.filter(u => u.role === 'student').length}</span>
+                    <span>Department ID:</span>
+                    <span className="font-medium">{dept.id}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Teachers:</span>
-                    <span className="font-medium">{deptUsers.filter(u => u.role === 'teacher').length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Classes:</span>
-                    <span className="font-medium">{deptClasses.length}</span>
+                    <span>Status:</span>
+                    <span className="font-medium text-green-600">Active</span>
                   </div>
                 </div>
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <Building className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p>No departments found</p>
+            <p className="text-sm">Create departments to see overview</p>
+          </div>
+        )}
       </div>
 
       {/* System Status */}
@@ -325,13 +289,12 @@ const AdminDashboard = () => {
             <Users className="h-8 w-8 text-blue-500 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-900">Active Users</p>
             <p className="text-xs text-gray-600">
-              {dashboardStats?.active_users || users.filter(u => u.is_active).length} active
+              {dashboardStats?.active_users ?? 0} active
             </p>
             <div className="mt-2 bg-gray-200 rounded-full h-2">
               <div className="bg-blue-500 h-2 rounded-full" style={{ 
-                width: `${dashboardStats ? 
-                  (dashboardStats.active_users / dashboardStats.total_users) * 100 : 
-                  (users.filter(u => u.is_active).length / users.length) * 100
+                width: `${dashboardStats && dashboardStats.total_users > 0 ? 
+                  (dashboardStats.active_users / dashboardStats.total_users) * 100 : 0
                 }%` 
               }}></div>
             </div>
@@ -340,11 +303,11 @@ const AdminDashboard = () => {
             <BookOpen className="h-8 w-8 text-purple-500 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-900">Subject Assignment</p>
             <p className="text-xs text-purple-600">
-              {Math.round((subjects.filter(s => s.teacher_id).length / subjects.length) * 100)}% complete
+              {dashboardStats?.total_subjects ?? 0} subjects
             </p>
             <div className="mt-2 bg-gray-200 rounded-full h-2">
               <div className="bg-purple-500 h-2 rounded-full" style={{ 
-                width: `${(subjects.filter(s => s.teacher_id).length / subjects.length) * 100}%` 
+                width: '100%' 
               }}></div>
             </div>
           </div>

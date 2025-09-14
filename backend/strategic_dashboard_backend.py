@@ -15,6 +15,12 @@ from collections import defaultdict
 import statistics
 from datetime import datetime, timedelta
 
+def get_strategic_dashboard_data(db: Session, department_id: int) -> Dict[str, Any]:
+    """
+    Get strategic dashboard data with real data.
+    """
+    return calculate_strategic_dashboard_data(db, department_id)
+
 def calculate_strategic_dashboard_data(db: Session, department_id: int) -> Dict[str, Any]:
     """
     Calculate strategic dashboard data with real data.
@@ -716,28 +722,26 @@ def calculate_remedial_planning(db: Session, department_id: int) -> List[Dict[st
     Calculate remedial planning.
     """
     try:
-        # This would typically analyze weak areas across the department
-        # For now, return simplified remedial plans
-        remedial_plans = [
-            {
-                'area': 'Mathematics Foundation',
-                'affected_students': 15,
-                'current_performance': 60,
-                'target_performance': 75,
-                'intervention_strategy': 'Extra tutoring sessions',
-                'timeline': '4 weeks',
-                'expected_outcome': 70
-            },
-            {
-                'area': 'Programming Skills',
-                'affected_students': 12,
-                'current_performance': 65,
-                'target_performance': 80,
-                'intervention_strategy': 'Hands-on workshops',
-                'timeline': '6 weeks',
-                'expected_outcome': 75
-            }
-        ]
+        # Analyze weak areas across the department based on actual data
+        remedial_plans = []
+        
+        # Get all subjects in the department
+        subjects = db.query(Subject).join(Class).filter(Class.department_id == department_id).all()
+        
+        for subject in subjects:
+            # Get class performance for this subject
+            class_performance = calculate_class_performance(db, subject.class_id)
+            
+            if class_performance.get('average_percentage', 0) < 70:  # Below 70% threshold
+                remedial_plans.append({
+                    'area': subject.name,
+                    'affected_students': class_performance.get('total_students', 0),
+                    'current_performance': class_performance.get('average_percentage', 0),
+                    'target_performance': 75,
+                    'intervention_strategy': 'Additional practice sessions and review',
+                    'timeline': '6 weeks',
+                    'expected_outcome': min(75, class_performance.get('average_percentage', 0) + 10)
+                })
         
         return remedial_plans
         

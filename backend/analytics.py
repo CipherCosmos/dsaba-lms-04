@@ -4,6 +4,7 @@ from models import *
 from typing import Dict, List, Any, Optional
 import statistics
 from collections import defaultdict
+from datetime import datetime
 
 def get_student_analytics(db: Session, student_id: int) -> Dict[str, Any]:
     """Get comprehensive analytics for a student"""

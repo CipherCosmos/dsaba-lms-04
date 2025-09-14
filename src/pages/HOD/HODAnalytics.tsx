@@ -28,7 +28,7 @@ const HODAnalytics = () => {
   const { hodAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
   const { departments } = useSelector((state: RootState) => state.departments)
-  const { } = useSelector((state: RootState) => state.users)
+  // const { users } = useSelector((state: RootState) => state.users)
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedSubject, setSelectedSubject] = useState('')
   const [nbaCompliance, setNbaCompliance] = useState<any>(null)

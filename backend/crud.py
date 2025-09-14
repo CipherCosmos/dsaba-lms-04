@@ -810,20 +810,19 @@ def bulk_update_co_targets(db: Session, subject_id: int, co_targets: List[COTarg
     # Create new targets
     new_targets = []
     for co_target in co_targets:
-        # Look up the co_id based on co_code and subject_id
+        # Verify CO exists and belongs to subject
         co_definition = db.query(CODefinition).filter(
-            CODefinition.subject_id == subject_id,
-            CODefinition.code == co_target.co_code
+            CODefinition.id == co_target.co_id,
+            CODefinition.subject_id == subject_id
         ).first()
         
         if not co_definition:
-            raise ValueError(f"CO definition with code '{co_target.co_code}' not found for subject {subject_id}")
+            raise ValueError(f"CO definition with ID '{co_target.co_id}' not found for subject {subject_id}")
         
         # Create COTarget with co_id
         db_target = COTarget(
             subject_id=subject_id,
-            co_id=co_definition.id,
-            co_code=co_target.co_code,
+            co_id=co_target.co_id,
             target_pct=co_target.target_pct,
             l1_threshold=co_target.l1_threshold,
             l2_threshold=co_target.l2_threshold,
@@ -945,30 +944,28 @@ def bulk_update_co_po_matrix(db: Session, subject_id: int, co_po_matrix: List[CO
     # Create new matrix entries
     new_entries = []
     for entry in co_po_matrix:
-        # Look up the co_id based on co_code and subject_id
+        # Verify CO exists and belongs to subject
         co_definition = db.query(CODefinition).filter(
-            CODefinition.subject_id == subject_id,
-            CODefinition.code == entry.co_code
+            CODefinition.id == entry.co_id,
+            CODefinition.subject_id == subject_id
         ).first()
         
         if not co_definition:
-            raise ValueError(f"CO definition with code '{entry.co_code}' not found for subject {subject_id}")
+            raise ValueError(f"CO definition with ID '{entry.co_id}' not found for subject {subject_id}")
         
-        # Look up the po_id based on po_code (POs are department-wide)
+        # Verify PO exists
         po_definition = db.query(PODefinition).filter(
-            PODefinition.code == entry.po_code
+            PODefinition.id == entry.po_id
         ).first()
         
         if not po_definition:
-            raise ValueError(f"PO definition with code '{entry.po_code}' not found")
+            raise ValueError(f"PO definition with ID '{entry.po_id}' not found")
         
         # Create COPOMatrix with co_id and po_id
         db_entry = COPOMatrix(
             subject_id=subject_id,
-            co_id=co_definition.id,
-            po_id=po_definition.id,
-            co_code=entry.co_code,
-            po_code=entry.po_code,
+            co_id=entry.co_id,
+            po_id=entry.po_id,
             strength=entry.strength
         )
         db.add(db_entry)
@@ -1028,6 +1025,11 @@ def bulk_update_question_co_weights(db: Session, question_id: int, co_weights: L
     # Create new weights
     new_weights = []
     for weight in co_weights:
+        # Verify CO exists
+        co_definition = db.query(CODefinition).filter(CODefinition.id == weight.co_id).first()
+        if not co_definition:
+            raise ValueError(f"CO definition with ID '{weight.co_id}' not found")
+        
         weight.question_id = question_id
         db_weight = QuestionCOWeight(**weight.dict())
         db.add(db_weight)
@@ -1107,7 +1109,7 @@ def get_co_po_matrix_by_subject(db: Session, subject_id: int) -> List[Dict]:
     # Group by CO
     co_po_map = {}
     for entry in co_po_entries:
-        co_code = entry.co_code
+        co_code = entry.co_definition.code
         if co_code not in co_po_map:
             co_po_map[co_code] = {
                 'co_code': co_code,
@@ -1115,7 +1117,7 @@ def get_co_po_matrix_by_subject(db: Session, subject_id: int) -> List[Dict]:
                 'mapped_pos': []
             }
         co_po_map[co_code]['mapped_pos'].append({
-            'po_code': entry.po_code,
+            'po_code': entry.po_definition.code,
             'po_title': entry.po_definition.title,
             'strength': entry.strength
         })
@@ -1142,7 +1144,7 @@ def get_co_attainment_analysis_db(db: Session, subject_id: int, exam_type: str =
         # Get CO target
         co_target = db.query(COTarget).filter(
             COTarget.subject_id == subject_id,
-            COTarget.co_code == co.code
+            COTarget.co_id == co.id
         ).first()
         
         if co_target:
@@ -1201,8 +1203,8 @@ def get_po_attainment_analysis_db(db: Session, subject_id: int, exam_type: str =
     # Group POs by their mapped COs
     po_analysis = {}
     for entry in co_po_matrix:
-        po_code = entry.po_code
-        co_code = entry.co_code
+        po_code = entry.po_definition.code
+        co_code = entry.co_definition.code
         strength = entry.strength
         
         if po_code not in po_analysis:

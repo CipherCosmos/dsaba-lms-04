@@ -16,8 +16,11 @@ const questionSchema = yup.object({
   section: yup.string().oneOf(['A', 'B', 'C']).required('Section is required'),
   blooms_level: yup.string().required('Blooms level is required'),
   difficulty: yup.string().oneOf(['easy', 'medium', 'hard']).required('Difficulty is required'),
-  co_mapping: yup.array().of(yup.string()),
-  po_mapping: yup.array().of(yup.string())
+  co_weights: yup.array().of(yup.object({
+    co_id: yup.number().required(),
+    co_code: yup.string().required(),
+    weight_pct: yup.number().min(0).max(100).required()
+  }))
 })
 
 const examSchema = yup.object({
@@ -60,17 +63,7 @@ const ExamConfiguration = () => {
   } = useForm<ExamForm>({
     resolver: yupResolver(examSchema),
     defaultValues: {
-      questions: [
-        {
-          question_number: '1a',
-          max_marks: 10,
-          section: 'A',
-          blooms_level: 'Remember',
-          difficulty: 'easy',
-          co_mapping: [],
-          po_mapping: []
-        }
-      ]
+      questions: []
     }
   })
 
@@ -179,8 +172,7 @@ const ExamConfiguration = () => {
         questions: data.questions?.map((q: any, index: number) => ({
           ...q,
           id: q.id || index + 1,
-          co_mapping: q.co_mapping?.filter((co: any) => co !== undefined) || [],
-          po_mapping: q.po_mapping?.filter((po: any) => po !== undefined) || []
+          co_weights: q.co_weights?.filter((cw: any) => cw !== undefined) || []
         })) || []
       }
 
@@ -214,8 +206,7 @@ const ExamConfiguration = () => {
         section: 'A',
         blooms_level: 'Remember',
         difficulty: 'easy',
-        co_mapping: [],
-        po_mapping: []
+        co_weights: [],
       }]
     })
     
@@ -243,8 +234,7 @@ const ExamConfiguration = () => {
         section: 'A',
         blooms_level: 'Remember',
         difficulty: 'easy',
-        co_mapping: [],
-        po_mapping: []
+        co_weights: [],
       }]
     })
   }
@@ -256,8 +246,6 @@ const ExamConfiguration = () => {
       section: 'A',
       blooms_level: 'Remember',
       difficulty: 'easy',
-      co_mapping: [],
-      po_mapping: []
     })
     
     // Scroll to the bottom to show the new question
@@ -500,25 +488,20 @@ const ExamConfiguration = () => {
                   <div className="text-xs text-gray-500">
                     <div className="flex flex-wrap gap-1 mb-1">
                       <span className="font-medium">COs:</span>
-                      {Array.from(new Set(exam.questions.flatMap(q => q.co_mapping || []))).slice(0, 3).map(co => (
+                      {Array.from(new Set(exam.questions.flatMap(q => q.co_weights?.map(cw => cw.co_code) || []))).slice(0, 3).map(co => (
                         <span key={co} className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs">
                           {co}
                         </span>
                       ))}
-                      {Array.from(new Set(exam.questions.flatMap(q => q.co_mapping || []))).length > 3 && (
-                        <span className="text-gray-400">+{Array.from(new Set(exam.questions.flatMap(q => q.co_mapping || []))).length - 3} more</span>
+                      {Array.from(new Set(exam.questions.flatMap(q => q.co_weights?.map(cw => cw.co_code) || []))).length > 3 && (
+                        <span className="text-gray-400">+{Array.from(new Set(exam.questions.flatMap(q => q.co_weights?.map(cw => cw.co_code) || []))).length - 3} more</span>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <span className="font-medium">POs:</span>
-                      {Array.from(new Set(exam.questions.flatMap(q => q.po_mapping || []))).slice(0, 3).map(po => (
-                        <span key={po} className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">
-                          {po}
-                        </span>
-                      ))}
-                      {Array.from(new Set(exam.questions.flatMap(q => q.po_mapping || []))).length > 3 && (
-                        <span className="text-gray-400">+{Array.from(new Set(exam.questions.flatMap(q => q.po_mapping || []))).length - 3} more</span>
-                      )}
+                      <span className="font-medium">CO Weights:</span>
+                      <span className="text-gray-600 text-xs">
+                        {exam.questions.reduce((total, q) => total + (q.co_weights?.length || 0), 0)} mappings
+                      </span>
                     </div>
                   </div>
                 )}
@@ -677,13 +660,13 @@ const ExamConfiguration = () => {
                         <div>
                           <span className="text-gray-600">Unique COs:</span>
                           <span className="ml-2 font-medium">
-                            {Array.from(new Set(watchedQuestions.flatMap(q => q.co_mapping || []))).length}
+                            {Array.from(new Set(watchedQuestions.flatMap(q => q.co_weights?.map(cw => cw.co_code) || []))).length}
                           </span>
                         </div>
                         <div>
                           <span className="text-gray-600">Unique POs:</span>
                           <span className="ml-2 font-medium">
-                            {Array.from(new Set(watchedQuestions.flatMap(q => q.po_mapping || []))).length}
+                            {watchedQuestions.reduce((total, q) => total + (q.co_weights?.length || 0), 0)}
                           </span>
                         </div>
                         <div>
@@ -820,9 +803,9 @@ const ExamConfiguration = () => {
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center space-x-2">
                               <h5 className="text-sm font-medium text-gray-700">CO/PO Mapping</h5>
-                              {((watchedQuestions?.[index]?.co_mapping?.length || 0) > 0 || (watchedQuestions?.[index]?.po_mapping?.length || 0) > 0) && (
+                              {((watchedQuestions?.[index]?.co_weights?.length || 0) > 0) && (
                                 <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                  {(watchedQuestions?.[index]?.co_mapping?.length || 0) + (watchedQuestions?.[index]?.po_mapping?.length || 0)} selected
+                                  {(watchedQuestions?.[index]?.co_weights?.length || 0)} CO weights
                                 </span>
                               )}
                             </div>
@@ -849,18 +832,13 @@ const ExamConfiguration = () => {
                           {/* Quick Summary */}
                           <div className="mb-3">
                             <div className="flex flex-wrap gap-2 text-xs">
-                              {(watchedQuestions?.[index]?.co_mapping || []).filter((co): co is string => typeof co === 'string').map((co: string) => (
-                                <span key={co} className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                                  {co}
+                              {(watchedQuestions?.[index]?.co_weights || []).map((cw: any) => (
+                                <span key={cw.co_id} className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                  {cw.co_code} ({cw.weight_pct}%)
                                 </span>
                               ))}
-                              {(watchedQuestions?.[index]?.po_mapping || []).filter((po): po is string => typeof po === 'string').map((po: string) => (
-                                <span key={po} className="px-2 py-1 bg-green-100 text-green-800 rounded">
-                                  {po}
-                                </span>
-                              ))}
-                              {(!watchedQuestions?.[index]?.co_mapping?.length && !watchedQuestions?.[index]?.po_mapping?.length) && (
-                                <span className="text-gray-500">No mappings selected</span>
+                              {(!watchedQuestions?.[index]?.co_weights?.length) && (
+                                <span className="text-gray-500">No CO weights selected</span>
                               )}
                             </div>
                           </div>
@@ -869,12 +847,9 @@ const ExamConfiguration = () => {
                           {expandedMappings.has(index) && (
                             <div className="mt-3">
                               {selectedSubjectId ? (
-                                <COPOSelector
-                                  selectedCOs={(watchedQuestions?.[index]?.co_mapping || []).filter((co): co is string => typeof co === 'string')}
-                                  selectedPOs={(watchedQuestions?.[index]?.po_mapping || []).filter((po): po is string => typeof po === 'string')}
-                                  onCOChange={(cos) => setValue(`questions.${index}.co_mapping`, cos)}
-                                  onPOChange={(pos) => setValue(`questions.${index}.po_mapping`, pos)}
-                                />
+                                <div className="text-sm text-gray-600 bg-blue-50 rounded-lg p-4 text-center">
+                                  CO/PO mapping is now handled separately in the CO Management section
+                                </div>
                               ) : (
                                 <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">
                                   Please select a subject first to configure CO/PO mappings

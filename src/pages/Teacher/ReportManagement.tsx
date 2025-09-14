@@ -176,6 +176,7 @@ const ReportManagement = () => {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const pollReportStatus = async (taskId: string) => {
     const pollInterval = setInterval(async () => {
       try {

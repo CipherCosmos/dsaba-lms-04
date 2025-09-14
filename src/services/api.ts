@@ -1,9 +1,9 @@
 import axios from 'axios'
-
-const API_BASE_URL = '/api'
+import { API_CONFIG } from '../config/api'
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -19,11 +19,44 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+    
+    // Handle 401 errors
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
+      return Promise.reject(error)
     }
+    
+    // Handle validation errors with better formatting
+    if (error.response?.status === 422) {
+      const errorData = error.response.data
+      if (errorData.detail && Array.isArray(errorData.detail)) {
+        // Format validation errors for better display
+        const formattedErrors = errorData.detail.map((err: any) => ({
+          field: err.loc ? err.loc.join('.') : 'general',
+          message: err.msg,
+          type: err.type
+        }))
+        error.formattedErrors = formattedErrors
+      }
+    }
+    
+    // Retry logic for network errors
+    if (!error.response && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      try {
+        return await apiClient(originalRequest)
+      } catch (retryError) {
+        return Promise.reject(retryError)
+      }
+    }
+    
     return Promise.reject(error)
   }
 )

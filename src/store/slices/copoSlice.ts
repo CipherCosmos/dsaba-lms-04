@@ -34,7 +34,7 @@ export interface PODefinition {
 export interface COTarget {
   id: number
   subject_id: number
-  co_code: string
+  co_id: number
   target_pct: number
   l1_threshold: number
   l2_threshold: number
@@ -55,8 +55,8 @@ export interface AssessmentWeight {
 export interface COPOMatrix {
   id: number
   subject_id: number
-  co_code: string
-  po_code: string
+  co_id: number
+  po_id: number
   strength: 1 | 2 | 3
   created_at: string
   updated_at?: string
@@ -65,7 +65,7 @@ export interface COPOMatrix {
 export interface QuestionCOWeight {
   id: number
   question_id: number
-  co_code: string
+  co_id: number
   weight_pct: number
   created_at: string
 }
@@ -74,8 +74,8 @@ export interface IndirectAttainment {
   id: number
   subject_id: number
   source: string
-  po_code?: string
-  co_code?: string
+  po_id?: number
+  co_id?: number
   value_pct: number
   term?: string
   created_at: string
@@ -90,6 +90,7 @@ export interface AttainmentAudit {
 }
 
 export interface COAttainmentDetail {
+  co_id: number
   co_code: string
   target_pct: number
   actual_pct: number
@@ -100,6 +101,7 @@ export interface COAttainmentDetail {
 }
 
 export interface POAttainmentDetail {
+  po_id: number
   po_code: string
   direct_pct: number
   indirect_pct: number

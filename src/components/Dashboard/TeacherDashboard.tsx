@@ -91,6 +91,7 @@ const TeacherDashboard = () => {
     upcomingExams.forEach(exam => {
       const examDate = new Date(exam.exam_date || exam.created_at)
       const daysUntil = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const subject = subjects.find(s => s.id === exam.subject_id)
       
       tasks.push({
@@ -138,7 +139,7 @@ const TeacherDashboard = () => {
       let averagePerformance = 0
       if (subjectExams.length > 0) {
         const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-        const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.max_marks || 0), 0)
+        const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
         averagePerformance = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0
       }
       
@@ -154,7 +155,7 @@ const TeacherDashboard = () => {
 
   // Calculate at-risk students based on real performance data
   const atRiskStudents = React.useMemo(() => {
-    const atRisk = []
+    const atRisk: Array<{student: string, average: number, subjects: any[], riskLevel: string, name: string, percentage: number, class: string}> = []
     
     // Get all students in teacher's classes
     const allStudents = users.filter(u => 
@@ -167,20 +168,20 @@ const TeacherDashboard = () => {
       const studentSubjects = teacherSubjects.filter(subject => subject.class_id === student.class_id)
       let totalPercentage = 0
       let subjectCount = 0
-      const strugglingSubjects = []
+      const strugglingSubjects: Array<{name: string, performance: number}> = []
       
       studentSubjects.forEach(subject => {
         const subjectExams = teacherExams.filter(exam => exam.subject_id === subject.id)
         if (subjectExams.length > 0) {
           const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-          const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.max_marks || 0), 0)
+          const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
           if (maxMarks > 0) {
             const percentage = (totalMarks / maxMarks) * 100
             totalPercentage += percentage
             subjectCount++
             
             if (percentage < 50) {
-              strugglingSubjects.push(subject.name)
+              strugglingSubjects.push({name: subject.name, performance: percentage})
             }
           }
         }
@@ -190,10 +191,13 @@ const TeacherDashboard = () => {
       
       if (averagePercentage < 60 && strugglingSubjects.length > 0) {
         atRisk.push({
-          name: student.name,
+          student: `${student.first_name} ${student.last_name}`,
+          name: `${student.first_name} ${student.last_name}`,
           class: `Class ${student.class_id}`,
+          average: Math.round(averagePercentage),
           percentage: Math.round(averagePercentage),
-          subjects: strugglingSubjects
+          subjects: strugglingSubjects,
+          riskLevel: averagePercentage < 40 ? 'high' : 'medium'
         })
       }
     })

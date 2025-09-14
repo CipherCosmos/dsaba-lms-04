@@ -267,7 +267,7 @@ const Reports = () => {
       const reportData = await reportsAPI.generateReport(reportType, {
         ...quickFilters,
         department_id: user?.department_id,
-        subject_id: defaultSubject?.id || quickFilters.subject_id
+        subject_id: defaultSubject?.id || (quickFilters as any).subject_id
       }, 'pdf')
       
       const blob = new Blob([reportData], { type: 'application/pdf' })

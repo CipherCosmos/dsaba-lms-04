@@ -162,7 +162,8 @@ def calculate_po_attainment_for_subject(db: Session, subject_id: int, exam_type:
     if not subject:
         return {}
     
-    co_po_matrix = get_co_po_matrix_by_subject(db, subject_id)
+    # Get CO-PO matrix - use the function that returns raw COPOMatrix objects
+    co_po_matrix = db.query(COPOMatrix).filter(COPOMatrix.subject_id == subject_id).all()
     indirect_attainment = get_indirect_attainment_by_subject(db, subject_id)
     
     # Get all students in the subject's class
@@ -596,11 +597,27 @@ def calculate_class_attainment_analytics(db: Session, class_id: int, term: str) 
             total_students = max(total_students, co_data['student_count'])
     
     # Calculate real pass rate (students with average CO attainment >= 60%)
+    # Get all students in the class
+    class_students = db.query(User).filter(
+        and_(
+            User.class_id == class_id,
+            User.role == UserRole.student,
+            User.is_active == True
+        )
+    ).all()
+    
     student_percentages = []
-    for student_id in student_performance:
-        if student_performance[student_id]["total"] > 0:
-            percentage = (student_performance[student_id]["obtained"] / student_performance[student_id]["total"]) * 100
-            student_percentages.append(percentage)
+    for student in class_students:
+        # Calculate average CO attainment for this student across all subjects
+        student_co_attainments = []
+        for subject in subjects:
+            co_data = calculate_co_attainment_for_student(db, student.id, subject.id)
+            if co_data and 'co_attainment' in co_data:
+                avg_co_attainment = statistics.mean([co['actual_pct'] for co in co_data['co_attainment']])
+                student_co_attainments.append(avg_co_attainment)
+        
+        if student_co_attainments:
+            student_percentages.append(statistics.mean(student_co_attainments))
     
     pass_rate = (len([p for p in student_percentages if p >= 60]) / len(student_percentages)) * 100 if student_percentages else 0
     

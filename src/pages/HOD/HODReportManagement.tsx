@@ -31,10 +31,10 @@ const HODReportManagement = () => {
   const [reportFilters, setReportFilters] = useState({
     academicYear: '2024-25',
     semester: 'all',
-    teacherId: null,
-    classId: null,
-    studentId: null,
-    subjectId: null,
+    teacherId: null as number | null,
+    classId: null as number | null,
+    studentId: null as number | null,
+    subjectId: null as number | null,
     comparisonType: 'classes',
     timePeriod: 'current_semester',
     planningPeriod: 'annual',
@@ -176,7 +176,7 @@ const HODReportManagement = () => {
   const loadReportTemplates = async () => {
     setLoadingTemplates(true)
     try {
-      const templates = await reportsAPI.getReportTemplates()
+      const templates = await reportsAPI.getTemplates()
       // Filter templates for HOD role
       const hodTemplates = templates.filter((template: any) => 
         template.roles && template.roles.includes('hod')
@@ -184,8 +184,8 @@ const HODReportManagement = () => {
       setReportTemplates(hodTemplates)
     } catch (error) {
       console.error('Error fetching report templates:', error)
-      // Use fallback templates
-      setReportTemplates(hodReportTemplates)
+      // Use minimal fallback templates if API fails
+      setReportTemplates([])
     } finally {
       setLoadingTemplates(false)
     }

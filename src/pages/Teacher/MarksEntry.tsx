@@ -59,16 +59,16 @@ const MarksEntry = () => {
 
   // Filter exams for current teacher
   const teacherSubjects = useMemo(() => 
-    subjects.filter(s => s.teacher_id === user?.id),
+    subjects?.filter(s => s && s.teacher_id === user?.id) || [],
     [subjects, user?.id]
   )
   
-  const teacherExams = useMemo(() => 
-    exams.filter(exam => 
+  const teacherExams = useMemo(() => {
+    console.log('Teacher Exams Debug:', { exams, teacherSubjects, user })
+    return exams?.filter(exam => 
       teacherSubjects.some(subject => subject.id === exam.subject_id)
-    ),
-    [exams, teacherSubjects]
-  )
+    ) || []
+  }, [exams, teacherSubjects])
 
   // Enhanced calculations with proper error handling
   const calculateTotals = useMemo(() => {
@@ -135,74 +135,101 @@ const MarksEntry = () => {
   }
 
   const handleExamSelect = async (exam: any) => {
-    setSelectedExam(exam)
-    setLockStatus(null)
-    setSelectedStudents(new Set())
-    setBulkMode(false)
+        console.log('Exam selected:', exam)
+        console.log('Exam questions:', exam.questions)
+        console.log('Question IDs:', exam.questions?.map(q => q.id))
+        setSelectedExam(exam)
+        setLockStatus(null)
+        setSelectedStudents(new Set())
+        setBulkMode(false)
+        
+        // Get subject to find class
+        const subject = subjects.find(s => s.id === exam.subject_id)
+        console.log('Subject found:', subject)
     
-    // Get subject to find class
-    const subject = subjects.find(s => s.id === exam.subject_id)
     if (subject) {
       const classStudents = users.filter(u => 
         u.role === 'student' && u.class_id === subject.class_id
       )
+      console.log('Class students:', classStudents)
       setStudents(classStudents)
       
-      // Fetch existing marks
-      dispatch(fetchMarksByExam(exam.id))
+      // Check if exam has questions
+      if (!exam.questions || exam.questions.length === 0) {
+        toast.error('This exam has no questions. Please add questions first.')
+        setMarksData([])
+        return
+      }
+      
+      // Fetch existing marks first
+      try {
+        const marksResult = await dispatch(fetchMarksByExam(exam.id)).unwrap()
+        console.log('Marks fetched:', marksResult)
+        
+        // Initialize marks data structure with proper calculations
+        const initialMarksData = classStudents.map(student => {
+          const studentMarks: { [key: number]: number } = {}
+          let total = 0
+          
+          exam.questions?.forEach((question: any) => {
+            const existingMark = marksResult.find((m: any) => 
+              m.student_id === student.id && m.question_id === question.id
+            )
+            const markValue = existingMark?.marks_obtained || 0
+            studentMarks[question.id] = markValue
+            total += markValue
+          })
+          
+          return {
+            student_id: student.id,
+            student_name: `${student.first_name} ${student.last_name}`,
+            student_roll: student.username || '',
+            marks: studentMarks,
+            total: Math.round(total * 100) / 100,
+            percentage: exam.total_marks > 0 ? Math.round((total / exam.total_marks) * 10000) / 100 : 0
+          }
+        })
+        
+        console.log('Initial marks data:', initialMarksData)
+        setMarksData(initialMarksData)
+      } catch (error) {
+        console.error('Error fetching marks:', error)
+        toast.error('Failed to load existing marks')
+      }
       
       // Fetch lock status
       fetchLockStatus(exam.id)
-      
-      // Initialize marks data structure with proper calculations
-      const initialMarksData = classStudents.map(student => {
-        const studentMarks: { [key: number]: number } = {}
-        let total = 0
-        
-        exam.questions?.forEach((question: any) => {
-          const existingMark = marks.find(m => 
-            m.student_id === student.id && m.question_id === question.id
-          )
-          const markValue = existingMark?.marks_obtained || 0
-          studentMarks[question.id] = markValue
-          total += markValue
-        })
-        
-        return {
-          student_id: student.id,
-          student_name: `${student.first_name} ${student.last_name}`,
-          student_roll: student.username || '',
-          marks: studentMarks,
-          total: Math.round(total * 100) / 100,
-          percentage: selectedExam?.total_marks > 0 ? Math.round((total / selectedExam.total_marks) * 10000) / 100 : 0
-        }
-      })
-      
-      setMarksData(initialMarksData)
     }
   }
 
   const handleMarksChange = (studentId: number, questionId: number, marks: number) => {
+    console.log('Marks change:', { studentId, questionId, marks })
     if (lockStatus?.is_locked) return
     
-    setMarksData(prev => prev.map(student => {
-      if (student.student_id === studentId) {
-        const updatedMarks = { ...student.marks, [questionId]: marks }
-        const total = Object.values(updatedMarks).reduce((sum: number, mark: any) => {
-          const numMark = Number(mark) || 0
-          return sum + numMark
-        }, 0)
-        const percentage = selectedExam?.total_marks > 0 ? (total / selectedExam.total_marks) * 100 : 0
-        
-        return { 
-          ...student, 
-          marks: updatedMarks, 
-          total: Math.round(total * 100) / 100,
-          percentage: Math.round(percentage * 100) / 100
+    setMarksData(prev => {
+      const updated = prev.map(student => {
+        if (student.student_id === studentId) {
+          const updatedMarks = { ...student.marks, [questionId]: marks }
+          const total = Object.values(updatedMarks).reduce((sum: number, mark: any) => {
+            const numMark = Number(mark) || 0
+            return sum + numMark
+          }, 0)
+          const percentage = selectedExam?.total_marks > 0 ? (total / selectedExam.total_marks) * 100 : 0
+          
+          const updatedStudent = { 
+            ...student, 
+            marks: updatedMarks, 
+            total: Math.round(total * 100) / 100,
+            percentage: Math.round(percentage * 100) / 100
+          }
+          console.log('Updated student:', updatedStudent)
+          return updatedStudent
         }
-      }
-      return student
-    }))
+        return student
+      })
+      console.log('Updated marks data:', updated)
+      return updated
+    })
 
     // Auto-save if enabled
     if (autoSave) {
@@ -306,25 +333,81 @@ const MarksEntry = () => {
     try {
       const marksToSave = []
       
+      console.log('Saving marks for exam:', selectedExam.id)
+      console.log('Current marks data:', marksData)
+      console.log('Exam questions:', selectedExam.questions)
+      
       for (const student of marksData) {
         for (const questionId in student.marks) {
-          marksToSave.push({
-            exam_id: selectedExam.id,
-            student_id: student.student_id,
-            question_id: parseInt(questionId),
-            marks_obtained: Number(student.marks[questionId])
-          })
+          const markValue = Number(student.marks[questionId])
+          if (markValue > 0) { // Only save non-zero marks
+            const questionIdInt = parseInt(questionId)
+            console.log('Processing mark:', {
+              exam_id: selectedExam.id,
+              student_id: student.student_id,
+              question_id: questionIdInt,
+              marks_obtained: markValue
+            })
+            
+            // Validate question exists in exam
+            const questionExists = selectedExam.questions?.some((q: any) => q.id === questionIdInt)
+            if (!questionExists) {
+              console.error(`Question ${questionIdInt} not found in exam ${selectedExam.id}`)
+              toast.error(`Question ${questionIdInt} not found in exam`)
+              continue
+            }
+            
+            marksToSave.push({
+              exam_id: selectedExam.id,
+              student_id: student.student_id,
+              question_id: questionIdInt,
+              marks_obtained: markValue
+            })
+          }
         }
       }
 
-      await dispatch(saveMarks(marksToSave)).unwrap()
+      console.log('Marks to save:', marksToSave)
+      
+      if (marksToSave.length === 0) {
+        toast.warning('No marks to save')
+        return
+      }
+
+      const result = await dispatch(saveMarks(marksToSave)).unwrap()
+      console.log('Save result:', result)
       setLastSaved(new Date())
       toast.success('Marks saved successfully!', {
         duration: 3000,
         icon: '✅'
       })
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save marks')
+      console.error('Save error:', error)
+      
+      // Handle different types of errors
+      if (error.response?.status === 422) {
+        const errorDetails = error.response.data
+        console.error('Validation error details:', errorDetails)
+        
+        if (errorDetails.detail && Array.isArray(errorDetails.detail)) {
+          // Pydantic validation errors
+          const errorMessages = errorDetails.detail.map((err: any) => 
+            `${err.loc?.join('.')}: ${err.msg}`
+          ).join(', ')
+          toast.error(`Validation error: ${errorMessages}`)
+        } else if (errorDetails.message) {
+          // Custom validation error
+          toast.error(`Validation error: ${errorDetails.message}`)
+        } else {
+          toast.error('Validation error: Invalid data format')
+        }
+      } else if (error.response?.status === 400) {
+        const errorDetails = error.response.data
+        console.error('Business logic error:', errorDetails)
+        toast.error(errorDetails.message || 'Invalid request')
+      } else {
+        toast.error(error.message || 'Failed to save marks')
+      }
     }
   }
 
@@ -438,7 +521,10 @@ const MarksEntry = () => {
     
     // Add question headers
     selectedExam.questions?.forEach((question: any, index: number) => {
-      expectedHeaders.push(`Q${index + 1} (${question.max_marks})`)
+      const questionTitle = question.question_text 
+        ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.max_marks})`
+        : `Q${index + 1} (${question.max_marks})`
+      expectedHeaders.push(questionTitle)
     })
 
     // Check if required headers exist
@@ -599,7 +685,10 @@ const MarksEntry = () => {
       
       // Add individual question marks
       selectedExam.questions?.forEach((question: any, index: number) => {
-        row[`Q${index + 1} (${question.max_marks})`] = student.marks[question.id] || 0
+        const questionTitle = question.question_text 
+          ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.max_marks})`
+          : `Q${index + 1} (${question.max_marks})`
+        row[questionTitle] = student.marks[question.id] || 0
       })
       
       return row
@@ -626,7 +715,10 @@ const MarksEntry = () => {
       }
       
       selectedExam.questions?.forEach((question: any, index: number) => {
-        row[`Q${index + 1} (${question.max_marks})`] = ''
+        const questionTitle = question.question_text 
+          ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.max_marks})`
+          : `Q${index + 1} (${question.max_marks})`
+        row[questionTitle] = ''
       })
       
       return row
@@ -884,6 +976,19 @@ const MarksEntry = () => {
                       <div className="flex flex-col items-center">
                         <span>Q{index + 1}</span>
                         <span className="text-gray-400">({question.max_marks})</span>
+                        {question.question_text && (
+                          <div className="mt-1 max-w-32">
+                            <span 
+                              className="text-xs text-gray-600 truncate block" 
+                              title={question.question_text}
+                            >
+                              {question.question_text.length > 20 
+                                ? `${question.question_text.substring(0, 20)}...` 
+                                : question.question_text
+                              }
+                            </span>
+                          </div>
+                        )}
                         {bulkMode && (
                           <div className="mt-2 flex items-center space-x-1">
                             <input
@@ -1025,6 +1130,19 @@ const MarksEntry = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Debug Info */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+              <h3 className="font-medium text-gray-900 mb-2">Debug Info:</h3>
+              <div className="text-xs text-gray-600 space-y-1">
+                <div>Selected Exam: {selectedExam?.name}</div>
+                <div>Marks Data Count: {marksData.length}</div>
+                <div>Students Count: {students.length}</div>
+                <div>Sample Marks: {JSON.stringify(marksData[0]?.marks || {})}</div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between mt-6 pt-4 border-t">

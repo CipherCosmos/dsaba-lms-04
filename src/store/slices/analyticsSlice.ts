@@ -49,6 +49,17 @@ interface HODAnalytics {
     subjects_taught: number
     average_class_performance: number
   }>
+  nba_compliance?: {
+    overall_compliance: number
+    co_attainment: number
+    po_attainment: number
+  }
+  recent_updates?: Array<{
+    title: string
+    description: string
+    date: string
+    type: string
+  }>
 }
 
 interface AnalyticsState {

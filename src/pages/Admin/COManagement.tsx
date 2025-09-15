@@ -39,7 +39,7 @@ const COManagement: React.FC = () => {
   })
   const [mappingData, setMappingData] = useState({
     coId: null as number | null,
-    mappedPOs: [] as string[]
+    mappedPOs: [] as number[] // Store PO IDs instead of codes
   })
 
   useEffect(() => {
@@ -131,10 +131,10 @@ const COManagement: React.FC = () => {
     if (selectedSubjectId) {
       try {
         const data = await coPoMatrixAPI.getBySubject(selectedSubjectId)
-        const coMapping = data.find((m: any) => m.co_code === co.code)
+        const coMapping = data.find((m: any) => m.co_id === co.id)
         setMappingData(prev => ({
           ...prev,
-          mappedPOs: coMapping?.mapped_pos?.map((po: any) => po.po_code) || []
+          mappedPOs: coMapping?.mapped_pos?.map((po: any) => po.po_id) || []
         }))
       } catch (error) {
         console.error('Error loading existing mappings:', error)
@@ -148,12 +148,12 @@ const COManagement: React.FC = () => {
     setMappingData({ coId: null, mappedPOs: [] })
   }
 
-  const handlePOToggle = (poCode: string) => {
+  const handlePOToggle = (poId: number) => {
     setMappingData(prev => ({
       ...prev,
-      mappedPOs: prev.mappedPOs.includes(poCode)
-        ? prev.mappedPOs.filter(code => code !== poCode)
-        : [...prev.mappedPOs, poCode]
+      mappedPOs: prev.mappedPOs.includes(poId)
+        ? prev.mappedPOs.filter(id => id !== poId)
+        : [...prev.mappedPOs, poId]
     }))
   }
 
@@ -162,9 +162,9 @@ const COManagement: React.FC = () => {
     
     try {
       // Convert the mapped POs to the format expected by the backend
-      const coPoMatrix = mappingData.mappedPOs.map(poCode => ({
-        co_code: selectedCO.code,
-        po_code: poCode,
+      const coPoMatrix = mappingData.mappedPOs.map(poId => ({
+        co_id: selectedCO.id,
+        po_id: poId, // poId is now already an integer
         strength: 2 // Default strength, could be made configurable
       }))
       
@@ -424,15 +424,15 @@ const COManagement: React.FC = () => {
                       <label
                         key={po.id}
                         className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          mappingData.mappedPOs.includes(po.code)
+                          mappingData.mappedPOs.includes(po.id)
                             ? 'bg-green-50 border-green-200'
                             : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                         }`}
                       >
                         <input
                           type="checkbox"
-                          checked={mappingData.mappedPOs.includes(po.code)}
-                          onChange={() => handlePOToggle(po.code)}
+                          checked={mappingData.mappedPOs.includes(po.id)}
+                          onChange={() => handlePOToggle(po.id)}
                           className="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                         />
                         <div className="flex-1 min-w-0">

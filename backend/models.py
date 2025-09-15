@@ -70,12 +70,12 @@ class Department(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
     code = Column(String(10), unique=True, nullable=False)
-    hod_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    hod_id = Column(Integer, ForeignKey("users.id", use_alter=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     users = relationship("User", back_populates="department", foreign_keys=[User.department_id])
     classes = relationship("Class", back_populates="department")
-    hod = relationship("User", foreign_keys=[hod_id])
+    hod = relationship("User", foreign_keys=[hod_id], post_update=True)
     # CO/PO/PSO Framework relationships
     po_definitions = relationship("PODefinition", back_populates="department")
 
@@ -139,6 +139,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("exams.id"), nullable=False)
     question_number = Column(String(10), nullable=False)
+    question_text = Column(Text, nullable=False)  # The actual question content
     max_marks = Column(Float, nullable=False)
     co_mapping = Column(JSON)
     po_mapping = Column(JSON)
@@ -206,7 +207,6 @@ class COTarget(Base):
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     co_id = Column(Integer, ForeignKey("co_definitions.id"), nullable=False)
-    co_code = Column(String(10), nullable=False)  # Keep for reference
     target_pct = Column(Float, nullable=False)  # Target percentage (e.g., 70%)
     l1_threshold = Column(Float, nullable=False, default=60.0)  # L1 level threshold
     l2_threshold = Column(Float, nullable=False, default=70.0)  # L2 level threshold
@@ -236,8 +236,6 @@ class COPOMatrix(Base):
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
     co_id = Column(Integer, ForeignKey("co_definitions.id"), nullable=False)
     po_id = Column(Integer, ForeignKey("po_definitions.id"), nullable=False)
-    co_code = Column(String(10), nullable=False)  # Keep for reference
-    po_code = Column(String(10), nullable=False)  # Keep for reference
     strength = Column(Integer, nullable=False)  # 1, 2, or 3
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -252,7 +250,6 @@ class QuestionCOWeight(Base):
     id = Column(Integer, primary_key=True, index=True)
     question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
     co_id = Column(Integer, ForeignKey("co_definitions.id"), nullable=False)
-    co_code = Column(String(10), nullable=False)  # Keep for reference
     weight_pct = Column(Float, nullable=False)  # Weight percentage for this CO in this question
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -267,8 +264,6 @@ class IndirectAttainment(Base):
     po_id = Column(Integer, ForeignKey("po_definitions.id"), nullable=True)  # Optional PO mapping
     co_id = Column(Integer, ForeignKey("co_definitions.id"), nullable=True)  # Optional CO mapping
     source = Column(Enum(IndirectSource), nullable=False)
-    po_code = Column(String(10), nullable=True)  # Keep for reference
-    co_code = Column(String(10), nullable=True)  # Keep for reference
     value_pct = Column(Float, nullable=False)  # Attainment percentage
     term = Column(String(20), nullable=True)  # Academic term/semester
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -130,7 +130,7 @@ def calculate_competency_matrix(marks: List[Mark], db: Session) -> Dict[str, Dic
             co_targets = get_co_targets_by_subject(db, subject_id)
             
             for co_def in co_definitions:
-                co_code = co_def.co_code
+                co_code = co_def.code
                 
                 # Calculate actual attainment for this CO
                 co_marks = [m for m in marks if m.question and co_code in (m.question.co_mapping or [])]
@@ -145,7 +145,7 @@ def calculate_competency_matrix(marks: List[Mark], db: Session) -> Dict[str, Dic
                 # Get target
                 target = 80  # Default target
                 for target_def in co_targets:
-                    if target_def.co_code == co_code:
+                    if target_def.co_definition.code == co_code:
                         target = target_def.target_pct
                         break
                 

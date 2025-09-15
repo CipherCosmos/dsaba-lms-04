@@ -2,27 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
-
-class UserRole(str, Enum):
-    admin = "admin"
-    hod = "hod"
-    teacher = "teacher"
-    student = "student"
-
-class ExamType(str, Enum):
-    internal1 = "internal1"
-    internal2 = "internal2"
-    final = "final"
-
-class QuestionSection(str, Enum):
-    A = "A"
-    B = "B"
-    C = "C"
-
-class Difficulty(str, Enum):
-    easy = "easy"
-    medium = "medium"
-    hard = "hard"
+from models import UserRole, ExamType, QuestionSection, Difficulty, POType, AttainmentLevel, IndirectSource
 
 # Authentication schemas
 class LoginRequest(BaseModel):
@@ -178,6 +158,7 @@ class SubjectResponse(SubjectBase):
 # Question schemas
 class QuestionBase(BaseModel):
     question_number: str
+    question_text: str
     max_marks: float = Field(..., ge=0.5)
     co_mapping: List[str] = []
     po_mapping: List[str] = []
@@ -190,6 +171,7 @@ class QuestionCreate(QuestionBase):
 
 class QuestionUpdate(BaseModel):
     question_number: Optional[str] = None
+    question_text: Optional[str] = None
     max_marks: Optional[float] = Field(None, ge=0.5)
     co_mapping: Optional[List[str]] = None
     po_mapping: Optional[List[str]] = None
@@ -209,6 +191,7 @@ class QuestionResponse(QuestionBase):
 # Exam question schema for exam creation (without exam_id)
 class ExamQuestionCreate(BaseModel):
     question_number: str
+    question_text: str
     max_marks: float = Field(..., ge=0.5)
     co_mapping: List[str] = []
     po_mapping: List[str] = []
@@ -375,7 +358,7 @@ class PODefinitionResponse(PODefinitionBase):
 
 # CO Target schemas
 class COTargetBase(BaseModel):
-    co_code: str = Field(..., max_length=10)
+    co_id: int
     target_pct: float = Field(..., ge=0, le=100)
     l1_threshold: float = Field(default=60.0, ge=0, le=100)
     l2_threshold: float = Field(default=70.0, ge=0, le=100)
@@ -385,7 +368,7 @@ class COTargetCreate(COTargetBase):
     subject_id: int
 
 class COTargetUpdate(BaseModel):
-    co_code: Optional[str] = Field(None, max_length=10)
+    co_id: Optional[int] = None
     target_pct: Optional[float] = Field(None, ge=0, le=100)
     l1_threshold: Optional[float] = Field(None, ge=0, le=100)
     l2_threshold: Optional[float] = Field(None, ge=0, le=100)
@@ -423,16 +406,16 @@ class AssessmentWeightResponse(AssessmentWeightBase):
 
 # CO-PO Matrix schemas
 class COPOMatrixBase(BaseModel):
-    co_code: str = Field(..., max_length=10)
-    po_code: str = Field(..., max_length=10)
+    co_id: int
+    po_id: int
     strength: int = Field(..., ge=1, le=3)
 
 class COPOMatrixCreate(COPOMatrixBase):
     subject_id: int
 
 class COPOMatrixUpdate(BaseModel):
-    co_code: Optional[str] = Field(None, max_length=10)
-    po_code: Optional[str] = Field(None, max_length=10)
+    co_id: Optional[int] = None
+    po_id: Optional[int] = None
     strength: Optional[int] = Field(None, ge=1, le=3)
 
 class COPOMatrixResponse(COPOMatrixBase):
@@ -446,14 +429,14 @@ class COPOMatrixResponse(COPOMatrixBase):
 
 # Question CO Weight schemas
 class QuestionCOWeightBase(BaseModel):
-    co_code: str = Field(..., max_length=10)
+    co_id: int
     weight_pct: float = Field(..., ge=0, le=100)
 
 class QuestionCOWeightCreate(QuestionCOWeightBase):
     question_id: int
 
 class QuestionCOWeightUpdate(BaseModel):
-    co_code: Optional[str] = Field(None, max_length=10)
+    co_id: Optional[int] = None
     weight_pct: Optional[float] = Field(None, ge=0, le=100)
 
 class QuestionCOWeightResponse(QuestionCOWeightBase):
@@ -467,8 +450,8 @@ class QuestionCOWeightResponse(QuestionCOWeightBase):
 # Indirect Attainment schemas
 class IndirectAttainmentBase(BaseModel):
     source: str = Field(..., max_length=100)
-    po_code: Optional[str] = Field(None, max_length=10)
-    co_code: Optional[str] = Field(None, max_length=10)
+    po_id: Optional[int] = None
+    co_id: Optional[int] = None
     value_pct: float = Field(..., ge=0, le=100)
     term: Optional[str] = Field(None, max_length=20)
 
@@ -477,8 +460,8 @@ class IndirectAttainmentCreate(IndirectAttainmentBase):
 
 class IndirectAttainmentUpdate(BaseModel):
     source: Optional[str] = Field(None, max_length=100)
-    po_code: Optional[str] = Field(None, max_length=10)
-    co_code: Optional[str] = Field(None, max_length=10)
+    po_id: Optional[int] = None
+    co_id: Optional[int] = None
     value_pct: Optional[float] = Field(None, ge=0, le=100)
     term: Optional[str] = Field(None, max_length=20)
 
@@ -492,31 +475,62 @@ class IndirectAttainmentResponse(IndirectAttainmentBase):
 
 # Attainment Analytics schemas
 class COAttainmentDetail(BaseModel):
+    co_id: int
     co_code: str
+    co_description: str
     target_pct: float
     actual_pct: float
     level: str  # L1, L2, L3
     gap: float
     coverage: float
     evidence: List[Dict[str, Any]]  # Question details
+    performance_trend: List[Dict[str, Any]]  # Historical performance
+    difficulty_analysis: Dict[str, Any]  # Easy/Medium/Hard breakdown
+    blooms_taxonomy: Dict[str, float]  # Blooms level distribution
+    question_analysis: List[Dict[str, Any]]  # Individual question performance
+    student_performance: Dict[str, Any]  # Student-wise performance
+    recommendations: List[str]  # Improvement recommendations
 
 class POAttainmentDetail(BaseModel):
+    po_id: int
     po_code: str
+    po_description: str
     direct_pct: float
     indirect_pct: float
     total_pct: float
     level: str
     gap: float
     contributing_cos: List[str]
+    co_contributions: List[Dict[str, Any]]  # CO-wise contributions
+    performance_trend: List[Dict[str, Any]]  # Historical performance
+    attainment_distribution: Dict[str, float]  # Grade distribution
+    strength_areas: List[str]  # Strong performing areas
+    improvement_areas: List[str]  # Areas needing improvement
+    recommendations: List[str]  # Improvement recommendations
 
 class SubjectAttainmentResponse(BaseModel):
     subject_id: int
     subject_name: str
+    subject_code: str
+    semester: str
+    credits: int
     co_attainment: List[COAttainmentDetail]
     po_attainment: List[POAttainmentDetail]
     blooms_distribution: Dict[str, Any]
     difficulty_mix: Dict[str, Any]
     co_coverage: float
+    overall_attainment: float
+    target_attainment: float
+    gap_analysis: Dict[str, Any]
+    recommendations: List[str]
+    performance_metrics: Dict[str, Any]  # Additional performance metrics
+    historical_comparison: Dict[str, Any]  # Comparison with previous semesters
+    class_statistics: Dict[str, Any]  # Class-level statistics
+    exam_analysis: Dict[str, Any]  # Exam-wise analysis
+    difficulty_analysis: Dict[str, Any]  # Overall difficulty analysis
+    blooms_analysis: Dict[str, Any]  # Blooms taxonomy analysis
+    student_distribution: Dict[str, Any]  # Grade distribution
+    improvement_trends: List[Dict[str, Any]]  # Improvement trends over time
 
 class StudentAttainmentResponse(BaseModel):
     student_id: int

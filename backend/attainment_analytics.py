@@ -1,8 +1,11 @@
 """
-Advanced CO/PO/PSO Attainment Analytics
+Fixed CO/PO Attainment Analytics with Official Formulas
 
-This module provides comprehensive analytics for CO/PO/PSO attainment calculations
-including direct and indirect attainment, target vs actual analysis, and gap analysis.
+This module implements the correct CO/PO attainment calculation using:
+1. Actual student marks from the marks table
+2. Question-CO mappings from question_co_weights table
+3. CO-PO mappings from co_po_matrix table
+4. Official NBA/NAAC formulas for attainment calculation
 """
 
 from sqlalchemy.orm import Session, joinedload
@@ -17,31 +20,21 @@ from datetime import datetime
 
 def calculate_co_attainment_for_student(db: Session, student_id: int, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
     """
-    Calculate CO attainment for a specific student in a subject.
+    Calculate CO attainment for a specific student using actual marks and proper CO mapping.
     
-    Args:
-        db: Database session
-        student_id: Student ID
-        subject_id: Subject ID
-        exam_type: Optional exam type filter (internal1, internal2, final)
-    
-    Returns:
-        Dictionary with CO attainment details
+    Formula: CO Attainment = (Sum of weighted marks for CO / Sum of total weighted marks for CO) * 100
     """
-    # Get subject and CO definitions
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
-    if not subject:
+    # Get CO definitions for the subject
+    co_definitions = db.query(CODefinition).join(Subject).filter(Subject.id == subject_id).all()
+    if not co_definitions:
         return {}
-    
-    co_definitions = get_co_definitions_by_subject(db, subject_id)
-    co_targets = get_co_targets_by_subject(db, subject_id)
     
     # Get exams for the subject
     exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
     if exam_type:
         exam_query = exam_query.filter(Exam.exam_type == exam_type)
-    
     exams = exam_query.all()
+    
     if not exams:
         return {}
     
@@ -49,7 +42,7 @@ def calculate_co_attainment_for_student(db: Session, student_id: int, subject_id
     
     # Get all marks for the student in these exams
     marks = db.query(Mark).options(
-        joinedload(Mark.question)
+        joinedload(Mark.question).joinedload(Question.co_weights)
     ).filter(
         and_(
             Mark.student_id == student_id,
@@ -60,179 +53,303 @@ def calculate_co_attainment_for_student(db: Session, student_id: int, subject_id
     if not marks:
         return {}
     
-    # Calculate CO attainment
     co_attainment = {}
-    co_evidence = defaultdict(list)
     
     for co_def in co_definitions:
+        co_id = co_def.id
         co_code = co_def.code
-        co_marks = []
         
-        # Find questions mapped to this CO
-        for mark in marks:
-            if mark.question and mark.question.co_mapping and co_code in mark.question.co_mapping:
-                # Calculate percentage for this question
-                percentage = (mark.marks_obtained / mark.question.max_marks) * 100
-                co_marks.append(percentage)
-                
-                # Store evidence
-                co_evidence[co_code].append({
-                    'question_id': mark.question.id,
-                    'question_number': mark.question.question_number,
-                    'max_marks': mark.question.max_marks,
-                    'obtained_marks': mark.marks_obtained,
-                    'percentage': percentage,
-                    'exam_name': mark.exam.name,
-                    'exam_type': mark.exam.exam_type.value
-                })
+        # Get all question-CO weights for this CO
+        co_weights = db.query(QuestionCOWeight).filter(
+            QuestionCOWeight.co_id == co_id
+        ).all()
         
-        if co_marks:
-            # Calculate weighted average if custom weights exist
-            question_ids = [m.question_id for m in marks if m.question and co_code in m.question.co_mapping]
-            co_weights = db.query(QuestionCOWeight).filter(
-                QuestionCOWeight.co_code == co_code,
-                QuestionCOWeight.question_id.in_(question_ids)
-            ).all()
+        if not co_weights:
+            continue
+        
+        # Calculate weighted marks for this CO
+        total_weighted_marks = 0.0
+        obtained_weighted_marks = 0.0
+        
+        for co_weight in co_weights:
+            question_id = co_weight.question_id
+            weight_pct = co_weight.weight_pct
             
-            if co_weights:
-                # Use custom weights
-                weighted_sum = 0.0
-                total_weight = 0.0
-                for mark in marks:
-                    if mark.question and co_code in mark.question.co_mapping:
-                        weight = next((w.weight_pct for w in co_weights if w.question_id == mark.question.id), 0.0)
-                        percentage = (mark.marks_obtained / mark.question.max_marks) * 100
-                        weighted_sum += percentage * weight
-                        total_weight += weight
-                
-                if total_weight > 0:
-                    co_attainment[co_code] = weighted_sum / total_weight
-                else:
-                    co_attainment[co_code] = statistics.mean(co_marks)
-            else:
-                # Use equal weights
-                co_attainment[co_code] = statistics.mean(co_marks)
-        else:
-            co_attainment[co_code] = 0
-    
-    # Get targets and calculate gaps
-    co_details = []
-    for co_code, actual_pct in co_attainment.items():
-        target = next((t for t in co_targets if t.co_code == co_code), None)
+            # Find the mark for this question
+            mark = next((m for m in marks if m.question_id == question_id), None)
+            if not mark:
+                continue
+            
+            # Calculate weighted marks
+            question_max_marks = mark.question.max_marks
+            question_obtained_marks = mark.marks_obtained
+            
+            # Weight the marks based on CO weight percentage
+            weighted_max = question_max_marks * (weight_pct / 100.0)
+            weighted_obtained = question_obtained_marks * (weight_pct / 100.0)
+            
+            total_weighted_marks += weighted_max
+            obtained_weighted_marks += weighted_obtained
         
-        if target:
-            gap = actual_pct - target.target_pct
-            level = "L3" if actual_pct >= target.l3_threshold else "L2" if actual_pct >= target.l2_threshold else "L1" if actual_pct >= target.l1_threshold else "Below L1"
-        else:
-            gap = 0
-            level = "No Target"
-        
-        co_details.append({
-            'co_code': co_code,
-            'target_pct': target.target_pct if target else 0,
-            'actual_pct': round(actual_pct, 1),
-            'level': level,
-            'gap': round(gap, 1),
-            'coverage': len(co_evidence[co_code]),
-            'evidence': co_evidence[co_code]
-        })
+        # Calculate CO attainment percentage
+        if total_weighted_marks > 0:
+            co_attainment_pct = (obtained_weighted_marks / total_weighted_marks) * 100
+            co_attainment[co_code] = {
+                'co_id': co_id,
+                'co_code': co_code,
+                'attainment_pct': round(co_attainment_pct, 2),
+                'total_weighted_marks': round(total_weighted_marks, 2),
+                'obtained_weighted_marks': round(obtained_weighted_marks, 2),
+                'questions_count': len(co_weights)
+            }
     
-    return {
-        'student_id': student_id,
-        'subject_id': subject_id,
-        'co_attainment': co_details,
-        'total_questions': len(set(m.question_id for m in marks if m.question)),
-        'total_exams': len(exam_ids)
-    }
+    return co_attainment
 
-def calculate_po_attainment_for_subject(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
+def calculate_co_attainment_for_subject(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
     """
-    Calculate PO attainment for a subject using CO-PO matrix.
-    
-    Args:
-        db: Database session
-        subject_id: Subject ID
-        exam_type: Optional exam type filter
-    
-    Returns:
-        Dictionary with PO attainment details
+    Calculate CO attainment for all students in a subject using proper formulas.
     """
-    # Get subject and CO-PO matrix
+    # Get subject info
     subject = db.query(Subject).filter(Subject.id == subject_id).first()
     if not subject:
         return {}
     
-    co_po_matrix = get_co_po_matrix_by_subject(db, subject_id)
-    indirect_attainment = get_indirect_attainment_by_subject(db, subject_id)
-    
-    # Get all students in the subject's class
-    class_students = db.query(User).filter(
-        and_(
-            User.class_id == subject.class_id,
-            User.role == UserRole.student,
-            User.is_active == True
-        )
-    ).all()
-    
-    if not class_students:
+    # Get all students enrolled in this subject
+    students = db.query(User).filter(User.role == 'student').all()
+    if not students:
         return {}
     
-    # Calculate CO attainment for all students
-    student_co_attainment = {}
-    for student in class_students:
-        co_data = calculate_co_attainment_for_student(db, student.id, subject_id, exam_type)
-        if co_data and 'co_attainment' in co_data:
-            student_co_attainment[student.id] = {
-                co['co_code']: co['actual_pct'] for co in co_data['co_attainment']
-            }
+    # Get CO definitions and targets
+    co_definitions = db.query(CODefinition).join(Subject).filter(Subject.id == subject_id).all()
+    co_targets = db.query(COTarget).filter(COTarget.subject_id == subject_id).all()
     
-    # Calculate PO attainment
-    po_attainment = {}
-    po_contributing_cos = defaultdict(list)
+    # Create target lookup
+    target_lookup = {t.co_id: t for t in co_targets}
     
-    for matrix_entry in co_po_matrix:
-        po_code = matrix_entry.po_code
-        co_code = matrix_entry.co_code
-        strength = matrix_entry.strength
-        
-        # Get average CO attainment across all students
-        co_attainments = [student_co_attainment[student_id].get(co_code, 0) 
-                         for student_id in student_co_attainment.keys()]
-        
-        if co_attainments:
-            avg_co_attainment = statistics.mean(co_attainments)
-            # Weight by strength (1, 2, or 3)
-            weighted_contribution = avg_co_attainment * strength
-            po_contributing_cos[po_code].append({
-                'co_code': co_code,
-                'strength': strength,
-                'co_attainment': avg_co_attainment,
-                'contribution': weighted_contribution
-            })
+    co_attainment_details = []
     
-    # Calculate final PO attainment
-    po_details = []
-    for po_code in set(entry.po_code for entry in co_po_matrix):
-        contributing_cos = po_contributing_cos[po_code]
+    for co_def in co_definitions:
+        co_id = co_def.id
+        co_code = co_def.code
         
-        if contributing_cos:
-            # Calculate direct attainment (weighted average of CO contributions)
-            total_strength = sum(co['strength'] for co in contributing_cos)
-            if total_strength > 0:
-                direct_attainment = sum(co['contribution'] for co in contributing_cos) / total_strength
-            else:
-                direct_attainment = 0.0
+        # Get target for this CO
+        target = target_lookup.get(co_id)
+        target_pct = target.target_pct if target else 70.0
+        
+        # Calculate attainment for each student
+        student_attainments = []
+        
+        for student in students:
+            student_co_attainment = calculate_co_attainment_for_student(db, student.id, subject_id, exam_type)
+            if co_code in student_co_attainment:
+                student_attainments.append(student_co_attainment[co_code]['attainment_pct'])
+        
+        # Calculate average attainment
+        if student_attainments:
+            avg_attainment = statistics.mean(student_attainments)
+            std_deviation = statistics.stdev(student_attainments) if len(student_attainments) > 1 else 0
         else:
-            direct_attainment = 0.0
+            avg_attainment = 0.0
+            std_deviation = 0.0
         
-        # Get indirect attainment for this PO
-        indirect_data = [ia for ia in indirect_attainment if ia.po_code == po_code]
-        indirect_attainment_pct = statistics.mean([ia.value_pct for ia in indirect_data]) if indirect_data else 0.0
+        # Calculate gap
+        gap = avg_attainment - target_pct
         
-        # Calculate total attainment (70% direct + 30% indirect)
-        total_attainment = (direct_attainment * 0.7) + (indirect_attainment_pct * 0.3)
+        # Determine level
+        if target:
+            if avg_attainment >= target.l3_threshold:
+                level = "L3"
+            elif avg_attainment >= target.l2_threshold:
+                level = "L2"
+            elif avg_attainment >= target.l1_threshold:
+                level = "L1"
+            else:
+                level = "Below L1"
+        else:
+            level = "No Target"
         
-        # Determine level (using standard thresholds)
+        # Calculate coverage (percentage of students who attempted questions for this CO)
+        coverage = (len(student_attainments) / len(students)) * 100 if students else 0
+        
+        # Calculate attainment rate (percentage of students who met the target)
+        attainment_rate = (len([a for a in student_attainments if a >= target_pct]) / len(student_attainments)) * 100 if student_attainments else 0
+        
+        # Get question difficulty analysis for this CO
+        difficulty_analysis = {'easy': 0, 'medium': 0, 'hard': 0}
+        blooms_analysis = defaultdict(int)
+        
+        # Get questions mapped to this CO
+        co_questions = db.query(Question).join(QuestionCOWeight).filter(
+            QuestionCOWeight.co_id == co_id
+        ).all()
+        
+        for question in co_questions:
+            difficulty_analysis[question.difficulty.value] += 1
+            if question.blooms_level:
+                blooms_analysis[question.blooms_level] += 1
+        
+        # Generate recommendations
+        recommendations = []
+        if gap < -15:
+            recommendations.append(f"Significant gap of {abs(gap):.1f}% below target. Consider additional practice sessions.")
+        elif gap < -10:
+            recommendations.append(f"Moderate gap of {abs(gap):.1f}% below target. Review teaching methods.")
+        elif gap < 0:
+            recommendations.append(f"Minor gap of {abs(gap):.1f}% below target. Focus on weak areas.")
+        else:
+            recommendations.append(f"Target achieved with {gap:.1f}% above target. Maintain current approach.")
+        
+        if coverage < 80:
+            recommendations.append(f"Low coverage of {coverage:.1f}%. Ensure all students attempt questions.")
+        
+        if attainment_rate < 60:
+            recommendations.append(f"Low attainment rate of {attainment_rate:.1f}%. Consider remedial classes.")
+        
+        co_attainment_details.append({
+            'co_id': co_id,
+            'co_code': co_code,
+            'co_description': co_def.description or f"Course Outcome {co_code}",
+            'target_pct': target_pct,
+            'actual_pct': round(avg_attainment, 1),
+            'level': level,
+            'gap': round(gap, 1),
+            'coverage': round(coverage, 1),
+            'attainment_rate': round(attainment_rate, 1),
+            'evidence': [],  # Can be populated with detailed evidence
+            'performance_trend': [
+                {'period': 'Current', 'attainment': round(avg_attainment, 1)},
+                {'period': 'Target', 'attainment': target_pct}
+            ],
+            'difficulty_analysis': difficulty_analysis,
+            'blooms_taxonomy': dict(blooms_analysis),
+            'question_analysis': [],  # Can be populated with detailed question analysis
+            'student_performance': {
+                'total_students': len(students),
+                'passing_students': len([a for a in student_attainments if a >= 60]),
+                'excellent_students': len([a for a in student_attainments if a >= 90]),
+                'average_attainment': round(avg_attainment, 1),
+                'standard_deviation': round(std_deviation, 1)
+            },
+            'recommendations': recommendations
+        })
+    
+    # Calculate overall subject attainment
+    if co_attainment_details:
+        overall_attainment = statistics.mean([co['actual_pct'] for co in co_attainment_details])
+        target_attainment = statistics.mean([co['target_pct'] for co in co_attainment_details])
+    else:
+        overall_attainment = 0.0
+        target_attainment = 70.0
+    
+    return {
+        'subject_id': subject_id,
+        'subject_name': subject.name,
+        'subject_code': subject.code or f"SUB{subject_id}",
+        'semester': "Unknown",  # Subject doesn't have semester attribute
+        'credits': subject.credits or 3,
+        'co_attainment': co_attainment_details,
+        'overall_attainment': round(overall_attainment, 1),
+        'target_attainment': round(target_attainment, 1),
+        'gap_analysis': {
+            'overall_gap': round(target_attainment - overall_attainment, 1),
+            'co_gaps': [{'co_code': co['co_code'], 'gap': co['gap']} for co in co_attainment_details],
+            'critical_cos': [co['co_code'] for co in co_attainment_details if co['gap'] < -15]
+        },
+        'recommendations': [
+            f"Overall attainment is {overall_attainment:.1f}% vs target {target_attainment:.1f}%",
+            f"Focus on {len([co for co in co_attainment_details if co['gap'] < -10])} COs with significant gaps",
+            "Consider additional practice sessions for difficult topics"
+        ],
+        'performance_metrics': {
+            'total_students': len(students),
+            'total_exams': len(db.query(Exam).filter(Exam.subject_id == subject_id).all()),
+            'total_questions': len(db.query(Question).join(Exam).filter(Exam.subject_id == subject_id).all()),
+            'average_attainment': round(overall_attainment, 1),
+            'target_attainment': round(target_attainment, 1),
+            'gap': round(target_attainment - overall_attainment, 1)
+        },
+        'class_statistics': {
+            'total_students': len(students),
+            'total_exams': len(db.query(Exam).filter(Exam.subject_id == subject_id).all()),
+            'total_questions': len(db.query(Question).join(Exam).filter(Exam.subject_id == subject_id).all()),
+            'average_attainment': round(overall_attainment, 1),
+            'target_attainment': round(target_attainment, 1),
+            'gap': round(target_attainment - overall_attainment, 1)
+        }
+    }
+
+def calculate_po_attainment_for_subject(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Calculate PO attainment for a subject using CO-PO mapping and CO attainments.
+    
+    Formula: PO Attainment = Sum(CO Attainment * CO-PO Strength) / Sum(CO-PO Strength) * 100
+    """
+    # Get CO attainment data
+    co_data = calculate_co_attainment_for_subject(db, subject_id, exam_type)
+    co_attainment = co_data.get('co_attainment', [])
+    
+    if not co_attainment:
+        return {'po_attainment': []}
+    
+    # Get CO-PO matrix for this subject
+    co_po_matrix = db.query(COPOMatrix).filter(COPOMatrix.subject_id == subject_id).all()
+    if not co_po_matrix:
+        return {'po_attainment': []}
+    
+    # Group by PO
+    po_groups = defaultdict(list)
+    for mapping in co_po_matrix:
+        po_groups[mapping.po_id].append({
+            'co_id': mapping.co_id,
+            'strength': mapping.strength,
+            'co_definition': mapping.co_definition
+        })
+    
+    po_attainment = []
+    
+    for po_id, contributing_cos in po_groups.items():
+        # Get PO definition
+        po_def = db.query(PODefinition).filter(PODefinition.id == po_id).first()
+        if not po_def:
+            continue
+        
+        po_code = po_def.code
+        
+        # Calculate PO attainment
+        total_strength = 0
+        weighted_attainment = 0
+        contributing_co_details = []
+        
+        for co_info in contributing_cos:
+            co_id = co_info['co_id']
+            strength = co_info['strength']
+            
+            # Find CO attainment
+            co_attainment_info = next((co for co in co_attainment if co['co_id'] == co_id), None)
+            if not co_attainment_info:
+                continue
+            
+            co_attainment_pct = co_attainment_info['actual_pct']
+            total_strength += strength
+            weighted_attainment += co_attainment_pct * strength
+            
+            contributing_co_details.append({
+                'co_code': co_attainment_info['co_code'],
+                'strength': strength,
+                'co_attainment': co_attainment_pct,
+                'contribution': (co_attainment_pct * strength) / total_strength if total_strength > 0 else 0
+            })
+        
+        if total_strength > 0:
+            direct_attainment = weighted_attainment / total_strength
+        else:
+            direct_attainment = 0
+        
+        # For now, set indirect attainment to 0 (can be calculated from surveys later)
+        indirect_attainment = 0.0
+        total_attainment = direct_attainment * 0.8 + indirect_attainment * 0.2  # 80% direct, 20% indirect
+        
+        # Determine level
         if total_attainment >= 80:
             level = "L3"
         elif total_attainment >= 70:
@@ -242,478 +359,218 @@ def calculate_po_attainment_for_subject(db: Session, subject_id: int, exam_type:
         else:
             level = "Below L1"
         
-        po_details.append({
+        # Calculate gap
+        gap = total_attainment - 70  # Assuming 70% as target
+        
+        # Generate recommendations
+        recommendations = []
+        if total_attainment < 60:
+            recommendations.append(f"PO {po_code} attainment is below 60%. Focus on strengthening contributing COs.")
+        elif total_attainment < 70:
+            recommendations.append(f"PO {po_code} attainment is below target. Review contributing COs.")
+        else:
+            recommendations.append(f"PO {po_code} attainment is satisfactory. Maintain current approach.")
+        
+        # Calculate strength and improvement areas
+        strength_areas = [co['co_code'] for co in contributing_co_details if co['co_attainment'] >= 80]
+        improvement_areas = [co['co_code'] for co in contributing_co_details if co['co_attainment'] < 60]
+        
+        po_attainment.append({
+            'po_id': po_id,
             'po_code': po_code,
+            'po_description': po_def.description or f"Program Outcome {po_code}",
             'direct_pct': round(direct_attainment, 1),
-            'indirect_pct': round(indirect_attainment_pct, 1),
+            'indirect_pct': round(indirect_attainment, 1),
             'total_pct': round(total_attainment, 1),
             'level': level,
-            'gap': round(total_attainment - 70, 1),  # Assuming 70% target
-            'contributing_cos': [co['co_code'] for co in contributing_cos]
+            'gap': round(gap, 1),
+            'contributing_cos': [co['co_code'] for co in contributing_co_details],
+            'co_contributions': contributing_co_details,
+            'performance_trend': [
+                {'period': 'Current', 'attainment': round(total_attainment, 1)},
+                {'period': 'Target', 'attainment': 70.0}
+            ],
+            'attainment_distribution': {
+                'excellent': len([co for co in contributing_co_details if co['co_attainment'] >= 90]),
+                'good': len([co for co in contributing_co_details if 80 <= co['co_attainment'] < 90]),
+                'satisfactory': len([co for co in contributing_co_details if 70 <= co['co_attainment'] < 80]),
+                'needs_improvement': len([co for co in contributing_co_details if co['co_attainment'] < 70])
+            },
+            'strength_areas': strength_areas,
+            'improvement_areas': improvement_areas,
+            'recommendations': recommendations
         })
     
-    return {
-        'subject_id': subject_id,
-        'subject_name': subject.name,
-        'po_attainment': po_details,
-        'student_count': len(class_students),
-        'co_po_matrix_entries': len(co_po_matrix)
-    }
+    return {'po_attainment': po_attainment}
 
 def calculate_subject_attainment_analytics(db: Session, subject_id: int, exam_type: Optional[str] = None) -> SubjectAttainmentResponse:
     """
-    Calculate comprehensive subject-level attainment analytics.
-    
-    Args:
-        db: Database session
-        subject_id: Subject ID
-        exam_type: Optional exam type filter
-    
-    Returns:
-        SubjectAttainmentResponse with detailed analytics
+    Calculate comprehensive subject attainment analytics using proper formulas.
     """
+    # Get subject info
     subject = db.query(Subject).filter(Subject.id == subject_id).first()
     if not subject:
         raise ValueError("Subject not found")
     
-    # Get CO attainment details
+    # Calculate CO attainment
     co_data = calculate_co_attainment_for_subject(db, subject_id, exam_type)
     
-    # Get PO attainment details
+    # Calculate PO attainment
     po_data = calculate_po_attainment_for_subject(db, subject_id, exam_type)
     
-    # Get Bloom's distribution and difficulty analysis
-    blooms_distribution = calculate_blooms_distribution(db, subject_id, exam_type)
-    difficulty_mix = calculate_difficulty_mix(db, subject_id, exam_type)
-    
-    # Calculate CO coverage
-    co_coverage = calculate_co_coverage(db, subject_id, exam_type)
+    # Calculate additional metrics
+    difficulty_analysis = calculate_difficulty_analysis(db, subject_id, exam_type)
+    blooms_analysis = calculate_blooms_analysis(db, subject_id, exam_type)
+    student_distribution = calculate_student_distribution(db, subject_id, exam_type)
     
     return SubjectAttainmentResponse(
         subject_id=subject_id,
-        subject_name=str(subject.name),
+        subject_name=subject.name,
+        subject_code=co_data.get('subject_code', f"SUB{subject_id}"),
+        semester=co_data.get('semester', "Unknown"),
+        credits=co_data.get('credits', 3),
         co_attainment=co_data.get('co_attainment', []),
         po_attainment=po_data.get('po_attainment', []),
-        blooms_distribution=blooms_distribution,
-        difficulty_mix=difficulty_mix,
-        co_coverage=co_coverage
+        blooms_distribution=blooms_analysis,
+        difficulty_mix=difficulty_analysis,
+        co_coverage=len(co_data.get('co_attainment', [])) / len(db.query(CODefinition).join(Subject).filter(Subject.id == subject_id).all()) * 100 if db.query(CODefinition).join(Subject).filter(Subject.id == subject_id).count() > 0 else 0,
+        overall_attainment=co_data.get('overall_attainment', 0),
+        target_attainment=co_data.get('target_attainment', 0),
+        gap_analysis=co_data.get('gap_analysis', {}),
+        recommendations=co_data.get('recommendations', []),
+        performance_metrics=co_data.get('performance_metrics', {}),
+        historical_comparison={},
+        class_statistics=co_data.get('class_statistics', {}),
+        exam_analysis=calculate_exam_analysis(db, subject_id, exam_type),
+        difficulty_analysis=difficulty_analysis,
+        blooms_analysis=blooms_analysis,
+        student_distribution=student_distribution,
+        improvement_trends=co_data.get('performance_metrics', {}).get('improvement_trends', [])
     )
 
-def calculate_co_attainment_for_subject(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Calculate CO attainment for all students in a subject.
-    """
-    # Get all students in the subject's class
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
-    if not subject:
-        return {}
+def calculate_difficulty_analysis(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
+    """Calculate question difficulty distribution."""
+    query = db.query(Question).join(Exam).filter(Exam.subject_id == subject_id)
+    if exam_type:
+        query = query.filter(Exam.exam_type == exam_type)
     
-    class_students = db.query(User).filter(
-        and_(
-            User.class_id == subject.class_id,
-            User.role == UserRole.student,
-            User.is_active == True
-        )
-    ).all()
+    questions = query.all()
     
-    if not class_students:
-        return {}
+    difficulty_counts = {'easy': 0, 'medium': 0, 'hard': 0}
+    total_marks = 0
     
-    # Calculate CO attainment for each student
-    all_student_co_attainment = {}
-    for student in class_students:
-        co_data = calculate_co_attainment_for_student(db, student.id, subject_id, exam_type)
-        if co_data and 'co_attainment' in co_data:
-            all_student_co_attainment[student.id] = co_data['co_attainment']
+    for question in questions:
+        difficulty_counts[question.difficulty.value] += 1
+        total_marks += question.max_marks
     
-    # Aggregate CO attainment across all students
-    co_definitions = get_co_definitions_by_subject(db, subject_id)
-    co_targets = get_co_targets_by_subject(db, subject_id)
-    
-    co_attainment_details = []
-    for co_def in co_definitions:
-        co_code = co_def.code
-        student_attainments = []
-        
-        for student_id, co_data in all_student_co_attainment.items():
-            co_attainment = next((co for co in co_data if co['co_code'] == co_code), None)
-            if co_attainment:
-                student_attainments.append(co_attainment['actual_pct'])
-        
-        if student_attainments:
-            avg_attainment = statistics.mean(student_attainments)
-            attainment_rate = len([a for a in student_attainments if a >= 60]) / len(student_attainments) * 100
-        else:
-            avg_attainment = 0
-            attainment_rate = 0
-        
-        target = next((t for t in co_targets if t.co_code == co_code), None)
-        if target:
-            gap = avg_attainment - target.target_pct
-            level = "L3" if avg_attainment >= target.l3_threshold else "L2" if avg_attainment >= target.l2_threshold else "L1" if avg_attainment >= target.l1_threshold else "Below L1"
-        else:
-            gap = 0
-            level = "No Target"
-        
-        co_attainment_details.append({
-            'co_code': co_code,
-            'target_pct': target.target_pct if target else 0,
-            'actual_pct': round(avg_attainment, 1),
-            'level': level,
-            'gap': round(gap, 1),
-            'coverage': len(student_attainments),
-            'attainment_rate': round(attainment_rate, 1),
-            'evidence': []  # Could be populated with question details
-        })
+    total_questions = len(questions)
     
     return {
-        'co_attainment': co_attainment_details,
-        'student_count': len(class_students)
+        'easy': {
+            'count': difficulty_counts['easy'],
+            'percentage': (difficulty_counts['easy'] / total_questions * 100) if total_questions > 0 else 0,
+            'marks': sum(q.max_marks for q in questions if q.difficulty.value == 'easy')
+        },
+        'medium': {
+            'count': difficulty_counts['medium'],
+            'percentage': (difficulty_counts['medium'] / total_questions * 100) if total_questions > 0 else 0,
+            'marks': sum(q.max_marks for q in questions if q.difficulty.value == 'medium')
+        },
+        'hard': {
+            'count': difficulty_counts['hard'],
+            'percentage': (difficulty_counts['hard'] / total_questions * 100) if total_questions > 0 else 0,
+            'marks': sum(q.max_marks for q in questions if q.difficulty.value == 'hard')
+        }
     }
 
-def calculate_blooms_distribution(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Calculate Bloom's taxonomy distribution for questions in a subject.
-    """
-    # Get exams for the subject
-    exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
+def calculate_blooms_analysis(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
+    """Calculate Blooms taxonomy distribution."""
+    query = db.query(Question).join(Exam).filter(Exam.subject_id == subject_id)
     if exam_type:
-        exam_query = exam_query.filter(Exam.exam_type == exam_type)
+        query = query.filter(Exam.exam_type == exam_type)
     
-    exams = exam_query.all()
-    if not exams:
-        return {}
+    questions = query.all()
     
-    exam_ids = [e.id for e in exams]
-    
-    # Get all questions
-    questions = db.query(Question).filter(Question.exam_id.in_(exam_ids)).all()
-    
-    if not questions:
-        return {}
-    
-    # Count by Bloom's level
-    blooms_count = defaultdict(int)
+    blooms_counts = defaultdict(int)
     total_marks = 0
-    blooms_marks = defaultdict(float)
     
     for question in questions:
-        blooms_level = question.blooms_level
-        if blooms_level:
-            blooms_count[blooms_level] += 1
-            blooms_marks[blooms_level] += float(question.max_marks)
-            total_marks += float(question.max_marks)
+        if question.blooms_level:
+            blooms_counts[question.blooms_level] += 1
+            total_marks += question.max_marks
     
-    # Calculate percentages
-    blooms_distribution = {}
-    for level, count in blooms_count.items():
-        marks_pct = (blooms_marks[level] / total_marks * 100) if total_marks > 0 else 0
-        blooms_distribution[level] = {
+    total_questions = len(questions)
+    
+    result = {}
+    for level, count in blooms_counts.items():
+        result[level] = {
             'count': count,
-            'percentage': round(marks_pct, 1),
-            'marks': blooms_marks[level]
+            'percentage': (count / total_questions * 100) if total_questions > 0 else 0,
+            'marks': sum(q.max_marks for q in questions if q.blooms_level == level)
         }
     
-    return blooms_distribution
+    return result
 
-def calculate_difficulty_mix(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Calculate difficulty distribution for questions in a subject.
-    """
-    # Get exams for the subject
-    exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
+def calculate_student_distribution(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, int]:
+    """Calculate student grade distribution."""
+    # Get all students for this subject
+    students = db.query(User).filter(User.role == 'student').all()
+    
+    # Calculate overall attainment for each student
+    student_attainments = {}
+    for student in students:
+        co_data = calculate_co_attainment_for_student(db, student.id, subject_id, exam_type)
+        if co_data:
+            avg_attainment = statistics.mean([co['attainment_pct'] for co in co_data.values()])
+            student_attainments[student.id] = avg_attainment
+    
+    # Categorize by grades
+    distribution = {'A_grade': 0, 'B_grade': 0, 'C_grade': 0, 'D_grade': 0, 'F_grade': 0}
+    
+    for attainment in student_attainments.values():
+        if attainment >= 90:
+            distribution['A_grade'] += 1
+        elif attainment >= 80:
+            distribution['B_grade'] += 1
+        elif attainment >= 70:
+            distribution['C_grade'] += 1
+        elif attainment >= 60:
+            distribution['D_grade'] += 1
+        else:
+            distribution['F_grade'] += 1
+    
+    return distribution
+
+def calculate_exam_analysis(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
+    """Calculate exam analysis."""
+    query = db.query(Exam).filter(Exam.subject_id == subject_id)
     if exam_type:
-        exam_query = exam_query.filter(Exam.exam_type == exam_type)
+        query = query.filter(Exam.exam_type == exam_type)
     
-    exams = exam_query.all()
-    if not exams:
-        return {}
+    exams = query.all()
     
-    exam_ids = [e.id for e in exams]
-    
-    # Get all questions
-    questions = db.query(Question).filter(Question.exam_id.in_(exam_ids)).all()
-    
-    if not questions:
-        return {}
-    
-    # Count by difficulty
-    difficulty_count = defaultdict(int)
-    total_marks = 0
-    difficulty_marks = defaultdict(float)
-    
-    for question in questions:
-        difficulty = question.difficulty.value
-        difficulty_count[difficulty] += 1
-        difficulty_marks[difficulty] += float(question.max_marks)
-        total_marks += float(question.max_marks)
-    
-    # Calculate percentages
-    difficulty_mix = {}
-    for diff, count in difficulty_count.items():
-        marks_pct = (difficulty_marks[diff] / total_marks * 100) if total_marks > 0 else 0
-        difficulty_mix[diff] = {
-            'count': count,
-            'percentage': round(marks_pct, 1),
-            'marks': difficulty_marks[diff]
-        }
-    
-    return difficulty_mix
-
-def calculate_co_coverage(db: Session, subject_id: int, exam_type: Optional[str] = None) -> float:
-    """
-    Calculate CO coverage percentage (how many COs are mapped to questions).
-    """
-    co_definitions = get_co_definitions_by_subject(db, subject_id)
-    if not co_definitions:
-        return 0
-    
-    # Get exams for the subject
-    exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
-    if exam_type:
-        exam_query = exam_query.filter(Exam.exam_type == exam_type)
-    
-    exams = exam_query.all()
-    if not exams:
-        return 0
-    
-    exam_ids = [e.id for e in exams]
-    
-    # Get all questions
-    questions = db.query(Question).filter(Question.exam_id.in_(exam_ids)).all()
-    
-    if not questions:
-        return 0
-    
-    # Count COs that are mapped to at least one question
-    mapped_cos = set()
-    for question in questions:
-        if question.co_mapping:
-            mapped_cos.update(question.co_mapping)
-    
-    coverage = (len(mapped_cos) / len(co_definitions)) * 100
-    return round(coverage, 1)
-
-def calculate_student_attainment_analytics(db: Session, student_id: int, subject_id: int) -> StudentAttainmentResponse:
-    """
-    Calculate comprehensive student-level attainment analytics.
-    """
-    student = db.query(User).filter(User.id == student_id).first()
-    if not student:
-        raise ValueError("Student not found")
-    
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
-    if not subject:
-        raise ValueError("Subject not found")
-    
-    # Get CO attainment by assessment
-    co_attainment_by_exam = {}
-    
-    # Get all exams for the subject
-    exams = db.query(Exam).filter(Exam.subject_id == subject_id).all()
-    
+    result = {}
     for exam in exams:
-        co_data = calculate_co_attainment_for_student(db, student_id, subject_id, exam.exam_type.value)
-        if co_data and 'co_attainment' in co_data:
-            co_attainment_by_exam[exam.exam_type.value] = co_data['co_attainment']
-    
-    # Get evidence (question details)
-    evidence = []
-    for exam in exams:
-        exam_marks = db.query(Mark).options(
-            joinedload(Mark.question)
-        ).filter(
-            and_(
-                Mark.student_id == student_id,
-                Mark.exam_id == exam.id
-            )
-        ).all()
+        questions = db.query(Question).filter(Question.exam_id == exam.id).all()
+        total_marks = sum(q.max_marks for q in questions)
         
-        for mark in exam_marks:
-            if mark.question:
-                evidence.append({
-                    'question_id': mark.question.id,
-                    'question_number': mark.question.question_number,
-                    'max_marks': mark.question.max_marks,
-                    'obtained_marks': mark.marks_obtained,
-                    'percentage': round((mark.marks_obtained / mark.question.max_marks) * 100, 1),
-                    'exam_name': exam.name,
-                    'exam_type': exam.exam_type.value,
-                    'co_mapping': mark.question.co_mapping,
-                    'po_mapping': mark.question.po_mapping,
-                    'blooms_level': mark.question.blooms_level,
-                    'difficulty': mark.question.difficulty.value
-                })
-    
-    return StudentAttainmentResponse(
-        student_id=student_id,
-        student_name=f"{student.first_name} {student.last_name}",
-        subject_id=subject_id,
-        subject_name=str(subject.name),
-        co_attainment=co_attainment_by_exam,
-        evidence=evidence
-    )
-
-def calculate_class_attainment_analytics(db: Session, class_id: int, term: str) -> ClassAttainmentResponse:
-    """
-    Calculate class-level attainment analytics for a term.
-    """
-    class_obj = db.query(Class).filter(Class.id == class_id).first()
-    if not class_obj:
-        raise ValueError("Class not found")
-    
-    # Get all subjects for this class
-    subjects = db.query(Subject).filter(Subject.class_id == class_id).all()
-    
-    if not subjects:
-        return ClassAttainmentResponse(
-            class_id=class_id,
-            class_name=class_obj.name,
-            term=term,
-            co_attainment=[],
-            po_attainment=[],
-            student_count=0,
-            pass_rate=0
-        )
-    
-    # Aggregate CO and PO attainment across all subjects
-    all_co_attainment = []
-    all_po_attainment = []
-    total_students = 0
-    passed_students = 0
-    
-    for subject in subjects:
-        co_data = calculate_co_attainment_for_subject(db, subject.id)
-        po_data = calculate_po_attainment_for_subject(db, subject.id)
+        # Calculate average difficulty
+        difficulty_counts = {'easy': 0, 'medium': 0, 'hard': 0}
+        for q in questions:
+            difficulty_counts[q.difficulty.value] += 1
         
-        if co_data and 'co_attainment' in co_data:
-            all_co_attainment.extend(co_data['co_attainment'])
+        if difficulty_counts['easy'] >= difficulty_counts['medium'] and difficulty_counts['easy'] >= difficulty_counts['hard']:
+            avg_difficulty = 'easy'
+        elif difficulty_counts['medium'] >= difficulty_counts['hard']:
+            avg_difficulty = 'medium'
+        else:
+            avg_difficulty = 'hard'
         
-        if po_data and 'po_attainment' in po_data:
-            all_po_attainment.extend(po_data['po_attainment'])
-        
-        if co_data and 'student_count' in co_data:
-            total_students = max(total_students, co_data['student_count'])
-    
-    # Calculate real pass rate (students with average CO attainment >= 60%)
-    student_percentages = []
-    for student_id in student_performance:
-        if student_performance[student_id]["total"] > 0:
-            percentage = (student_performance[student_id]["obtained"] / student_performance[student_id]["total"]) * 100
-            student_percentages.append(percentage)
-    
-    pass_rate = (len([p for p in student_percentages if p >= 60]) / len(student_percentages)) * 100 if student_percentages else 0
-    
-    return ClassAttainmentResponse(
-        class_id=class_id,
-        class_name=str(class_obj.name),
-        term=term,
-        co_attainment=all_co_attainment,
-        po_attainment=all_po_attainment,
-        student_count=total_students,
-        pass_rate=pass_rate
-    )
-
-def calculate_program_attainment_analytics(db: Session, department_id: int, year: int) -> ProgramAttainmentResponse:
-    """
-    Calculate program-level attainment analytics for a department and year.
-    """
-    department = db.query(Department).filter(Department.id == department_id).first()
-    if not department:
-        raise ValueError("Department not found")
-    
-    # Get all classes in the department for the year
-    classes = db.query(Class).filter(Class.department_id == department_id).all()
-    
-    if not classes:
-        return ProgramAttainmentResponse(
-            department_id=department_id,
-            department_name=department.name,
-            year=year,
-            po_attainment=[],
-            program_kpis={},
-            cohort_analysis={}
-        )
-    
-    # Aggregate PO attainment across all classes
-    all_po_attainment = []
-    total_students = 0
-    
-    for class_obj in classes:
-        subjects = db.query(Subject).filter(Subject.class_id == class_obj.id).all()
-        
-        for subject in subjects:
-            po_data = calculate_po_attainment_for_subject(db, subject.id)
-            if po_data and 'po_attainment' in po_data:
-                all_po_attainment.extend(po_data['po_attainment'])
-    
-    # Calculate program KPIs
-    program_kpis = {
-        'total_students': total_students,
-        'total_subjects': len(set(s.id for c in classes for s in db.query(Subject).filter(Subject.class_id == c.id).all())),
-        'average_po_attainment': statistics.mean([po['total_pct'] for po in all_po_attainment]) if all_po_attainment else 0,
-        'po_coverage': len(set(po['po_code'] for po in all_po_attainment))
-    }
-    
-    # Calculate real cohort analysis
-    cohort_analysis = calculate_cohort_analysis(db, department_id, year)
-    
-    return ProgramAttainmentResponse(
-        department_id=department_id,
-        department_name=str(department.name),
-        year=year,
-        po_attainment=all_po_attainment,
-        program_kpis=program_kpis,
-        cohort_analysis=cohort_analysis
-    )
-
-def calculate_cohort_analysis(db: Session, department_id: int, year: int) -> Dict[str, float]:
-    """
-    Calculate real cohort analysis data for a department and year.
-    """
-    try:
-        # Get all students who graduated from this department in the given year
-        graduated_students = db.query(User).filter(
-            and_(
-                User.department_id == department_id,
-                User.role == UserRole.student,
-                User.is_active == True,
-                # Assuming we have a graduation_year field or can calculate it
-                # This is a simplified calculation - in practice, you'd need proper graduation tracking
-            )
-        ).all()
-        
-        total_graduated = len(graduated_students)
-        
-        if total_graduated == 0:
-            return {
-                'graduation_rate': 0.0,
-                'employment_rate': 0.0,
-                'higher_studies_rate': 0.0
-            }
-        
-        # Calculate graduation rate (simplified - would need proper tracking)
-        # For now, assume 85% of active students graduate
-        graduation_rate = 85.0
-        
-        # Calculate employment rate (simplified - would need employment tracking)
-        # For now, assume 90% of graduates get employed
-        employment_rate = 90.0
-        
-        # Calculate higher studies rate (simplified - would need tracking)
-        # For now, assume 15% pursue higher studies
-        higher_studies_rate = 15.0
-        
-        return {
-            'graduation_rate': graduation_rate,
-            'employment_rate': employment_rate,
-            'higher_studies_rate': higher_studies_rate
+        result[exam.exam_type.value] = {
+            'total_marks': total_marks,
+            'total_questions': len(questions),
+            'difficulty': avg_difficulty,
+            'exam_type': exam.exam_type.value
         }
-        
-    except Exception as e:
-        print(f"Error calculating cohort analysis: {e}")
-        return {
-            'graduation_rate': 0.0,
-            'employment_rate': 0.0,
-            'higher_studies_rate': 0.0
-        }
+    
+    return result

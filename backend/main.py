@@ -22,6 +22,8 @@ from advanced_analytics_backend import calculate_advanced_student_analytics
 from strategic_dashboard_backend import calculate_strategic_dashboard_data
 from fastapi.exceptions import RequestValidationError
 from fastapi import Request
+from validation import *
+from error_handlers import setup_error_handlers, ErrorResponse
 
 # Celery imports (optional)
 try:
@@ -46,6 +48,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Internal Exam Management System", version="1.0.0")
 
+# Setup error handlers
+setup_error_handlers(app)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -54,6 +59,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add cache control middleware
+@app.middleware("http")
+async def add_cache_control_header(request: Request, call_next):
+    response = await call_next(request)
+    # Add cache control headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["Last-Modified"] = datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
+    return response
 
 security = HTTPBearer()
 
@@ -68,6 +84,15 @@ def get_db():
 @app.get("/")
 def root():
     return {"message": "Internal Exam Management System API", "status": "running", "version": "1.0.0"}
+
+@app.get("/cache/clear")
+def clear_cache():
+    """Clear any server-side cache and return current timestamp"""
+    return {
+        "message": "Cache cleared",
+        "timestamp": datetime.utcnow().isoformat(),
+        "cache_bust": int(datetime.utcnow().timestamp() * 1000)
+    }
 
 @app.get("/health")
 def health_check():
@@ -290,14 +315,11 @@ def create_user_endpoint(
         if user.role in ['hod', 'admin']:
             raise HTTPException(status_code=403, detail="HODs cannot create HOD or admin users")
     
-    # Check if username or email already exists
-    existing_user = get_user_by_username(db, user.username)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
-    existing_email = db.query(User).filter(User.email == user.email).first()
-    if existing_email:
-        raise HTTPException(status_code=400, detail="Email already exists")
+    # Validate user data
+    try:
+        validate_user_data(user, db)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail={"message": e.message, "field": e.field})
     
     return create_user(db, user)
 
@@ -415,9 +437,13 @@ def create_exam_endpoint(
 ):
     if current_user.role.value not in ['teacher', 'admin', 'hod']:
         raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Log incoming data for debugging
-    logging.warning(f"Received exam data: {json.dumps(exam.dict(), default=str)}")
+    
+    # Debug logging
+    logging.warning(f"Received exam data: {exam.dict()}")
+    
+    # Log each question's data
+    for i, question in enumerate(exam.questions or []):
+        logging.warning(f"Question {i}: question_text='{question.question_text}', question_number='{question.question_number}'")
 
     # Verify teacher owns the subject
     if current_user.role.value == 'teacher':
@@ -458,6 +484,8 @@ def delete_exam_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    logging.warning(f"Delete exam request - ID: {exam_id}, User: {current_user.id}")
+    
     if current_user.role.value not in ['teacher', 'admin', 'hod']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -465,15 +493,21 @@ def delete_exam_endpoint(
     if current_user.role.value == 'teacher':
         existing_exam = get_exam_by_id_db(db, exam_id)
         if not existing_exam:
+            logging.warning(f"Exam {exam_id} not found for user {current_user.id}")
             raise HTTPException(status_code=404, detail="Exam not found")
         
         subject = get_subject_by_id(db, existing_exam.subject_id)
         if not subject or subject.teacher_id != current_user.id:
+            logging.warning(f"User {current_user.id} not authorized to delete exam {exam_id}")
             raise HTTPException(status_code=403, detail="Not authorized to delete this exam")
     
+    logging.warning(f"Attempting to delete exam {exam_id}")
     success = delete_exam(db, exam_id)
     if not success:
+        logging.warning(f"Failed to delete exam {exam_id}")
         raise HTTPException(status_code=404, detail="Exam not found")
+    
+    logging.warning(f"Successfully deleted exam {exam_id}")
     return {"message": "Exam deleted successfully"}
 
 # Question endpoints
@@ -573,6 +607,18 @@ def bulk_create_marks(
         subject = get_subject_by_id(db, exam.subject_id)
         if not subject or subject.teacher_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to enter marks for this exam")
+    
+    # Validate all marks data
+    try:
+        for mark in marks:
+            validate_mark_data(mark, db)
+        
+        # Check if marks are locked
+        check_marks_lock_status(marks[0].exam_id, db)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail={"message": e.message, "field": e.field})
+    except BusinessLogicError as e:
+        raise HTTPException(status_code=400, detail={"message": e.message, "code": e.code})
     
     # After bulk create, broadcast update via WebSocket if connected
     try:
@@ -689,14 +735,19 @@ def get_subject_analytics_endpoint(
 @app.get("/analytics/co-po-mapping/{subject_id}")
 def get_co_po_mapping(
     subject_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get CO-PO mapping matrix for a subject - Temporary: No auth for teachers"""
-    print(f"DEBUG CO-PO-MAPPING: Temporarily allowing access to subject {subject_id}")
+    """Get CO-PO mapping matrix for a subject"""
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Temporarily remove authentication for teachers as requested
-    # TODO: Implement proper teacher authentication later
-    # Use the report generator for CO-PO mapping
+    # Verify teacher owns the subject
+    if current_user.role.value == 'teacher':
+        subject = get_subject_by_id(db, subject_id)
+        if not subject or subject.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
     from report_generator import ReportGenerator
     generator = ReportGenerator(db)
     co_po_matrix = generator.get_co_po_mapping_data(subject_id)
@@ -706,14 +757,19 @@ def get_co_po_mapping(
 def get_co_attainment_analysis(
     subject_id: int,
     exam_type: str = "all",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get CO attainment analysis for a subject - Temporary: No auth for teachers"""
-    print(f"DEBUG CO-ATTAINMENT: Temporarily allowing access to subject {subject_id}, exam type {exam_type}")
+    """Get CO attainment analysis for a subject"""
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Temporarily remove authentication for teachers as requested
-    # TODO: Implement proper teacher authentication later
-    # Use the report generator for CO attainment analysis
+    # Verify teacher owns the subject
+    if current_user.role.value == 'teacher':
+        subject = get_subject_by_id(db, subject_id)
+        if not subject or subject.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
     from report_generator import ReportGenerator
     generator = ReportGenerator(db)
     analysis = generator.get_co_attainment_data(subject_id, exam_type)
@@ -723,14 +779,19 @@ def get_co_attainment_analysis(
 def get_po_attainment_analysis(
     subject_id: int,
     exam_type: str = "all",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get PO attainment analysis for a subject - Temporary: No auth for teachers"""
-    print(f"DEBUG PO-ATTAINMENT: Temporarily allowing access to subject {subject_id}, exam type {exam_type}")
+    """Get PO attainment analysis for a subject"""
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Temporarily remove authentication for teachers as requested
-    # TODO: Implement proper teacher authentication later
-    # Use the report generator for PO attainment analysis
+    # Verify teacher owns the subject
+    if current_user.role.value == 'teacher':
+        subject = get_subject_by_id(db, subject_id)
+        if not subject or subject.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
     from report_generator import ReportGenerator
     generator = ReportGenerator(db)
     analysis = generator.get_po_attainment_data(subject_id, exam_type)
@@ -741,14 +802,19 @@ def get_student_performance_analysis(
     subject_id: int,
     student_id: int = None,
     exam_type: str = "all",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get detailed student performance analysis - Temporary: No auth for teachers"""
-    print(f"DEBUG STUDENT-PERFORMANCE: Temporarily allowing access to subject {subject_id}, student {student_id}, exam type {exam_type}")
+    """Get detailed student performance analysis"""
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Temporarily remove authentication for teachers as requested
-    # TODO: Implement proper teacher authentication later
-    # Use the report generator for student performance analysis
+    # Verify teacher owns the subject
+    if current_user.role.value == 'teacher':
+        subject = get_subject_by_id(db, subject_id)
+        if not subject or subject.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
     from report_generator import ReportGenerator
     generator = ReportGenerator(db)
     analysis = generator.get_student_performance_data(subject_id, exam_type)
@@ -758,14 +824,19 @@ def get_student_performance_analysis(
 def get_class_performance_analysis(
     subject_id: int,
     exam_type: str = "all",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get class performance analysis with comparative charts - Temporary: No auth for teachers"""
-    print(f"DEBUG CLASS-PERFORMANCE: Temporarily allowing access to subject {subject_id}, exam type {exam_type}")
+    """Get class performance analysis with comparative charts"""
+    if current_user.role.value not in ['admin', 'hod', 'teacher']:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Temporarily remove authentication for teachers as requested
-    # TODO: Implement proper teacher authentication later
-    # Use the report generator for class performance analysis
+    # Verify teacher owns the subject
+    if current_user.role.value == 'teacher':
+        subject = get_subject_by_id(db, subject_id)
+        if not subject or subject.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
     from report_generator import ReportGenerator
     generator = ReportGenerator(db)
     analysis = generator.get_class_analytics_data(subject_id, exam_type)
@@ -1276,9 +1347,7 @@ def create_co_po_mapping(
                 co_po_mapping = COPOMatrix(
                     co_id=co_id,
                     po_id=po_definition.id,
-                    co_code=co_definition.code,
-                    po_code=po_code,
-                    mapping_strength=1.0  # Default strength
+                    strength=1  # Default strength
                 )
                 db.add(co_po_mapping)
         
@@ -1306,11 +1375,13 @@ def get_co_po_mapping(
             raise HTTPException(status_code=403, detail="Not authorized")
     
     # Get existing mappings for this CO
-    mappings = db.query(COPOMatrix).filter(COPOMatrix.co_id == co_id).all()
+    mappings = db.query(COPOMatrix).options(
+        joinedload(COPOMatrix.po_definition)
+    ).filter(COPOMatrix.co_id == co_id).all()
     
     return {
         "co_id": co_id,
-        "mapped_pos": [mapping.po_code for mapping in mappings]
+        "mapped_pos": [mapping.po_definition.code for mapping in mappings]
     }
 
 # Question CO Weight endpoints
@@ -1836,6 +1907,12 @@ def delete_student_milestone_endpoint(
         raise HTTPException(status_code=404, detail="Milestone not found")
     
     return {"message": "Milestone deleted successfully"}
+
+@app.get("/reports/available-types")
+async def get_available_report_types():
+    """Get available report types"""
+    from report_generator import get_available_report_types
+    return get_available_report_types()
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

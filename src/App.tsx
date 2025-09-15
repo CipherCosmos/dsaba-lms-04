@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from './store/store'
 import { fetchCurrentUser, initializeAuth } from './store/slices/authSlice'
 import { SidebarProvider } from './contexts/SidebarContext'
+import PWAInstallPrompt from './components/PWA/PWAInstallPrompt'
+import PWAStatus from './components/PWA/PWAStatus'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Layout from './components/Layout/Layout'
@@ -62,6 +64,8 @@ function App() {
   return (
     <SidebarProvider>
       <Layout>
+        <PWAInstallPrompt />
+        <PWAStatus />
         <Routes>
         <Route path="/" element={<Dashboard />} />
         

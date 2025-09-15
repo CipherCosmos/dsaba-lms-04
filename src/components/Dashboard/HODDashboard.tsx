@@ -308,7 +308,7 @@ const HODDashboard = () => {
             <TrendingUp className="h-5 w-5 text-green-500" />
           </div>
           <div className="space-y-2 text-sm">
-            {hodAnalytics?.recent_updates?.length > 0 ? (
+            {hodAnalytics?.recent_updates && hodAnalytics.recent_updates.length > 0 ? (
               hodAnalytics.recent_updates.slice(0, 4).map((update: any, index: number) => (
                 <p key={index} className="text-gray-600">• {update.message}</p>
               ))

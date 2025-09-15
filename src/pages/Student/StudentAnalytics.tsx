@@ -38,7 +38,16 @@ const StudentAnalytics = () => {
     dispatch(fetchExams())
   }, [dispatch, user])
 
-  const classSubjects = subjects.filter(s => s.class_id === user?.class_id)
+  const classSubjects = subjects?.filter(s => s && s.class_id === user?.class_id) || []
+
+  // Debug logging
+  console.log('Student Analytics Debug:', { 
+    studentAnalytics, 
+    loading, 
+    user, 
+    subjects, 
+    classSubjects 
+  })
 
   if (loading && !studentAnalytics) {
     return (
@@ -54,6 +63,14 @@ const StudentAnalytics = () => {
         <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500">No analytics data available</p>
         <p className="text-sm text-gray-400">Complete some exams to see your analytics</p>
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+            <h3 className="font-medium text-gray-900 mb-2">Debug Info:</h3>
+            <pre className="text-xs text-gray-600 overflow-auto">
+              {JSON.stringify({ studentAnalytics, loading, user, subjects }, null, 2)}
+            </pre>
+          </div>
+        )}
       </div>
     )
   }

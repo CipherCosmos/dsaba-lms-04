@@ -25,8 +25,8 @@ const StudentProgress = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { studentAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { user } = useSelector((state: RootState) => state.auth)
-  const { } = useSelector((state: RootState) => state.subjects)
-  const { } = useSelector((state: RootState) => state.exams)
+  const { subjects } = useSelector((state: RootState) => state.subjects)
+  const { exams } = useSelector((state: RootState) => state.exams)
 
   const [goals, setGoals] = useState<any[]>([])
   const [milestones, setMilestones] = useState<any[]>([])
@@ -60,22 +60,9 @@ const StudentProgress = () => {
   }
 
   const initializeDefaultData = () => {
-    // Set default goals if no data from API
-    setGoals([
-      { id: 1, title: 'Achieve 85% overall', target_value: 85, current_value: 0, deadline: '2024-05-30', status: 'active' },
-      { id: 2, title: 'Top 5 in class', target_value: 5, current_value: 0, deadline: '2024-05-30', status: 'active' },
-      { id: 3, title: 'All COs above 70%', target_value: 70, current_value: 0, deadline: '2024-04-30', status: 'active' },
-      { id: 4, title: 'Perfect attendance', target_value: 100, current_value: 95, deadline: '2024-06-30', status: 'active' }
-    ])
-
-    // Set default milestones if no data from API
-    setMilestones([
-      { id: 1, title: 'First A+ Grade', achieved: false, achieved_date: null, description: 'Score 90% or above in any exam' },
-      { id: 2, title: 'Consistent Performer', achieved: false, achieved_date: null, description: 'Maintain 80%+ for 3 consecutive exams' },
-      { id: 3, title: 'Subject Expert', achieved: false, achieved_date: null, description: 'Score 95%+ in any subject' },
-      { id: 4, title: 'Class Leader', achieved: false, achieved_date: null, description: 'Achieve top 3 position in class' },
-      { id: 5, title: 'CO Champion', achieved: false, achieved_date: null, description: 'Achieve 80%+ in all Course Outcomes' }
-    ])
+    // Initialize with empty arrays if API fails - no mock data
+    setGoals([])
+    setMilestones([])
   }
 
   useEffect(() => {

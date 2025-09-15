@@ -84,7 +84,7 @@ const StudentDashboard = () => {
       value: classSubjects.length,
       icon: BookOpen,
       color: 'bg-blue-100',
-      trend: `${subjects.length} active`,
+      trend: `${classSubjects.length} enrolled`,
       href: '/student/subjects'
     },
   ]
@@ -100,7 +100,7 @@ const StudentDashboard = () => {
 
   // Calculate study reminders based on real upcoming exams and performance
   const studyReminders = React.useMemo(() => {
-    const reminders = []
+    const reminders: Array<{subject: string, message: string, priority: string, task: string, dueDate: string}> = []
     
     // Generate reminders based on upcoming exams
     upcomingExams.forEach(exam => {
@@ -124,6 +124,7 @@ const StudentDashboard = () => {
         
         reminders.push({
           subject: subject.name,
+          message: `Study for ${exam.name}`,
           task: task,
           priority: priority,
           dueDate: daysUntil === 1 ? 'Tomorrow' : `${daysUntil} days`
@@ -141,6 +142,7 @@ const StudentDashboard = () => {
           if (subject && !reminders.some(r => r.subject === subject.name)) {
             reminders.push({
               subject: subject.name,
+              message: 'Focus on weak areas to improve performance',
               task: 'Focus on weak areas',
               priority: 'high',
               dueDate: 'This week'

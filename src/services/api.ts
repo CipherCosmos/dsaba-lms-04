@@ -1,9 +1,9 @@
 import axios from 'axios'
-
-const API_BASE_URL = '/api'
+import { API_CONFIG } from '../config/api'
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_CONFIG.BASE_URL,
+  timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,16 +14,65 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  
+  // Add cache busting for GET requests
+  if (config.method === 'get') {
+    const timestamp = new Date().getTime()
+    config.params = {
+      ...config.params,
+      _t: timestamp,
+      _cache: 'no-cache'
+    }
+  }
+  
+  // Add cache control headers
+  config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+  config.headers['Pragma'] = 'no-cache'
+  config.headers['Expires'] = '0'
+  
   return config
 })
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+    
+    // Handle 401 errors
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
+      return Promise.reject(error)
     }
+    
+    // Handle validation errors with better formatting
+    if (error.response?.status === 422) {
+      const errorData = error.response.data
+      if (errorData.detail && Array.isArray(errorData.detail)) {
+        // Format validation errors for better display
+        const formattedErrors = errorData.detail.map((err: any) => ({
+          field: err.loc ? err.loc.join('.') : 'general',
+          message: err.msg,
+          type: err.type
+        }))
+        error.formattedErrors = formattedErrors
+      }
+    }
+    
+    // Retry logic for network errors
+    if (!error.response && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      try {
+        return await apiClient(originalRequest)
+      } catch (retryError) {
+        return Promise.reject(retryError)
+      }
+    }
+    
     return Promise.reject(error)
   }
 )
@@ -115,10 +164,62 @@ export const userAPI = {
   },
 }
 
+// Cache busting utility
+const getCacheBustingParams = () => ({
+  _t: new Date().getTime(),
+  _cache: 'no-cache',
+  _r: Math.random().toString(36).substring(7),
+  _v: Math.random().toString(36).substring(2, 15)
+})
+
+// Force fresh request utility
+const forceFreshRequest = (url: string, config: any = {}) => {
+  const timestamp = new Date().getTime()
+  const randomId = Math.random().toString(36).substring(2, 15)
+  
+  return apiClient.get(url, {
+    ...config,
+    params: {
+      ...config.params,
+      _t: timestamp,
+      _r: randomId,
+      _cache: 'no-cache',
+      _fresh: 'true'
+    },
+    headers: {
+      ...config.headers,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'If-Modified-Since': '0',
+      'If-None-Match': '*'
+    }
+  })
+}
+
 export const examAPI = {
-  getAll: async () => {
-    const response = await apiClient.get('/exams')
-    return response.data
+  getAll: async (forceRefresh = false) => {
+    console.log('examAPI.getAll - Making request to /exams', forceRefresh ? '(FORCE REFRESH)' : '')
+    
+    if (forceRefresh) {
+      // Clear server cache first
+      try {
+        await apiClient.get('/cache/clear')
+        console.log('Server cache cleared')
+      } catch (error) {
+        console.log('Cache clear failed, continuing...', error)
+      }
+      
+      // Use force fresh request to completely bypass cache
+      const response = await forceFreshRequest('/exams')
+      console.log('examAPI.getAll - Force Fresh Response:', response.data)
+      return response.data
+    } else {
+      const params = getCacheBustingParams()
+      const response = await apiClient.get('/exams', { params })
+      console.log('examAPI.getAll - Response:', response.data)
+      return response.data
+    }
   },
   getById: async (id: number) => {
     const response = await apiClient.get(`/exams/${id}`)

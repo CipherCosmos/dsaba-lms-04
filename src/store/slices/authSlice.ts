@@ -22,7 +22,7 @@ interface AuthState {
 // Check for existing token on app load
 const initialState: AuthState = {
   user: null,
-  isAuthenticated: false, // Force login page to show for testing
+  isAuthenticated: !!localStorage.getItem('token'),
   loading: false,
   error: null,
 }

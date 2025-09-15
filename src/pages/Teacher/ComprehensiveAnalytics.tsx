@@ -141,6 +141,8 @@ const ComprehensiveAnalytics = () => {
         analyticsAPI.getCOPOMapping(selectedSubjectId)
       ])
 
+      console.log('Analytics Data:', { coData, poData, studentData, classData, mappingData })
+      
       setCOAttainment(coData || {})
       setPOAttainment(poData || {})
       setStudentPerformance(studentData || {})

@@ -5,13 +5,18 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import toast from 'react-hot-toast'
 import { AppDispatch, RootState } from '../../store/store'
-import { fetchExams, createExam, updateExam, deleteExam } from '../../store/slices/examSlice'
+import { fetchExams, createExam, updateExam, deleteExam, clearExams } from '../../store/slices/examSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { coAPI, poAPI, attainmentAnalyticsAPI } from '../../services/api'
-import { Plus, Edit2, Trash2, Settings, Calendar, Clock, FileText, Target, Layers, CheckCircle, X } from 'lucide-react'
+import { 
+  Plus, Edit2, Trash2, Settings, Calendar, Clock, FileText, Target, Layers, 
+  CheckCircle, X, Search, Filter, Download, Upload, Copy, Eye, BarChart3,
+  TrendingUp, Users, Award, BookOpen, Zap, RefreshCw, Save, AlertTriangle
+} from 'lucide-react'
 
 const questionSchema = yup.object({
   question_number: yup.string().required('Question number is required'),
+  question_text: yup.string().required('Question text is required'),
   max_marks: yup.number().min(0.5, 'Minimum 0.5 marks').required('Marks required'),
   section: yup.string().oneOf(['A', 'B', 'C']).required('Section is required'),
   blooms_level: yup.string().required('Blooms level is required'),
@@ -37,10 +42,47 @@ type ExamForm = yup.InferType<typeof examSchema>
 
 const ExamConfiguration = () => {
   const dispatch = useDispatch<AppDispatch>()
-  const { exams, loading } = useSelector((state: RootState) => state.exams)
+  const { exams, loading, error } = useSelector((state: RootState) => state.exams)
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { classes } = useSelector((state: RootState) => state.classes)
-  const { user } = useSelector((state: RootState) => state.auth)
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth)
+  
+  // Debug logging
+  console.log('ExamConfiguration - Redux State:', { exams, loading, subjects, user, isAuthenticated, error })
+  console.log('ExamConfiguration - Exams from Redux:', exams)
+  console.log('ExamConfiguration - Number of exams:', exams?.length || 0)
+  
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-500 mb-4">Please log in to access exam configuration</div>
+        <button 
+          onClick={() => window.location.href = '/login'}
+          className="btn-primary"
+        >
+          Go to Login
+        </button>
+      </div>
+    )
+  }
+  
+  // Show error if API call failed
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 mb-4">Error loading exams: {error}</div>
+        <button 
+          onClick={() => dispatch(fetchExams())}
+          className="btn-primary"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+  
+  // Enhanced state management
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<any>(null)
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null)
@@ -48,9 +90,26 @@ const ExamConfiguration = () => {
   const [availablePOs, setAvailablePOs] = useState<any[]>([])
   const [loadingCOs, setLoadingCOs] = useState(false)
   const [loadingPOs, setLoadingPOs] = useState(false)
+  const [deletingExamId, setDeletingExamId] = useState<number | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
+  const [isDataFresh, setIsDataFresh] = useState(false)
   const [coPoMapping, setCoPoMapping] = useState<any[]>([])
   const [autoMapPOs, setAutoMapPOs] = useState(true)
   const [expandedMappings, setExpandedMappings] = useState<Set<number>>(new Set())
+  
+  // Enhanced UI state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterType, setFilterType] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'type' | 'marks'>('name')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [selectedExams, setSelectedExams] = useState<Set<number>>(new Set())
+  const [bulkAction, setBulkAction] = useState<string>('')
+  const [showStatistics, setShowStatistics] = useState(false)
+  const [examTemplates, setExamTemplates] = useState<any[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
 
   const {
     register,
@@ -63,7 +122,21 @@ const ExamConfiguration = () => {
   } = useForm<ExamForm>({
     resolver: yupResolver(examSchema),
     defaultValues: {
-      questions: []
+      name: '',
+      subject_id: '',
+      exam_type: 'internal1',
+      exam_date: undefined,
+      duration: 120,
+      total_marks: 0,
+      questions: [{
+        question_number: '1',
+        question_text: 'Enter your question here...',
+        max_marks: 10,
+        section: 'A',
+        blooms_level: 'Remember',
+        difficulty: 'easy',
+        co_weights: []
+      }]
     }
   })
 
@@ -73,22 +146,51 @@ const ExamConfiguration = () => {
   })
 
   const watchedQuestions = watch('questions')
+
+  // Debug form data
+  useEffect(() => {
+    console.log('Watched questions:', watchedQuestions)
+  }, [watchedQuestions])
   const totalMarks = watchedQuestions?.reduce((sum, q) => sum + (q.max_marks || 0), 0) || 0
 
-  useEffect(() => {
-    dispatch(fetchExams())
+  // Force refresh function
+  const forceRefresh = () => {
+    console.log('Force refreshing data...')
+    
+    setRefreshKey(prev => prev + 1)
+    setLastRefreshTime(new Date())
+    setIsDataFresh(true)
+    
+    // Clear cache first
+    dispatch(clearExams())
+    // Then fetch fresh data with force refresh
+    dispatch(fetchExams(true)) // Force refresh = true
     dispatch(fetchSubjects())
-  }, [dispatch])
+  }
+
+  useEffect(() => {
+    console.log('Fetching exams on component mount...')
+    dispatch(fetchExams()).then((result) => {
+      console.log('Fetch exams result:', result)
+    })
+    console.log('Fetching subjects on component mount...')
+    dispatch(fetchSubjects()).then((result) => {
+      console.log('Fetch subjects result:', result)
+    })
+  }, [dispatch, refreshKey])
 
   useEffect(() => {
     setValue('total_marks', totalMarks)
   }, [totalMarks, setValue])
 
   // Filter subjects for current teacher
-  const teacherSubjects = useMemo(() => 
-    subjects.filter(s => s.teacher_id === user?.id),
-    [subjects, user?.id]
-  )
+  const teacherSubjects = useMemo(() => {
+    const filtered = subjects.filter(s => s.teacher_id === user?.id)
+    console.log('Teacher subjects:', filtered)
+    console.log('All subjects:', subjects)
+    console.log('User ID:', user?.id)
+    return filtered
+  }, [subjects, user?.id])
 
   // Fetch COs and POs when subject changes
   const fetchCOsAndPOs = async (subjectId: number) => {
@@ -164,24 +266,46 @@ const ExamConfiguration = () => {
 
   const onSubmit = async (data: ExamForm) => {
     try {
+      console.log('Form data received:', data)
+      console.log('Questions data:', data.questions)
+      console.log('First question details:', data.questions?.[0])
+      console.log('First question question_text:', data.questions?.[0]?.question_text)
+      
       // Convert date to ISO string if provided
       const examData = {
         ...data,
         exam_date: data.exam_date ? new Date(data.exam_date).toISOString() : undefined,
         duration: data.duration || undefined,
-        questions: data.questions?.map((q: any, index: number) => ({
+        questions: data.questions?.map((q: any, index: number) => {
+          // Ensure question_text is never null or empty
+          const questionText = q.question_text?.trim() || `Question ${q.question_number || (index + 1)}`
+          
+          return {
           ...q,
           id: q.id || index + 1,
+            question_text: questionText,
+            question_number: q.question_number || `${index + 1}`,
           co_weights: q.co_weights?.filter((cw: any) => cw !== undefined) || []
-        })) || []
+          }
+        }) || []
       }
+      
+      console.log('Exam data being sent:', examData)
 
       if (editingExam) {
-        await dispatch(updateExam({ id: editingExam.id, ...examData })).unwrap()
+        console.log('Updating exam with ID:', editingExam.id)
+        const result = await dispatch(updateExam({ id: editingExam.id, ...examData })).unwrap()
+        console.log('Update result:', result)
         toast.success('Exam updated successfully!')
+        // Force refresh to ensure data is fresh
+        forceRefresh()
       } else {
-        await dispatch(createExam(examData)).unwrap()
+        console.log('Creating new exam')
+        const result = await dispatch(createExam(examData)).unwrap()
+        console.log('Exam creation result:', result)
         toast.success('Exam created successfully!')
+        // Force refresh to ensure data is fresh
+        forceRefresh()
       }
       closeModal()
     } catch (error: any) {
@@ -200,8 +324,14 @@ const ExamConfiguration = () => {
       exam_date: exam.exam_date ? new Date(exam.exam_date) : undefined,
       duration: exam.duration,
       total_marks: exam.total_marks,
-      questions: exam.questions?.length > 0 ? exam.questions : [{
-        question_number: '1a',
+      questions: exam.questions?.length > 0 ? exam.questions.map((q, index) => ({
+        ...q,
+        question_text: q.question_text || `Enter your question here...`,
+        question_number: q.question_number || `${index + 1}`,
+        co_weights: q.co_weights || []
+      })) : [{
+        question_number: '1',
+        question_text: 'Enter your question here...',
         max_marks: 10,
         section: 'A',
         blooms_level: 'Remember',
@@ -216,10 +346,19 @@ const ExamConfiguration = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this exam?')) {
       try {
-        await dispatch(deleteExam(id)).unwrap()
+        setDeletingExamId(id)
+        console.log('Deleting exam with ID:', id)
+        const result = await dispatch(deleteExam(id)).unwrap()
+        console.log('Delete result:', result)
         toast.success('Exam deleted successfully!')
+        // Force refresh to ensure data is fresh
+        console.log('Force refreshing after delete...')
+        forceRefresh()
       } catch (error: any) {
+        console.error('Delete error:', error)
         toast.error(error.message || 'Failed to delete exam')
+      } finally {
+        setDeletingExamId(null)
       }
     }
   }
@@ -228,8 +367,15 @@ const ExamConfiguration = () => {
     setIsModalOpen(false)
     setEditingExam(null)
     reset({
+      name: '',
+      subject_id: '',
+      exam_type: 'internal1',
+      exam_date: undefined,
+      duration: 120,
+      total_marks: 0,
       questions: [{
-        question_number: '1a',
+        question_number: '1',
+        question_text: 'Enter your question here...',
         max_marks: 10,
         section: 'A',
         blooms_level: 'Remember',
@@ -240,13 +386,17 @@ const ExamConfiguration = () => {
   }
 
   const addQuestion = () => {
-    append({
+    const newQuestion = {
       question_number: '',
+      question_text: 'Enter your question here...',
       max_marks: 10,
       section: 'A',
       blooms_level: 'Remember',
       difficulty: 'easy',
-    })
+      co_weights: []
+    }
+    console.log('Adding new question:', newQuestion)
+    append(newQuestion)
     
     // Scroll to the bottom to show the new question
     setTimeout(() => {
@@ -409,15 +559,110 @@ const ExamConfiguration = () => {
     )
   }
 
-  // Filter exams for current teacher
-  const teacherExams = exams.filter(exam => 
-    teacherSubjects.some(subject => subject.id === exam.subject_id)
-  )
+  // Enhanced filtering and sorting
+  const teacherExams = useMemo(() => {
+    console.log('Filtering exams - All exams:', exams)
+    console.log('Filtering exams - Teacher subjects:', teacherSubjects)
+    let filtered = exams?.filter(exam => {
+      const hasSubject = teacherSubjects.some(subject => subject.id === exam.subject_id)
+      console.log(`Exam ${exam.id} (subject ${exam.subject_id}): hasSubject=${hasSubject}`)
+      return hasSubject
+    }) || []
+    console.log('Filtered exams:', filtered)
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(exam => 
+        exam.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        exam.exam_type.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    // Type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(exam => exam.exam_type === filterType)
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      let aVal, bVal
+      switch (sortBy) {
+        case 'name':
+          aVal = a.name.toLowerCase()
+          bVal = b.name.toLowerCase()
+          break
+        case 'date':
+          aVal = new Date(a.exam_date || 0).getTime()
+          bVal = new Date(b.exam_date || 0).getTime()
+          break
+        case 'type':
+          aVal = a.exam_type
+          bVal = b.exam_type
+          break
+        case 'marks':
+          aVal = a.total_marks || 0
+          bVal = b.total_marks || 0
+          break
+        default:
+          aVal = a.name.toLowerCase()
+          bVal = b.name.toLowerCase()
+      }
+
+      if (sortOrder === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0
+      }
+    })
+
+    return filtered
+  }, [exams, teacherSubjects, searchTerm, filterType, sortBy, sortOrder])
+
+  // Statistics calculation
+  const examStatistics = useMemo(() => {
+    const totalExams = teacherExams.length
+    const totalMarks = teacherExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
+    const avgMarks = totalExams > 0 ? totalMarks / totalExams : 0
+    const examTypes = teacherExams.reduce((acc, exam) => {
+      acc[exam.exam_type] = (acc[exam.exam_type] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    return {
+      totalExams,
+      totalMarks,
+      avgMarks: Math.round(avgMarks * 100) / 100,
+      examTypes,
+      upcomingExams: teacherExams.filter(exam => 
+        exam.exam_date && new Date(exam.exam_date) > new Date()
+      ).length
+    }
+  }, [teacherExams])
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Exam Configuration</h1>
+      {/* Enhanced Header */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Exam Configuration</h1>
+            <p className="text-gray-600 mt-1">Create, manage, and analyze your exams with advanced features</p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowTemplates(true)}
+              className="btn-secondary flex items-center space-x-2"
+            >
+              <BookOpen size={18} />
+              <span>Templates</span>
+            </button>
+            <button
+              onClick={() => setShowStatistics(!showStatistics)}
+              className="btn-secondary flex items-center space-x-2"
+            >
+              <BarChart3 size={18} />
+              <span>Statistics</span>
+            </button>
         <button
           onClick={() => setIsModalOpen(true)}
           className="btn-primary flex items-center space-x-2"
@@ -425,6 +670,174 @@ const ExamConfiguration = () => {
           <Plus size={18} />
           <span>Create Exam</span>
         </button>
+        <button
+          onClick={forceRefresh}
+          className="btn-secondary flex items-center space-x-2"
+          disabled={loading}
+        >
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          <span>Refresh</span>
+        </button>
+        
+        {/* Cache Status Indicator */}
+        <div className="flex items-center space-x-2 text-sm">
+          <div className={`w-3 h-3 rounded-full ${isDataFresh ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+          <span className="text-gray-600">
+            {isDataFresh ? 'Fresh Data' : 'Cached Data'}
+          </span>
+          {lastRefreshTime && (
+            <span className="text-gray-400">
+              ({lastRefreshTime.toLocaleTimeString()})
+            </span>
+          )}
+        </div>
+          </div>
+        </div>
+
+        {/* Statistics Panel */}
+        {showStatistics && (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <FileText className="h-8 w-8 text-blue-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-blue-900">Total Exams</p>
+                  <p className="text-2xl font-bold text-blue-600">{examStatistics.totalExams}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <Award className="h-8 w-8 text-green-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-900">Avg Marks</p>
+                  <p className="text-2xl font-bold text-green-600">{examStatistics.avgMarks}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <Calendar className="h-8 w-8 text-purple-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-purple-900">Upcoming</p>
+                  <p className="text-2xl font-bold text-purple-600">{examStatistics.upcomingExams}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <Target className="h-8 w-8 text-orange-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-orange-900">Total Marks</p>
+                  <p className="text-2xl font-bold text-orange-600">{examStatistics.totalMarks}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-indigo-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <TrendingUp className="h-8 w-8 text-indigo-600" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-indigo-900">Types</p>
+                  <p className="text-2xl font-bold text-indigo-600">{Object.keys(examStatistics.examTypes).length}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Enhanced Search and Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Search exams..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Types</option>
+            <option value="internal1">Internal 1</option>
+            <option value="internal2">Internal 2</option>
+            <option value="final">Final</option>
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="name">Sort by Name</option>
+            <option value="date">Sort by Date</option>
+            <option value="type">Sort by Type</option>
+            <option value="marks">Sort by Marks</option>
+          </select>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              {sortOrder === 'asc' ? <TrendingUp size={16} /> : <TrendingUp size={16} className="rotate-180" />}
+            </button>
+            <button
+              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              {viewMode === 'grid' ? <Layers size={16} /> : <FileText size={16} />}
+            </button>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <Settings size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Advanced Options */}
+        {showAdvanced && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="autoMapPOs"
+                  checked={autoMapPOs}
+                  onChange={(e) => setAutoMapPOs(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="autoMapPOs" className="text-sm text-gray-700">
+                  Auto-map POs from COs
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="showOnlyUpcoming"
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="showOnlyUpcoming" className="text-sm text-gray-700">
+                  Show only upcoming exams
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="groupBySubject"
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="groupBySubject" className="text-sm text-gray-700">
+                  Group by subject
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Exams List */}
@@ -444,9 +857,14 @@ const ExamConfiguration = () => {
                   </button>
                   <button
                     onClick={() => handleDelete(exam.id)}
-                    className="p-1 text-gray-400 hover:text-red-600"
+                    disabled={deletingExamId === exam.id}
+                    className="p-1 text-gray-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
+                    {deletingExamId === exam.id ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent"></div>
+                    ) : (
                     <Trash2 size={16} />
+                    )}
                   </button>
                 </div>
               </div>
@@ -638,6 +1056,31 @@ const ExamConfiguration = () => {
                           </span>
                         )}
                       </div>
+                      {/* Bulk CO Mapping Button */}
+                      {availableCOs.length > 0 && watchedQuestions.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Add first CO to all questions with equal weight distribution
+                            const firstCO = availableCOs[0]
+                            const weightPerQuestion = Math.floor(100 / watchedQuestions.length)
+                            
+                            watchedQuestions.forEach((_, index) => {
+                              setValue(`questions.${index}.co_weights`, [{
+                                co_id: firstCO.id,
+                                co_code: firstCO.code,
+                                weight_pct: weightPerQuestion
+                              }])
+                            })
+                            
+                            toast.success(`Added ${firstCO.code} to all questions with ${weightPerQuestion}% weight each`)
+                          }}
+                          className="btn-secondary text-sm flex items-center space-x-1"
+                        >
+                          <Target size={16} />
+                          <span>Bulk Map CO</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={addQuestion}
@@ -725,6 +1168,26 @@ const ExamConfiguration = () => {
                         </div>
                       </div>
 
+                      {/* Question Text Field */}
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Question Text
+                        </label>
+                        <textarea
+                          {...register(`questions.${index}.question_text`)}
+                          rows={3}
+                          className="input-field w-full"
+                          placeholder="Enter the question text here..."
+                        />
+                      </div>
+                      
+                      {/* Question Text Validation Error */}
+                      {errors.questions?.[index]?.question_text && (
+                        <p className="text-red-500 text-sm mt-1">
+                          {errors.questions[index]?.question_text?.message}
+                        </p>
+                      )}
+
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -781,7 +1244,9 @@ const ExamConfiguration = () => {
                             <option value="Create">Create</option>
                           </select>
                         </div>
+                        </div>
 
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Difficulty
@@ -822,10 +1287,46 @@ const ExamConfiguration = () => {
                               <button
                                 type="button"
                                 onClick={() => toggleMappingExpansion(index)}
-                                className="text-xs text-blue-600 hover:text-blue-800"
+                                className={`text-xs flex items-center space-x-1 px-2 py-1 rounded ${
+                                  expandedMappings.has(index)
+                                    ? 'text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100'
+                                    : 'text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100'
+                                }`}
                               >
-                                {expandedMappings.has(index) ? 'Hide Details' : 'Show Details'}
+                                {expandedMappings.has(index) ? (
+                                  <>
+                                    <X size={12} />
+                                    <span>Hide Mapping</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Target size={12} />
+                                    <span>Map COs/POs</span>
+                                  </>
+                                )}
                               </button>
+                              {/* Quick Add CO Button */}
+                              {!expandedMappings.has(index) && availableCOs.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // Auto-select first CO with default weight
+                                    const firstCO = availableCOs[0]
+                                    const currentWeights = watchedQuestions?.[index]?.co_weights || []
+                                    const newWeights = [...currentWeights, {
+                                      co_id: firstCO.id,
+                                      co_code: firstCO.code,
+                                      weight_pct: 100 // Default to 100% if no other COs
+                                    }]
+                                    setValue(`questions.${index}.co_weights`, newWeights)
+                                    toast.success(`Added ${firstCO.code} to question ${index + 1}`)
+                                  }}
+                                  className="text-xs text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 px-2 py-1 rounded flex items-center space-x-1"
+                                >
+                                  <Plus size={12} />
+                                  <span>Quick Add CO</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                           
@@ -846,9 +1347,148 @@ const ExamConfiguration = () => {
                           {/* Detailed Mapping - Collapsible */}
                           {expandedMappings.has(index) && (
                             <div className="mt-3">
-                              {selectedSubjectId ? (
-                                <div className="text-sm text-gray-600 bg-blue-50 rounded-lg p-4 text-center">
-                                  CO/PO mapping is now handled separately in the CO Management section
+                              {selectedSubjectId && availableCOs.length > 0 ? (
+                                <div className="space-y-4">
+                                  <div className="text-sm text-gray-600">
+                                    Select COs and assign weights for this question:
+                                  </div>
+                                  
+                                  {/* CO Selection */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {availableCOs.map((co) => {
+                                      const existingWeight = watchedQuestions?.[index]?.co_weights?.find(
+                                        (cw: any) => cw.co_id === co.id
+                                      )
+                                      
+                                      return (
+                                        <div key={co.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!existingWeight}
+                                            onChange={(e) => {
+                                              const currentWeights = watchedQuestions?.[index]?.co_weights || []
+                                              let newWeights
+                                              
+                                              if (e.target.checked) {
+                                                // Add CO with default weight
+                                                newWeights = [...currentWeights, {
+                                                  co_id: co.id,
+                                                  co_code: co.code,
+                                                  weight_pct: 10 // Default weight
+                                                }]
+                                              } else {
+                                                // Remove CO
+                                                newWeights = currentWeights.filter((cw: any) => cw.co_id !== co.id)
+                                              }
+                                              
+                                              setValue(`questions.${index}.co_weights`, newWeights)
+                                            }}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                          />
+                                          <div className="flex-1">
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {co.code}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                              {co.description}
+                                            </div>
+                                          </div>
+                                          {existingWeight && (
+                                            <div className="flex items-center space-x-2">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                value={existingWeight.weight_pct}
+                                                onChange={(e) => {
+                                                  const currentWeights = watchedQuestions?.[index]?.co_weights || []
+                                                  const newWeights = currentWeights.map((cw: any) =>
+                                                    cw.co_id === co.id
+                                                      ? { ...cw, weight_pct: Number(e.target.value) }
+                                                      : cw
+                                                  )
+                                                  setValue(`questions.${index}.co_weights`, newWeights)
+                                                }}
+                                                className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                              />
+                                              <span className="text-xs text-gray-500">%</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                  
+                                  {/* Weight Validation */}
+                                  {(() => {
+                                    const totalWeight = watchedQuestions?.[index]?.co_weights?.reduce(
+                                      (sum: number, cw: any) => sum + (cw.weight_pct || 0), 0
+                                    ) || 0
+                                    
+                                    return (
+                                      <div className={`text-sm p-3 rounded-lg ${
+                                        totalWeight > 100 
+                                          ? 'bg-red-50 text-red-700 border border-red-200'
+                                          : totalWeight < 100
+                                          ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                          : 'bg-green-50 text-green-700 border border-green-200'
+                                      }`}>
+                                        <div className="flex items-center justify-between">
+                                          <span>Total Weight: {totalWeight}%</span>
+                                          {totalWeight > 100 && (
+                                            <span className="text-xs">⚠️ Exceeds 100%</span>
+                                          )}
+                                          {totalWeight < 100 && totalWeight > 0 && (
+                                            <span className="text-xs">⚠️ Under 100%</span>
+                                          )}
+                                          {totalWeight === 100 && (
+                                            <span className="text-xs">✅ Perfect</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
+                                  
+                                  {/* Auto-map POs */}
+                                  {autoMapPOs && availablePOs.length > 0 && (
+                                    <div className="mt-4 p-3 bg-purple-50 rounded-lg">
+                                      <div className="text-sm font-medium text-purple-900 mb-2">
+                                        Auto-mapped POs (based on CO-PO mapping):
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {(() => {
+                                          const selectedCOs = watchedQuestions?.[index]?.co_weights?.map((cw: any) => cw.co_id) || []
+                                          const mappedPOs = coPoMapping
+                                            .filter((mapping: any) => selectedCOs.includes(mapping.co_id))
+                                            .map((mapping: any) => mapping.po_definition?.code)
+                                            .filter((code: string, index: number, arr: string[]) => arr.indexOf(code) === index)
+                                          
+                                          return mappedPOs.map((poCode: string) => (
+                                            <span key={poCode} className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
+                                              {poCode}
+                                            </span>
+                                          ))
+                                        })()}
+                                        {(() => {
+                                          const selectedCOs = watchedQuestions?.[index]?.co_weights?.map((cw: any) => cw.co_id) || []
+                                          const mappedPOs = coPoMapping
+                                            .filter((mapping: any) => selectedCOs.includes(mapping.co_id))
+                                            .map((mapping: any) => mapping.po_definition?.code)
+                                            .filter((code: string, index: number, arr: string[]) => arr.indexOf(code) === index)
+                                          
+                                          return mappedPOs.length === 0 && (
+                                            <span className="text-xs text-purple-600">
+                                              No POs mapped for selected COs
+                                            </span>
+                                          )
+                                        })()}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : selectedSubjectId ? (
+                                <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">
+                                  {loadingCOs ? 'Loading COs...' : 'No COs available for this subject'}
                                 </div>
                               ) : (
                                 <div className="text-sm text-gray-500 bg-gray-50 rounded-lg p-4 text-center">

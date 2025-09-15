@@ -1875,8 +1875,8 @@ class ReportGenerator:
                     'id': mapping.id,
                     'co_id': mapping.co_id,
                     'po_id': mapping.po_id,
-                    'co_code': mapping.co_code,
-                    'po_code': mapping.po_code,
+                    'co_code': mapping.co_definition.code,
+                    'po_code': mapping.po_definition.code,
                     'strength': mapping.strength,
                     'co_description': co.description,
                     'po_description': po.description

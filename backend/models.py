@@ -139,6 +139,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("exams.id"), nullable=False)
     question_number = Column(String(10), nullable=False)
+    question_text = Column(Text, nullable=False)  # The actual question content
     max_marks = Column(Float, nullable=False)
     co_mapping = Column(JSON)
     po_mapping = Column(JSON)

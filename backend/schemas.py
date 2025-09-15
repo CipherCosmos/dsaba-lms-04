@@ -158,6 +158,7 @@ class SubjectResponse(SubjectBase):
 # Question schemas
 class QuestionBase(BaseModel):
     question_number: str
+    question_text: str
     max_marks: float = Field(..., ge=0.5)
     co_mapping: List[str] = []
     po_mapping: List[str] = []
@@ -170,6 +171,7 @@ class QuestionCreate(QuestionBase):
 
 class QuestionUpdate(BaseModel):
     question_number: Optional[str] = None
+    question_text: Optional[str] = None
     max_marks: Optional[float] = Field(None, ge=0.5)
     co_mapping: Optional[List[str]] = None
     po_mapping: Optional[List[str]] = None
@@ -189,6 +191,7 @@ class QuestionResponse(QuestionBase):
 # Exam question schema for exam creation (without exam_id)
 class ExamQuestionCreate(BaseModel):
     question_number: str
+    question_text: str
     max_marks: float = Field(..., ge=0.5)
     co_mapping: List[str] = []
     po_mapping: List[str] = []
@@ -472,31 +475,62 @@ class IndirectAttainmentResponse(IndirectAttainmentBase):
 
 # Attainment Analytics schemas
 class COAttainmentDetail(BaseModel):
+    co_id: int
     co_code: str
+    co_description: str
     target_pct: float
     actual_pct: float
     level: str  # L1, L2, L3
     gap: float
     coverage: float
     evidence: List[Dict[str, Any]]  # Question details
+    performance_trend: List[Dict[str, Any]]  # Historical performance
+    difficulty_analysis: Dict[str, Any]  # Easy/Medium/Hard breakdown
+    blooms_taxonomy: Dict[str, float]  # Blooms level distribution
+    question_analysis: List[Dict[str, Any]]  # Individual question performance
+    student_performance: Dict[str, Any]  # Student-wise performance
+    recommendations: List[str]  # Improvement recommendations
 
 class POAttainmentDetail(BaseModel):
+    po_id: int
     po_code: str
+    po_description: str
     direct_pct: float
     indirect_pct: float
     total_pct: float
     level: str
     gap: float
     contributing_cos: List[str]
+    co_contributions: List[Dict[str, Any]]  # CO-wise contributions
+    performance_trend: List[Dict[str, Any]]  # Historical performance
+    attainment_distribution: Dict[str, float]  # Grade distribution
+    strength_areas: List[str]  # Strong performing areas
+    improvement_areas: List[str]  # Areas needing improvement
+    recommendations: List[str]  # Improvement recommendations
 
 class SubjectAttainmentResponse(BaseModel):
     subject_id: int
     subject_name: str
+    subject_code: str
+    semester: str
+    credits: int
     co_attainment: List[COAttainmentDetail]
     po_attainment: List[POAttainmentDetail]
     blooms_distribution: Dict[str, Any]
     difficulty_mix: Dict[str, Any]
     co_coverage: float
+    overall_attainment: float
+    target_attainment: float
+    gap_analysis: Dict[str, Any]
+    recommendations: List[str]
+    performance_metrics: Dict[str, Any]  # Additional performance metrics
+    historical_comparison: Dict[str, Any]  # Comparison with previous semesters
+    class_statistics: Dict[str, Any]  # Class-level statistics
+    exam_analysis: Dict[str, Any]  # Exam-wise analysis
+    difficulty_analysis: Dict[str, Any]  # Overall difficulty analysis
+    blooms_analysis: Dict[str, Any]  # Blooms taxonomy analysis
+    student_distribution: Dict[str, Any]  # Grade distribution
+    improvement_trends: List[Dict[str, Any]]  # Improvement trends over time
 
 class StudentAttainmentResponse(BaseModel):
     student_id: int

@@ -328,9 +328,13 @@ def update_exam(db: Session, exam_id: int, exam: ExamUpdate):
     
     # Handle questions update separately
     if questions_data is not None:
-        # First, delete all marks associated with questions for this exam
+        # First, delete all related records in the correct order to avoid foreign key violations
         questions_to_delete = db.query(Question).filter(Question.exam_id == exam_id).all()
+        
         for question in questions_to_delete:
+            # Delete question_co_weights first
+            db.query(QuestionCOWeight).filter(QuestionCOWeight.question_id == question.id).delete()
+            # Delete marks
             db.query(Mark).filter(Mark.question_id == question.id).delete()
         
         # Then delete existing questions
@@ -341,6 +345,7 @@ def update_exam(db: Session, exam_id: int, exam: ExamUpdate):
             question = Question(
                 exam_id=exam_id,
                 question_number=question_data.get('question_number'),
+                question_text=question_data.get('question_text', f"Question {question_data.get('question_number', '')}"),
                 max_marks=question_data.get('max_marks'),
                 co_mapping=question_data.get('co_mapping', []),
                 po_mapping=question_data.get('po_mapping', []),
@@ -356,10 +361,13 @@ def update_exam(db: Session, exam_id: int, exam: ExamUpdate):
     return db_exam
 
 def delete_exam(db: Session, exam_id: int):
+    print(f"CRUD: Attempting to delete exam {exam_id}")
     db_exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if db_exam:
+        print(f"CRUD: Found exam {exam_id}, deleting...")
         # First, delete all marks associated with questions for this exam
         questions_to_delete = db.query(Question).filter(Question.exam_id == exam_id).all()
+        print(f"CRUD: Found {len(questions_to_delete)} questions to delete")
         for question in questions_to_delete:
             db.query(Mark).filter(Mark.question_id == question.id).delete()
         
@@ -369,8 +377,11 @@ def delete_exam(db: Session, exam_id: int):
         # Finally delete the exam
         db.delete(db_exam)
         db.commit()
+        print(f"CRUD: Successfully deleted exam {exam_id}")
         return True
-    return False
+    else:
+        print(f"CRUD: Exam {exam_id} not found")
+        return False
 
 # Question CRUD
 def create_question(db: Session, question: QuestionCreate):

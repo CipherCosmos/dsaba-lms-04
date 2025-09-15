@@ -63,6 +63,15 @@ const HODAnalytics = () => {
 
   const department = departments.find(d => d.id === user?.department_id)
 
+  // Debug logging
+  console.log('HOD Analytics Debug:', { 
+    hodAnalytics, 
+    loading, 
+    user, 
+    department, 
+    departments 
+  })
+
   if (loading && !hodAnalytics) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -77,6 +86,14 @@ const HODAnalytics = () => {
         <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500">No analytics data available</p>
         <p className="text-sm text-gray-400">Department data will appear once exams are conducted</p>
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+            <h3 className="font-medium text-gray-900 mb-2">Debug Info:</h3>
+            <pre className="text-xs text-gray-600 overflow-auto">
+              {JSON.stringify({ hodAnalytics, loading, user, department }, null, 2)}
+            </pre>
+          </div>
+        )}
       </div>
     )
   }

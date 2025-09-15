@@ -92,33 +92,82 @@ export interface AttainmentAudit {
 export interface COAttainmentDetail {
   co_id: number
   co_code: string
+  co_description: string
   target_pct: number
   actual_pct: number
   level: string
   gap: number
   coverage: number
   evidence: any[]
+  performance_trend: Array<{ period: string; attainment: number }>
+  difficulty_analysis: { easy: number; medium: number; hard: number }
+  blooms_taxonomy: Record<string, number>
+  question_analysis: any[]
+  student_performance: {
+    total_students: number
+    passing_students: number
+    excellent_students: number
+    average_attainment: number
+    standard_deviation?: number
+  }
+  recommendations: string[]
 }
 
 export interface POAttainmentDetail {
   po_id: number
   po_code: string
+  po_description: string
   direct_pct: number
   indirect_pct: number
   total_pct: number
   level: string
   gap: number
   contributing_cos: string[]
+  co_contributions: Array<{
+    co_code: string
+    strength: number
+    co_attainment: number
+    contribution: number
+  }>
+  performance_trend: Array<{ period: string; attainment: number }>
+  attainment_distribution: {
+    excellent: number
+    good: number
+    satisfactory: number
+    needs_improvement: number
+  }
+  strength_areas: string[]
+  improvement_areas: string[]
+  recommendations: string[]
 }
 
 export interface SubjectAttainmentResponse {
   subject_id: number
   subject_name: string
+  subject_code: string
+  semester: string
+  credits: number
   co_attainment: COAttainmentDetail[]
   po_attainment: POAttainmentDetail[]
   blooms_distribution: Record<string, any>
   difficulty_mix: Record<string, any>
   co_coverage: number
+  overall_attainment: number
+  target_attainment: number
+  gap_analysis: {
+    overall_gap: number
+    co_gaps: Array<{ co_code: string; gap: number }>
+    critical_cos: string[]
+  }
+  recommendations: string[]
+  performance_metrics: Record<string, any>
+  historical_comparison: Record<string, any>
+  class_statistics: Record<string, any>
+  exam_analysis: Record<string, any>
+  difficulty_analysis: Record<string, any>
+  blooms_analysis: Record<string, any>
+  student_distribution: Record<string, any>
+  improvement_trends: Array<{ period: string; attainment: number }>
 }
 
 interface COPOSliceState {

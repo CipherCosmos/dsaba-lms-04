@@ -60,6 +60,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add cache control middleware
+@app.middleware("http")
+async def add_cache_control_header(request: Request, call_next):
+    response = await call_next(request)
+    # Add cache control headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    response.headers["Last-Modified"] = datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
+    return response
+
 security = HTTPBearer()
 
 # Dependency to get DB session
@@ -73,6 +84,15 @@ def get_db():
 @app.get("/")
 def root():
     return {"message": "Internal Exam Management System API", "status": "running", "version": "1.0.0"}
+
+@app.get("/cache/clear")
+def clear_cache():
+    """Clear any server-side cache and return current timestamp"""
+    return {
+        "message": "Cache cleared",
+        "timestamp": datetime.utcnow().isoformat(),
+        "cache_bust": int(datetime.utcnow().timestamp() * 1000)
+    }
 
 @app.get("/health")
 def health_check():
@@ -417,9 +437,13 @@ def create_exam_endpoint(
 ):
     if current_user.role.value not in ['teacher', 'admin', 'hod']:
         raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Log incoming data for debugging
-    logging.warning(f"Received exam data: {json.dumps(exam.dict(), default=str)}")
+    
+    # Debug logging
+    logging.warning(f"Received exam data: {exam.dict()}")
+    
+    # Log each question's data
+    for i, question in enumerate(exam.questions or []):
+        logging.warning(f"Question {i}: question_text='{question.question_text}', question_number='{question.question_number}'")
 
     # Verify teacher owns the subject
     if current_user.role.value == 'teacher':
@@ -460,6 +484,8 @@ def delete_exam_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    logging.warning(f"Delete exam request - ID: {exam_id}, User: {current_user.id}")
+    
     if current_user.role.value not in ['teacher', 'admin', 'hod']:
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -467,15 +493,21 @@ def delete_exam_endpoint(
     if current_user.role.value == 'teacher':
         existing_exam = get_exam_by_id_db(db, exam_id)
         if not existing_exam:
+            logging.warning(f"Exam {exam_id} not found for user {current_user.id}")
             raise HTTPException(status_code=404, detail="Exam not found")
         
         subject = get_subject_by_id(db, existing_exam.subject_id)
         if not subject or subject.teacher_id != current_user.id:
+            logging.warning(f"User {current_user.id} not authorized to delete exam {exam_id}")
             raise HTTPException(status_code=403, detail="Not authorized to delete this exam")
     
+    logging.warning(f"Attempting to delete exam {exam_id}")
     success = delete_exam(db, exam_id)
     if not success:
+        logging.warning(f"Failed to delete exam {exam_id}")
         raise HTTPException(status_code=404, detail="Exam not found")
+    
+    logging.warning(f"Successfully deleted exam {exam_id}")
     return {"message": "Exam deleted successfully"}
 
 # Question endpoints

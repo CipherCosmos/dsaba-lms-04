@@ -48,6 +48,9 @@ const HODAnalyticsEnhanced = () => {
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel' | 'csv'>('pdf')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set(['performance', 'attainment', 'compliance']))
+  const [attainmentData, setAttainmentData] = useState<any>(null)
+  const [attainmentLoading, setAttainmentLoading] = useState(false)
+  const [attainmentError, setAttainmentError] = useState<string | null>(null)
 
   const fetchNbaCompliance = async (departmentId: number) => {
     try {
@@ -62,6 +65,20 @@ const HODAnalyticsEnhanced = () => {
       setNbaError('Failed to fetch NBA compliance data')
     } finally {
       setNbaLoading(false)
+    }
+  }
+
+  const fetchAttainmentData = async (subjectId: number, examType: string = 'all') => {
+    try {
+      setAttainmentLoading(true)
+      setAttainmentError(null)
+      const response = await analyticsAPI.getSubjectAttainment(subjectId, examType)
+      setAttainmentData(response)
+    } catch (error) {
+      console.error('Error fetching attainment data:', error)
+      setAttainmentError('Failed to fetch attainment data')
+    } finally {
+      setAttainmentLoading(false)
     }
   }
 
@@ -671,6 +688,218 @@ const HODAnalyticsEnhanced = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attainment Tab */}
+      {activeTab === 'attainment' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">CO/PO Attainment Analysis</h3>
+            <p className="text-gray-600 mb-4">Comprehensive attainment analysis for all subjects in the department</p>
+            
+            {/* Subject Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Subject
+              </label>
+            <select
+              value={selectedSubject}
+              onChange={(e) => {
+                setSelectedSubject(e.target.value)
+                if (e.target.value) {
+                  fetchAttainmentData(parseInt(e.target.value), timeRange)
+                } else {
+                  setAttainmentData(null)
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+                <option value="">All Subjects</option>
+                {subjects.filter(s => s.department_id === user?.department_id).map(subject => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Attainment Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600 mb-1">
+                  {nbaCompliance?.co_attainment?.toFixed(1) || 0}%
+                </div>
+                <p className="text-sm text-gray-600">Average CO Attainment</p>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600 mb-1">
+                  {nbaCompliance?.po_attainment?.toFixed(1) || 0}%
+                </div>
+                <p className="text-sm text-gray-600">Average PO Attainment</p>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600 mb-1">
+                  {nbaCompliance?.overall_compliance?.toFixed(1) || 0}%
+                </div>
+                <p className="text-sm text-gray-600">Overall Compliance</p>
+              </div>
+            </div>
+
+            {/* Exam Type Filter */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Exam Type
+              </label>
+              <div className="flex space-x-4">
+                {['all', 'internal1', 'internal2', 'final'].map(examType => (
+                  <button
+                    key={examType}
+                    onClick={() => {
+                      setTimeRange(examType as any)
+                      if (selectedSubject) {
+                        fetchAttainmentData(parseInt(selectedSubject), examType)
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      timeRange === examType
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {examType === 'all' ? 'All Exams' : examType.replace('internal', 'Internal ').toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Attainment Data Display */}
+            {attainmentLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent mx-auto mb-3"></div>
+                <p className="text-gray-500">Loading attainment data...</p>
+              </div>
+            ) : attainmentError ? (
+              <div className="text-center py-8 text-red-500">
+                <AlertTriangle className="h-12 w-12 mx-auto mb-3" />
+                <p>{attainmentError}</p>
+              </div>
+            ) : attainmentData ? (
+              <div className="space-y-6">
+                {/* CO Attainment Summary */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">CO Attainment Summary</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {attainmentData.co_attainment?.map((co: any, index: number) => (
+                      <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-medium text-gray-900">{co.co_code}</h5>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            co.actual_pct >= co.target_pct 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {co.level}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">{co.co_description}</p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Actual:</span>
+                            <span className="font-medium">{co.actual_pct}%</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>Target:</span>
+                            <span className="font-medium">{co.target_pct}%</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>Gap:</span>
+                            <span className={`font-medium ${co.gap >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {co.gap > 0 ? '+' : ''}{co.gap}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* PO Attainment Summary */}
+                {attainmentData.po_attainment && attainmentData.po_attainment.length > 0 && (
+                  <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">PO Attainment Summary</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {attainmentData.po_attainment.map((po: any, index: number) => (
+                        <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-gray-900">{po.po_code}</h5>
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              po.total_pct >= 70 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {po.level}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{po.po_description}</p>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Total:</span>
+                              <span className="font-medium">{po.total_pct}%</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Direct:</span>
+                              <span className="font-medium">{po.direct_pct}%</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Indirect:</span>
+                              <span className="font-medium">{po.indirect_pct}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Performance Metrics */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Performance Metrics</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {attainmentData.overall_attainment?.toFixed(1) || 0}%
+                      </div>
+                      <p className="text-sm text-gray-600">Overall Attainment</p>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">
+                        {attainmentData.target_attainment?.toFixed(1) || 0}%
+                      </div>
+                      <p className="text-sm text-gray-600">Target Attainment</p>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {attainmentData.gap_analysis?.overall_gap?.toFixed(1) || 0}%
+                      </div>
+                      <p className="text-sm text-gray-600">Gap</p>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {attainmentData.performance_metrics?.total_students || 0}
+                      </div>
+                      <p className="text-sm text-gray-600">Total Students</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Target className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>Select a subject and exam type to view CO/PO attainment details</p>
+              </div>
+            )}
           </div>
         </div>
       )}

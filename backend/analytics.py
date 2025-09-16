@@ -679,3 +679,327 @@ def get_available_report_templates() -> List[Dict[str, Any]]:
             "filters": ["date_from", "date_to"]
         }
     ]
+
+def get_hod_analytics(db: Session, department_id: int) -> Dict[str, Any]:
+    """Get comprehensive analytics for HOD department"""
+    try:
+        # Get department
+        department = db.query(Department).filter(Department.id == department_id).first()
+        if not department:
+            return {}
+        
+        # Get all classes in this department
+        classes = db.query(Class).filter(Class.department_id == department_id).all()
+        class_ids = [c.id for c in classes]
+        
+        # Get all subjects in these classes
+        subjects = db.query(Subject).filter(Subject.class_id.in_(class_ids)).all()
+        subject_ids = [s.id for s in subjects]
+        
+        # Get all users in this department
+        students = db.query(User).filter(
+            User.role == UserRole.student,
+            User.class_id.in_(class_ids)
+        ).all()
+        
+        teachers = db.query(User).filter(
+            User.role == UserRole.teacher,
+            User.department_id == department_id
+        ).all()
+        
+        # Get all exams for subjects in this department
+        exams = db.query(Exam).filter(Exam.subject_id.in_(subject_ids)).all()
+        exam_ids = [e.id for e in exams]
+        
+        # Get all marks for these exams
+        marks = db.query(Mark).filter(Mark.exam_id.in_(exam_ids)).all()
+        
+        # Calculate department overview
+        total_students = len(students)
+        total_teachers = len(teachers)
+        total_subjects = len(subjects)
+        
+        # Calculate average performance
+        if marks:
+            total_obtained = sum(mark.marks_obtained for mark in marks)
+            total_possible = sum(mark.question.max_marks for mark in marks if mark.question)
+            average_performance = (total_obtained / total_possible * 100) if total_possible > 0 else 0
+        else:
+            average_performance = 0
+        
+        # Calculate subject performance
+        subject_performance = []
+        for subject in subjects:
+            subject_marks = [m for m in marks if m.exam.subject_id == subject.id]
+            if subject_marks:
+                total_obtained = sum(mark.marks_obtained for mark in subject_marks)
+                total_possible = sum(mark.question.max_marks for mark in subject_marks if mark.question)
+                avg_percentage = (total_obtained / total_possible * 100) if total_possible > 0 else 0
+                
+                # Calculate pass rate (students with >= 40%)
+                student_percentages = {}
+                for mark in subject_marks:
+                    if mark.student_id not in student_percentages:
+                        student_percentages[mark.student_id] = {"obtained": 0, "total": 0}
+                    student_percentages[mark.student_id]["obtained"] += mark.marks_obtained
+                    student_percentages[mark.student_id]["total"] += mark.question.max_marks if mark.question else 0
+                
+                passing_students = 0
+                for student_id, data in student_percentages.items():
+                    if data["total"] > 0:
+                        percentage = (data["obtained"] / data["total"]) * 100
+                        if percentage >= 40:
+                            passing_students += 1
+                
+                pass_rate = (passing_students / len(student_percentages) * 100) if student_percentages else 0
+                
+                subject_performance.append({
+                    "subject_name": subject.name,
+                    "average_percentage": round(avg_percentage, 2),
+                    "pass_rate": round(pass_rate, 2)
+                })
+        
+        # Calculate teacher performance
+        teacher_performance = []
+        for teacher in teachers:
+            teacher_subjects = [s for s in subjects if s.teacher_id == teacher.id]
+            subjects_taught = len(teacher_subjects)
+            
+            # Calculate average class performance for this teacher
+            teacher_marks = [m for m in marks if m.exam.subject.teacher_id == teacher.id]
+            if teacher_marks:
+                total_obtained = sum(mark.marks_obtained for mark in teacher_marks)
+                total_possible = sum(mark.question.max_marks for mark in teacher_marks if mark.question)
+                avg_class_performance = (total_obtained / total_possible * 100) if total_possible > 0 else 0
+            else:
+                avg_class_performance = 0
+            
+            teacher_performance.append({
+                "teacher_name": f"{teacher.first_name} {teacher.last_name}",
+                "subjects_taught": subjects_taught,
+                "average_class_performance": round(avg_class_performance, 2)
+            })
+        
+        # Calculate NBA compliance (simplified)
+        nba_compliance = {
+            "overall_compliance": min(100, max(0, average_performance)),
+            "co_attainment": min(100, max(0, average_performance * 0.9)),
+            "po_attainment": min(100, max(0, average_performance * 0.85))
+        }
+        
+        # Generate recent updates
+        recent_updates = [
+            {
+                "title": "Department Analytics Updated",
+                "description": f"Analytics updated for {department.name}",
+                "date": datetime.now().isoformat(),
+                "type": "analytics"
+            }
+        ]
+        
+        return {
+            "department_overview": {
+                "total_students": total_students,
+                "total_teachers": total_teachers,
+                "total_subjects": total_subjects,
+                "average_performance": round(average_performance, 2)
+            },
+            "subject_performance": subject_performance,
+            "teacher_performance": teacher_performance,
+            "nba_compliance": nba_compliance,
+            "recent_updates": recent_updates
+        }
+        
+    except Exception as e:
+        print(f"Error in get_hod_analytics: {e}")
+        return {}
+
+def get_teacher_analytics(db: Session, teacher_id: int) -> Dict[str, Any]:
+    """Get comprehensive analytics for a teacher"""
+    try:
+        teacher = db.query(User).filter(User.id == teacher_id).first()
+        if not teacher or teacher.role != UserRole.teacher:
+            return {}
+        
+        # Get subjects taught by this teacher
+        subjects = db.query(Subject).filter(Subject.teacher_id == teacher_id).all()
+        subject_ids = [s.id for s in subjects]
+        
+        # Get all exams for these subjects
+        exams = db.query(Exam).filter(Exam.subject_id.in_(subject_ids)).all()
+        exam_ids = [e.id for e in exams]
+        
+        # Get all marks for these exams
+        marks = db.query(Mark).filter(Mark.exam_id.in_(exam_ids)).all()
+        
+        # Calculate class performance
+        if marks:
+            total_obtained = sum(mark.marks_obtained for mark in marks)
+            total_possible = sum(mark.question.max_marks for mark in marks if mark.question)
+            average_percentage = (total_obtained / total_possible * 100) if total_possible > 0 else 0
+            
+            # Calculate pass rate
+            student_percentages = {}
+            for mark in marks:
+                if mark.student_id not in student_percentages:
+                    student_percentages[mark.student_id] = {"obtained": 0, "total": 0}
+                student_percentages[mark.student_id]["obtained"] += mark.marks_obtained
+                student_percentages[mark.student_id]["total"] += mark.question.max_marks if mark.question else 0
+            
+            passing_students = 0
+            for student_id, data in student_percentages.items():
+                if data["total"] > 0:
+                    percentage = (data["obtained"] / data["total"]) * 100
+                    if percentage >= 40:
+                        passing_students += 1
+            
+            pass_rate = (passing_students / len(student_percentages) * 100) if student_percentages else 0
+        else:
+            average_percentage = 0
+            pass_rate = 0
+        
+        # Calculate top performers and at-risk students
+        top_performers = 0
+        at_risk_students = 0
+        
+        if marks:
+            for student_id, data in student_percentages.items():
+                if data["total"] > 0:
+                    percentage = (data["obtained"] / data["total"]) * 100
+                    if percentage >= 80:
+                        top_performers += 1
+                    elif percentage < 50:
+                        at_risk_students += 1
+        
+        # Question analysis
+        question_analysis = []
+        for exam in exams:
+            exam_questions = db.query(Question).filter(Question.exam_id == exam.id).all()
+            for question in exam_questions:
+                question_marks = [m for m in marks if m.question_id == question.id]
+                if question_marks:
+                    avg_marks = sum(m.marks_obtained for m in question_marks) / len(question_marks)
+                    success_rate = (len([m for m in question_marks if m.marks_obtained >= question.max_marks * 0.6]) / len(question_marks)) * 100
+                    attempt_rate = (len(question_marks) / len(student_percentages)) * 100 if student_percentages else 0
+                    
+                    question_analysis.append({
+                        "question_id": question.id,
+                        "average_marks": round(avg_marks, 2),
+                        "success_rate": round(success_rate, 2),
+                        "attempt_rate": round(attempt_rate, 2)
+                    })
+        
+        # CO/PO attainment (simplified)
+        co_po_attainment = {
+            "co_attainment": {},
+            "po_attainment": {}
+        }
+        
+        return {
+            "class_performance": {
+                "average_percentage": round(average_percentage, 2),
+                "pass_rate": round(pass_rate, 2),
+                "top_performers": top_performers,
+                "at_risk_students": at_risk_students
+            },
+            "question_analysis": question_analysis,
+            "co_po_attainment": co_po_attainment
+        }
+        
+    except Exception as e:
+        print(f"Error in get_teacher_analytics: {e}")
+        return {}
+
+def get_subject_analytics(db: Session, subject_id: int) -> Dict[str, Any]:
+    """Get comprehensive analytics for a subject"""
+    try:
+        subject = db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            return {}
+        
+        # Get all exams for this subject
+        exams = db.query(Exam).filter(Exam.subject_id == subject_id).all()
+        exam_ids = [e.id for e in exams]
+        
+        # Get all marks for these exams
+        marks = db.query(Mark).filter(Mark.exam_id.in_(exam_ids)).all()
+        
+        # Get students in this subject's class
+        students = db.query(User).filter(
+            User.role == UserRole.student,
+            User.class_id == subject.class_id
+        ).all()
+        
+        # Calculate subject performance
+        if marks:
+            total_obtained = sum(mark.marks_obtained for mark in marks)
+            total_possible = sum(mark.question.max_marks for mark in marks if mark.question)
+            average_percentage = (total_obtained / total_possible * 100) if total_possible > 0 else 0
+            
+            # Calculate pass rate
+            student_percentages = {}
+            for mark in marks:
+                if mark.student_id not in student_percentages:
+                    student_percentages[mark.student_id] = {"obtained": 0, "total": 0}
+                student_percentages[mark.student_id]["obtained"] += mark.marks_obtained
+                student_percentages[mark.student_id]["total"] += mark.question.max_marks if mark.question else 0
+            
+            passing_students = 0
+            for student_id, data in student_percentages.items():
+                if data["total"] > 0:
+                    percentage = (data["obtained"] / data["total"]) * 100
+                    if percentage >= 40:
+                        passing_students += 1
+            
+            pass_rate = (passing_students / len(student_percentages) * 100) if student_percentages else 0
+        else:
+            average_percentage = 0
+            pass_rate = 0
+        
+        # Calculate grade distribution
+        grade_distribution = {
+            "A+": 0, "A": 0, "B+": 0, "B": 0, "C": 0, "D": 0, "F": 0
+        }
+        
+        if marks:
+            for student_id, data in student_percentages.items():
+                if data["total"] > 0:
+                    percentage = (data["obtained"] / data["total"]) * 100
+                    if percentage >= 90:
+                        grade_distribution["A+"] += 1
+                    elif percentage >= 80:
+                        grade_distribution["A"] += 1
+                    elif percentage >= 70:
+                        grade_distribution["B+"] += 1
+                    elif percentage >= 60:
+                        grade_distribution["B"] += 1
+                    elif percentage >= 50:
+                        grade_distribution["C"] += 1
+                    elif percentage >= 40:
+                        grade_distribution["D"] += 1
+                    else:
+                        grade_distribution["F"] += 1
+        
+        return {
+            "subject_name": subject.name,
+            "subject_code": subject.code,
+            "total_students": len(students),
+            "total_exams": len(exams),
+            "average_percentage": round(average_percentage, 2),
+            "pass_rate": round(pass_rate, 2),
+            "grade_distribution": grade_distribution,
+            "exam_performance": [
+                {
+                    "exam_name": exam.name,
+                    "exam_type": exam.exam_type,
+                    "total_marks": exam.total_marks,
+                    "average_marks": 0,  # Would need to calculate per exam
+                    "date": exam.exam_date.isoformat() if exam.exam_date else None
+                }
+                for exam in exams
+            ]
+        }
+        
+    except Exception as e:
+        print(f"Error in get_subject_analytics: {e}")
+        return {}

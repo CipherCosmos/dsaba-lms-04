@@ -31,7 +31,7 @@ def calculate_co_attainment_for_student(db: Session, student_id: int, subject_id
     
     # Get exams for the subject
     exam_query = db.query(Exam).filter(Exam.subject_id == subject_id)
-    if exam_type:
+    if exam_type and exam_type != "all":
         exam_query = exam_query.filter(Exam.exam_type == exam_type)
     exams = exam_query.all()
     
@@ -451,7 +451,7 @@ def calculate_subject_attainment_analytics(db: Session, subject_id: int, exam_ty
 def calculate_difficulty_analysis(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
     """Calculate question difficulty distribution."""
     query = db.query(Question).join(Exam).filter(Exam.subject_id == subject_id)
-    if exam_type:
+    if exam_type and exam_type != "all":
         query = query.filter(Exam.exam_type == exam_type)
     
     questions = query.all()
@@ -486,7 +486,7 @@ def calculate_difficulty_analysis(db: Session, subject_id: int, exam_type: Optio
 def calculate_blooms_analysis(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
     """Calculate Blooms taxonomy distribution."""
     query = db.query(Question).join(Exam).filter(Exam.subject_id == subject_id)
-    if exam_type:
+    if exam_type and exam_type != "all":
         query = query.filter(Exam.exam_type == exam_type)
     
     questions = query.all()
@@ -544,7 +544,7 @@ def calculate_student_distribution(db: Session, subject_id: int, exam_type: Opti
 def calculate_exam_analysis(db: Session, subject_id: int, exam_type: Optional[str] = None) -> Dict[str, Any]:
     """Calculate exam analysis."""
     query = db.query(Exam).filter(Exam.subject_id == subject_id)
-    if exam_type:
+    if exam_type and exam_type != "all":
         query = query.filter(Exam.exam_type == exam_type)
     
     exams = query.all()

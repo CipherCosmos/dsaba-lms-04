@@ -21,8 +21,12 @@ import ExamConfiguration from './pages/Teacher/ExamConfiguration'
 import MarksEntry from './pages/Teacher/MarksEntry'
 import TeacherAnalytics from './pages/Teacher/TeacherAnalytics'
 import AttainmentAnalytics from './pages/Teacher/AttainmentAnalytics'
-import ComprehensiveAnalytics from './pages/Teacher/ComprehensiveAnalytics'
 import ReportManagement from './pages/Teacher/ReportManagement'
+import ComprehensiveTeacherAnalytics from './pages/Teacher/ComprehensiveTeacherAnalytics'
+import TeacherStudentAnalytics from './pages/Teacher/StudentAnalytics'
+import QuestionAnalytics from './pages/Teacher/QuestionAnalytics'
+import ExamAnalytics from './pages/Teacher/ExamAnalytics'
+import PredictiveAnalytics from './pages/Teacher/PredictiveAnalytics'
 import StudentAnalytics from './pages/Student/StudentAnalytics'
 import StudentProgress from './pages/Student/StudentProgress'
 import HODAnalytics from './pages/HOD/HODAnalytics'
@@ -161,18 +165,50 @@ function App() {
           } 
         />
         <Route 
-          path="/teacher/comprehensive-analytics" 
-          element={
-            <ProtectedRoute allowedRoles={['teacher']}>
-              <ComprehensiveAnalytics />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
           path="/teacher/reports" 
           element={
             <ProtectedRoute allowedRoles={['teacher']}>
               <ReportManagement />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/comprehensive-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <ComprehensiveTeacherAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/student-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <TeacherStudentAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/question-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <QuestionAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/exam-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <ExamAnalytics />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/teacher/predictive-analytics" 
+          element={
+            <ProtectedRoute allowedRoles={['teacher']}>
+              <PredictiveAnalytics />
             </ProtectedRoute>
           } 
         />

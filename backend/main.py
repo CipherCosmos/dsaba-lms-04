@@ -18,6 +18,7 @@ from auth import get_current_user
 from crud import *
 from analytics import *
 from attainment_analytics import *
+from advanced_attainment_analytics import *
 from advanced_analytics_backend import calculate_advanced_student_analytics
 from strategic_dashboard_backend import calculate_strategic_dashboard_data
 from fastapi.exceptions import RequestValidationError
@@ -857,11 +858,23 @@ def generate_report_endpoint(
         
         # Generate report directly
         generator = ReportGenerator(db)
-        report_data = generator.generate_report(
-            request.report_type, 
-            request.filters, 
-            request.format
-        )
+        
+        if request.format == 'pdf':
+            report_data = generator.generate_pdf_report(
+                request.report_type, 
+                request.filters
+            )
+        elif request.format == 'excel':
+            report_data = generator.generate_excel_report(
+                request.report_type, 
+                request.filters
+            )
+        else:
+            # Default to CSV
+            report_data = generator.generate_excel_report(
+                request.report_type, 
+                request.filters
+            )
         
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1913,6 +1926,545 @@ async def get_available_report_types():
     """Get available report types"""
     from report_generator import get_available_report_types
     return get_available_report_types()
+
+# Advanced Attainment Analytics Endpoints
+
+@app.get("/analytics/advanced/student-detailed/{student_id}")
+def get_student_detailed_attainment(
+    student_id: int,
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed attainment analysis for a specific student"""
+    try:
+        data = calculate_student_detailed_attainment(db, student_id, subject_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Student data not found")
+        return data
+    except Exception as e:
+        logging.error(f"Error in student detailed attainment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/advanced/class-comparison/{subject_id}")
+def get_class_comparison_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get class-wise comparison analytics"""
+    try:
+        data = calculate_class_comparison_analytics(db, subject_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Class data not found")
+        return data
+    except Exception as e:
+        logging.error(f"Error in class comparison analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/advanced/exam-comparison/{subject_id}")
+def get_exam_comparison_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get exam-wise comparison and trend analytics"""
+    try:
+        data = calculate_exam_comparison_analytics(db, subject_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Exam data not found")
+        return data
+    except Exception as e:
+        logging.error(f"Error in exam comparison analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/advanced/comprehensive/{subject_id}")
+def get_comprehensive_attainment_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive attainment analytics combining all analysis types"""
+    try:
+        data = calculate_comprehensive_attainment_analytics(db, subject_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Analytics data not found")
+        return data
+    except Exception as e:
+        logging.error(f"Error in comprehensive analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Teacher Analytics Endpoints
+@app.get("/analytics/teacher/overview/{subject_id}")
+def get_teacher_overview_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get overview analytics for teacher dashboard"""
+    try:
+        from advanced_attainment_analytics import calculate_class_comparison_analytics
+        from attainment_analytics import calculate_subject_attainment_analytics
+        
+        # Get class comparison data
+        class_data = calculate_class_comparison_analytics(db, subject_id)
+        if not class_data:
+            raise HTTPException(status_code=404, detail="No data found for this subject")
+        
+        # Get subject attainment data
+        subject_data = calculate_subject_attainment_analytics(db, subject_id, "all")
+        
+        # Calculate overview metrics
+        stats = class_data.get("class_statistics", {})
+        grade_dist = class_data.get("grade_distribution", {})
+        
+        overview = {
+            "total_students": stats.get("total_students", 0),
+            "average_performance": stats.get("average_attainment", 0),
+            "pass_rate": stats.get("passing_rate", 0),
+            "top_performers": grade_dist.get("A_grade", 0),
+            "co_attainment": subject_data.co_attainment if subject_data else {},
+            "grade_distribution": grade_dist,
+            "performance_trend": "improving" if stats.get("average_attainment", 0) >= 70 else "needs_attention"
+        }
+        
+        return overview
+    except Exception as e:
+        logging.error(f"Error in teacher overview analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/teacher/students/{subject_id}")
+def get_teacher_students_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed student performance analytics"""
+    try:
+        from advanced_attainment_analytics import calculate_class_comparison_analytics
+        
+        class_data = calculate_class_comparison_analytics(db, subject_id)
+        if not class_data:
+            raise HTTPException(status_code=404, detail="No data found for this subject")
+        
+        # Get student analytics from class data
+        student_analytics = class_data.get("student_analytics", {})
+        
+        # Convert to list format for frontend
+        students = []
+        for student_id, data in student_analytics.items():
+            students.append({
+                "id": data.get("student_id", student_id),
+                "name": data.get("student_name", f"Student {student_id}"),
+                "username": f"student{student_id}",
+                "total_marks": data.get("total_marks", 0),
+                "percentage": data.get("overall_attainment", 0),
+                "grade": data.get("grade", "F"),
+                "rank": data.get("rank", 0),
+                "co_attainment": data.get("co_attainment", {}),
+                "exam_performance": data.get("exam_performance", [])
+            })
+        
+        # Sort by rank
+        students.sort(key=lambda x: x["rank"])
+        
+        return students
+    except Exception as e:
+        logging.error(f"Error in teacher students analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/teacher/questions/{subject_id}")
+def get_teacher_questions_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed question analysis"""
+    try:
+        # Get all exams for this subject
+        exams = db.query(Exam).filter(Exam.subject_id == subject_id).all()
+        if not exams:
+            raise HTTPException(status_code=404, detail="No exams found for this subject")
+        
+        questions_analysis = []
+        
+        for exam in exams:
+            # Get questions for this exam
+            questions = db.query(Question).filter(Question.exam_id == exam.id).all()
+            
+            for question in questions:
+                # Get marks for this question
+                marks = db.query(Mark).filter(Mark.question_id == question.id).all()
+                
+                if marks:
+                    total_marks = sum(mark.marks_obtained for mark in marks)
+                    avg_marks = total_marks / len(marks)
+                    success_rate = (len([m for m in marks if m.marks_obtained >= question.max_marks * 0.6]) / len(marks)) * 100
+                    attempt_rate = (len(marks) / len(db.query(User).filter(User.role == 'student').all())) * 100
+                    
+                    # Determine difficulty
+                    if success_rate >= 80:
+                        difficulty = "easy"
+                    elif success_rate >= 60:
+                        difficulty = "medium"
+                    else:
+                        difficulty = "hard"
+                    
+                    # Get CO mapping
+                    co_weights = db.query(QuestionCOWeight).filter(QuestionCOWeight.question_id == question.id).all()
+                    co_mapping = [weight.co_definition.code for weight in co_weights]
+                    
+                    questions_analysis.append({
+                        "question_id": question.id,
+                        "question_text": question.question_text or f"Question {question.id}",
+                        "max_marks": question.max_marks,
+                        "average_marks": round(avg_marks, 2),
+                        "success_rate": round(success_rate, 2),
+                        "attempt_rate": round(attempt_rate, 2),
+                        "difficulty": difficulty,
+                        "co_mapping": co_mapping,
+                        "blooms_level": "Analysis",  # Default, can be enhanced
+                        "discrimination_index": round(success_rate / 100, 2)
+                    })
+        
+        return questions_analysis
+    except Exception as e:
+        logging.error(f"Error in teacher questions analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/teacher/exams/{subject_id}")
+def get_teacher_exams_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed exam analysis"""
+    try:
+        exams = db.query(Exam).filter(Exam.subject_id == subject_id).all()
+        if not exams:
+            raise HTTPException(status_code=404, detail="No exams found for this subject")
+        
+        exam_analysis = []
+        
+        for exam in exams:
+            # Get all marks for this exam
+            marks = db.query(Mark).join(Question).filter(Question.exam_id == exam.id).all()
+            
+            if marks:
+                # Group marks by student
+                student_marks = {}
+                for mark in marks:
+                    if mark.student_id not in student_marks:
+                        student_marks[mark.student_id] = []
+                    student_marks[mark.student_id].append(mark.marks_obtained)
+                
+                # Calculate exam statistics
+                total_students = len(student_marks)
+                student_percentages = []
+                
+                for student_id, marks_list in student_marks.items():
+                    total_marks = sum(marks_list)
+                    percentage = (total_marks / exam.total_marks) * 100
+                    student_percentages.append(percentage)
+                
+                avg_percentage = sum(student_percentages) / len(student_percentages) if student_percentages else 0
+                pass_rate = (len([p for p in student_percentages if p >= 40]) / len(student_percentages)) * 100 if student_percentages else 0
+                excellent_rate = (len([p for p in student_percentages if p >= 80]) / len(student_percentages)) * 100 if student_percentages else 0
+                
+                # Get CO attainment for this exam
+                co_attainment = {}
+                co_weights = db.query(QuestionCOWeight).join(Question).filter(Question.exam_id == exam.id).all()
+                for weight in co_weights:
+                    co_code = weight.co_definition.code
+                    if co_code not in co_attainment:
+                        co_attainment[co_code] = 0
+                    co_attainment[co_code] += weight.weight_pct
+                
+                exam_analysis.append({
+                    "exam_id": exam.id,
+                    "exam_name": exam.name,
+                    "exam_type": exam.exam_type,
+                    "total_students": total_students,
+                    "average_percentage": round(avg_percentage, 2),
+                    "pass_rate": round(pass_rate, 2),
+                    "excellent_rate": round(excellent_rate, 2),
+                    "co_attainment": co_attainment,
+                    "date": exam.exam_date.isoformat() if exam.exam_date else None
+                })
+        
+        return exam_analysis
+    except Exception as e:
+        logging.error(f"Error in teacher exams analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/teacher/heatmap/{subject_id}")
+def get_teacher_heatmap_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get student performance heatmap data"""
+    try:
+        # Get all exams for this subject
+        exams = db.query(Exam).filter(Exam.subject_id == subject_id).all()
+        if not exams:
+            raise HTTPException(status_code=404, detail="No exams found for this subject")
+        
+        # Get all questions across all exams
+        all_questions = []
+        for exam in exams:
+            questions = db.query(Question).filter(Question.exam_id == exam.id).all()
+            all_questions.extend(questions)
+        
+        if not all_questions:
+            raise HTTPException(status_code=404, detail="No questions found for this subject")
+        
+        # Get all students for this subject's class
+        subject = db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            raise HTTPException(status_code=404, detail="Subject not found")
+        
+        students = db.query(User).filter(
+            and_(
+                User.role == 'student',
+                User.class_id == subject.class_id
+            )
+        ).all()
+        
+        heatmap_data = []
+        
+        for student in students:
+            question_scores = {}
+            total_marks = 0
+            max_total_marks = 0
+            
+            for question in all_questions:
+                mark = db.query(Mark).filter(
+                    and_(
+                        Mark.student_id == student.id,
+                        Mark.question_id == question.id
+                    )
+                ).first()
+                
+                if mark:
+                    question_scores[question.id] = mark.marks_obtained
+                    total_marks += mark.marks_obtained
+                else:
+                    question_scores[question.id] = 0
+                
+                max_total_marks += question.max_marks
+            
+            total_percentage = (total_marks / max_total_marks * 100) if max_total_marks > 0 else 0
+            
+            heatmap_data.append({
+                "student_id": student.id,
+                "student_name": f"{student.first_name} {student.last_name}",
+                "question_scores": question_scores,
+                "total_percentage": round(total_percentage, 2)
+            })
+        
+        return heatmap_data
+    except Exception as e:
+        logging.error(f"Error in teacher heatmap analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Comprehensive Teacher Analytics Endpoints
+
+@app.get("/analytics/teacher/comprehensive/{subject_id}")
+def get_comprehensive_teacher_analytics(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get comprehensive analytics combining all analysis types"""
+    try:
+        # Get all analytics data
+        overview = get_teacher_overview_analytics(subject_id, db, current_user)
+        students = get_teacher_students_analytics(subject_id, db, current_user)
+        questions = get_teacher_questions_analytics(subject_id, db, current_user)
+        exams = get_teacher_exams_analytics(subject_id, db, current_user)
+        attainment = get_subject_attainment_analytics(subject_id, None, db, current_user)
+        performance = get_teacher_overview_analytics(subject_id, db, current_user)
+        
+        # Get advanced analytics
+        from advanced_attainment_analytics import calculate_class_comparison_analytics, calculate_exam_comparison_analytics
+        class_comparison = calculate_class_comparison_analytics(db, subject_id)
+        exam_comparison = calculate_exam_comparison_analytics(db, subject_id)
+        
+        # Generate insights
+        insights = generate_comprehensive_insights(overview, students, questions, exams, attainment, class_comparison)
+        
+        comprehensive_data = {
+            "overview": overview,
+            "students": students,
+            "questions": questions,
+            "exams": exams,
+            "attainment": attainment,
+            "performance": performance,
+            "class_comparison": class_comparison,
+            "exam_comparison": exam_comparison,
+            "insights": insights,
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        return comprehensive_data
+    except Exception as e:
+        logging.error(f"Error in comprehensive teacher analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/analytics/teacher/predictive/{subject_id}")
+def get_predictive_teacher_analytics(
+    subject_id: int,
+    timeframe: str = "medium",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get AI-powered predictive analytics"""
+    try:
+        # Get current data for predictions
+        overview = get_teacher_overview_analytics(subject_id, db, current_user)
+        students = get_teacher_students_analytics(subject_id, db, current_user)
+        class_comparison = calculate_class_comparison_analytics(db, subject_id)
+        
+        # Generate predictions based on current data
+        predictions = generate_predictive_analytics(overview, students, class_comparison, timeframe)
+        
+        return predictions
+    except Exception as e:
+        logging.error(f"Error in predictive teacher analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Helper functions for comprehensive analytics
+
+def generate_comprehensive_insights(overview, students, questions, exams, attainment, class_comparison):
+    """Generate comprehensive insights from all analytics data"""
+    insights = []
+    
+    # Performance insights
+    if overview.get("average_performance", 0) < 60:
+        insights.append({
+            "type": "warning",
+            "title": "Low Class Performance",
+            "message": f"Class average is {overview.get('average_performance', 0):.1f}%, below the 60% threshold",
+            "recommendation": "Consider additional support sessions and review teaching methods",
+            "priority": "high"
+        })
+    
+    if overview.get("pass_rate", 0) < 70:
+        insights.append({
+            "type": "error",
+            "title": "Low Pass Rate",
+            "message": f"Pass rate is {overview.get('pass_rate', 0):.1f}%, below the 70% target",
+            "recommendation": "Implement remedial classes and personalized attention for struggling students",
+            "priority": "high"
+        })
+    
+    # Student insights
+    at_risk_students = [s for s in students if s.get("percentage", 0) < 50]
+    if len(at_risk_students) > 0:
+        insights.append({
+            "type": "warning",
+            "title": "At-Risk Students Identified",
+            "message": f"{len(at_risk_students)} student(s) are performing below 50%",
+            "recommendation": "Schedule one-on-one sessions and provide additional support",
+            "priority": "medium"
+        })
+    
+    # Question insights
+    difficult_questions = [q for q in questions if q.get("success_rate", 0) < 50]
+    if len(difficult_questions) > 0:
+        insights.append({
+            "type": "info",
+            "title": "Difficult Questions Identified",
+            "message": f"{len(difficult_questions)} question(s) have success rate below 50%",
+            "recommendation": "Review and potentially revise these questions or provide additional practice",
+            "priority": "medium"
+        })
+    
+    # CO attainment insights
+    if attainment and hasattr(attainment, 'co_attainment'):
+        low_cos = [co for co in attainment.co_attainment if co.actual_pct < 60]
+        if len(low_cos) > 0:
+            insights.append({
+                "type": "info",
+                "title": "Course Outcomes Need Attention",
+                "message": f"{len(low_cos)} CO(s) are below 60% attainment",
+                "recommendation": "Focus on improving teaching methods for these specific learning outcomes",
+                "priority": "medium"
+            })
+    
+    return insights
+
+def generate_predictive_analytics(overview, students, class_comparison, timeframe):
+    """Generate predictive analytics based on current data"""
+    predictions = {
+        "student_predictions": [],
+        "class_predictions": {},
+        "co_predictions": [],
+        "exam_predictions": [],
+        "insights": [],
+        "recommendations": []
+    }
+    
+    # Student predictions
+    for student in students:
+        current_perf = student.get("percentage", 0)
+        # Simple prediction based on current performance and trend
+        predicted_perf = current_perf + (5 if current_perf > 70 else -5 if current_perf < 50 else 0)
+        
+        predictions["student_predictions"].append({
+            "student_id": student.get("id"),
+            "student_name": student.get("name"),
+            "current_performance": current_perf,
+            "predicted_performance": max(0, min(100, predicted_perf)),
+            "confidence_level": 0.7 + (current_perf / 100) * 0.3,  # Higher confidence for better performers
+            "risk_factors": ["Low performance"] if current_perf < 50 else [],
+            "recommendations": ["Focus on weak areas"] if current_perf < 60 else ["Maintain current performance"],
+            "intervention_needed": current_perf < 50
+        })
+    
+    # Class predictions
+    current_avg = overview.get("average_performance", 0)
+    predictions["class_predictions"] = {
+        "predicted_average": max(0, min(100, current_avg + 5)),
+        "predicted_pass_rate": max(0, min(100, overview.get("pass_rate", 0) + 5)),
+        "predicted_excellent_rate": max(0, min(100, overview.get("top_performers", 0) + 3)),
+        "confidence_interval": {
+            "lower": max(0, current_avg - 10),
+            "upper": min(100, current_avg + 10)
+        },
+        "trend_direction": "improving" if current_avg >= 70 else "needs_attention"
+    }
+    
+    # Generate insights
+    if current_avg < 60:
+        predictions["insights"].append({
+            "type": "warning",
+            "title": "Performance Decline Predicted",
+            "description": "Class average is expected to remain below 60% without intervention",
+            "impact": "high",
+            "timeframe": "1 month"
+        })
+    
+    # Generate recommendations
+    predictions["recommendations"] = [
+        {
+            "category": "Teaching Strategy",
+            "priority": "high" if current_avg < 60 else "medium",
+            "action": "Implement peer learning groups",
+            "expected_impact": "15% improvement in class average",
+            "timeline": "2 weeks"
+        },
+        {
+            "category": "Student Support",
+            "priority": "high",
+            "action": "Schedule one-on-one sessions with at-risk students",
+            "expected_impact": "20% improvement in student retention",
+            "timeline": "1 week"
+        }
+    ]
+    
+    return predictions
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

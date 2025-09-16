@@ -999,7 +999,7 @@ class ReportGenerator:
                     co_data = self.get_co_attainment_data(subject_id, exam_type)
                     if co.id in co_data.get('co_attainment', {}):
                         attainment = co_data['co_attainment'][co.id]['attainment_percentage']
-                        weight = mapping.weight or 1
+                        weight = mapping.strength or 1
                         weighted_attainment += attainment * weight
                         total_weight += weight
                         
@@ -2298,6 +2298,186 @@ class ReportGenerator:
     
     def generate_class_analytics_excel(self, data: Dict, filters: Dict) -> bytes:
         return self.generate_student_performance_excel([], None, [], filters)
+
+    def get_subject_attainment_data(self, subject_id: int, exam_type: str = "all") -> Dict:
+        """Get subject attainment data for reports"""
+        from attainment_analytics import calculate_subject_attainment_analytics
+        
+        try:
+            data = calculate_subject_attainment_analytics(self.db, subject_id, exam_type)
+            return {
+                "subject_id": subject_id,
+                "subject_name": data.subject_name,
+                "co_attainment": data.co_attainment,
+                "po_attainment": data.po_attainment,
+                "overall_attainment": data.overall_attainment,
+                "target_attainment": data.target_attainment,
+                "recommendations": data.recommendations,
+                "performance_metrics": data.performance_metrics
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_class_performance_data(self, subject_id: int, exam_type: str = "all") -> Dict:
+        """Get class performance data for reports"""
+        from advanced_attainment_analytics import calculate_class_comparison_analytics
+        
+        try:
+            data = calculate_class_comparison_analytics(self.db, subject_id)
+            return {
+                "subject_id": subject_id,
+                "class_statistics": data.get("class_statistics", {}),
+                "grade_distribution": data.get("grade_distribution", {}),
+                "co_performance": data.get("co_performance", {}),
+                "top_performers": data.get("top_performers", []),
+                "bottom_performers": data.get("bottom_performers", [])
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def generate_pdf_report(self, report_type: str, filters: Dict) -> bytes:
+        """Generate PDF report"""
+        try:
+            # Get data based on report type
+            if report_type == 'subject_attainment':
+                data = self.get_subject_attainment_data(filters['subject_id'], filters.get('exam_type', 'all'))
+            elif report_type == 'class_performance':
+                data = self.get_class_performance_data(filters['subject_id'], filters.get('exam_type', 'all'))
+            elif report_type == 'co_po_mapping':
+                data = self.get_co_po_mapping_data(filters['subject_id'])
+            elif report_type == 'teacher_analytics':
+                data = self.get_teacher_analytics_data(filters['subject_id'], filters.get('tab', 'overview'))
+            else:
+                data = {"error": f"Unknown report type: {report_type}"}
+            
+            # Generate HTML content
+            html_content = self._generate_html_report(report_type, data, filters)
+            
+            # Convert to PDF (simplified - in production, use weasyprint or similar)
+            return html_content.encode('utf-8')
+            
+        except Exception as e:
+            return f"Error generating report: {str(e)}".encode('utf-8')
+
+    def generate_excel_report(self, report_type: str, filters: Dict) -> bytes:
+        """Generate Excel report"""
+        try:
+            # Get data based on report type
+            if report_type == 'subject_attainment':
+                data = self.get_subject_attainment_data(filters['subject_id'], filters.get('exam_type', 'all'))
+            elif report_type == 'class_performance':
+                data = self.get_class_performance_data(filters['subject_id'], filters.get('exam_type', 'all'))
+            elif report_type == 'co_po_mapping':
+                data = self.get_co_po_mapping_data(filters['subject_id'])
+            elif report_type == 'teacher_analytics':
+                data = self.get_teacher_analytics_data(filters['subject_id'], filters.get('tab', 'overview'))
+            else:
+                data = {"error": f"Unknown report type: {report_type}"}
+            
+            # Generate CSV content (simplified)
+            csv_content = self._generate_csv_report(report_type, data, filters)
+            return csv_content.encode('utf-8')
+            
+        except Exception as e:
+            return f"Error generating report: {str(e)}".encode('utf-8')
+
+    def _generate_html_report(self, report_type: str, data: Dict, filters: Dict) -> str:
+        """Generate HTML content for reports"""
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>{report_type.replace('_', ' ').title()} Report</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .section {{ margin-bottom: 25px; }}
+                table {{ width: 100%; border-collapse: collapse; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                th {{ background-color: #f2f2f2; }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>{report_type.replace('_', ' ').title()} Report</h1>
+                <p>Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+        """
+        
+        if report_type == 'subject_attainment':
+            html += f"""
+                <div class="section">
+                    <h2>Subject: {data.get('subject_name', 'N/A')}</h2>
+                    <p>Overall Attainment: {data.get('overall_attainment', 0)}%</p>
+                    <p>Target Attainment: {data.get('target_attainment', 0)}%</p>
+                </div>
+            """
+        elif report_type == 'class_performance':
+            stats = data.get('class_statistics', {})
+            html += f"""
+                <div class="section">
+                    <h2>Class Performance</h2>
+                    <p>Total Students: {stats.get('total_students', 0)}</p>
+                    <p>Average Attainment: {stats.get('average_attainment', 0)}%</p>
+                    <p>Passing Rate: {stats.get('passing_rate', 0)}%</p>
+                </div>
+            """
+        
+        html += """
+        </body>
+        </html>
+        """
+        return html
+
+    def _generate_csv_report(self, report_type: str, data: Dict, filters: Dict) -> str:
+        """Generate CSV content for reports"""
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        if report_type == 'subject_attainment':
+            writer.writerow(['Subject Attainment Report'])
+            writer.writerow(['Subject:', data.get('subject_name', 'N/A')])
+            writer.writerow(['Overall Attainment:', f"{data.get('overall_attainment', 0)}%"])
+            writer.writerow(['Target Attainment:', f"{data.get('target_attainment', 0)}%"])
+            writer.writerow([])
+            
+            # CO Attainment
+            writer.writerow(['CO Attainment'])
+            writer.writerow(['CO Code', 'Target %', 'Actual %', 'Gap'])
+            for co in data.get('co_attainment', []):
+                writer.writerow([
+                    co.get('co_code', ''),
+                    co.get('target_pct', 0),
+                    co.get('actual_pct', 0),
+                    co.get('gap', 0)
+                ])
+                
+        elif report_type == 'class_performance':
+            stats = data.get('class_statistics', {})
+            writer.writerow(['Class Performance Report'])
+            writer.writerow(['Total Students:', stats.get('total_students', 0)])
+            writer.writerow(['Average Attainment:', f"{stats.get('average_attainment', 0)}%"])
+            writer.writerow(['Passing Rate:', f"{stats.get('passing_rate', 0)}%"])
+            writer.writerow(['Excellent Rate:', f"{stats.get('excellent_rate', 0)}%"])
+        
+        return output.getvalue()
+
+    def get_teacher_analytics_data(self, subject_id: int, tab: str = 'overview') -> Dict:
+        """Get teacher analytics data for reports"""
+        try:
+            # This would fetch data from the teacher analytics endpoints
+            # For now, return a basic structure
+            return {
+                "subject_id": subject_id,
+                "tab": tab,
+                "data": "Teacher analytics data",
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {"error": str(e)}
     
     def generate_class_analytics_csv(self, data: Dict, filters: Dict) -> bytes:
         return self.generate_student_performance_csv([], None, [], filters)

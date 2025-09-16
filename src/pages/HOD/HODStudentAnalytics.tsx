@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../store/store'
+import { fetchHODAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
@@ -33,6 +34,7 @@ import { TrendingUp, Users, Award, Target, Download, Search } from 'lucide-react
 const HODStudentAnalytics: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { user } = useSelector((state: RootState) => state.auth)
+  const { hodAnalytics, loading } = useSelector((state: RootState) => state.analytics)
   const { users } = useSelector((state: RootState) => state.users)
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { classes } = useSelector((state: RootState) => state.classes)
@@ -43,105 +45,52 @@ const HODStudentAnalytics: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
+    if (user?.department_id) {
+      dispatch(fetchHODAnalytics(user.department_id))
+    }
     dispatch(fetchUsers())
     dispatch(fetchSubjects())
     dispatch(fetchClasses())
     dispatch(fetchExams())
-  }, [dispatch])
+  }, [dispatch, user])
 
-  // Filter data for HOD's department
-  const departmentUsers = users.filter(u => u.department_id === user?.department_id)
-  const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
-  const departmentSubjects = subjects.filter(s => {
-    const subjectClass = classes.find(c => c.id === s.class_id)
-    return subjectClass?.department_id === user?.department_id
-  })
-  const departmentExams = exams.filter(e => {
-    const examSubject = subjects.find(s => s.id === e.subject_id)
-    const subjectClass = classes.find(c => c.id === examSubject?.class_id)
-    return subjectClass?.department_id === user?.department_id
-  })
+  // Use real analytics data from backend
+  const performanceData = hodAnalytics?.subject_performance?.map(subject => ({
+    name: subject.subject_name,
+    class: 'Department Average',
+    percentage: Math.round(subject.average_percentage),
+    exams: 1, // This would need to be calculated from actual exam data
+    status: subject.average_percentage >= 80 ? 'Excellent' : subject.average_percentage >= 60 ? 'Good' : 'Needs Improvement'
+  })) || []
 
-  // Get students from selected class or all department students
-  const students = selectedClass 
-    ? departmentUsers.filter(u => u.role === 'student' && u.class_id === selectedClass)
-    : departmentUsers.filter(u => u.role === 'student')
+  const classPerformanceData = hodAnalytics?.teacher_performance?.map(teacher => ({
+    class: teacher.teacher_name,
+    students: 0, // This would need to be calculated from actual student data
+    average: Math.round(teacher.average_class_performance),
+    semester: 'Current'
+  })) || []
 
-  // Filter students by search term
-  const filteredStudents = students.filter(student =>
-    student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const subjectPerformanceData = hodAnalytics?.subject_performance || []
 
-  // Calculate performance data
-  const performanceData = filteredStudents.map(student => {
-    const studentExams = departmentExams.filter(exam => {
-      const examSubject = subjects.find(s => s.id === exam.subject_id)
-      const subjectClass = classes.find(c => c.id === examSubject?.class_id)
-      return subjectClass?.id === student.class_id
-    })
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary-600 border-t-transparent"></div>
+      </div>
+    )
+  }
 
-    const totalMarks = studentExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-    const averagePercentage = studentExams.length > 0 ? (totalMarks / studentExams.length) : 0
-
-    return {
-      name: `${student.first_name} ${student.last_name}`,
-      class: classes.find(c => c.id === student.class_id)?.name || 'Unknown',
-      percentage: Math.round(averagePercentage),
-      exams: studentExams.length,
-      status: averagePercentage >= 80 ? 'Excellent' : averagePercentage >= 60 ? 'Good' : 'Needs Improvement'
-    }
-  })
-
-  // Class performance data
-  const classPerformanceData = departmentClasses.map(cls => {
-    const classStudents = students.filter(s => s.class_id === cls.id)
-    const classExams = departmentExams.filter(exam => {
-      const examSubject = subjects.find(s => s.id === exam.subject_id)
-      return examSubject?.class_id === cls.id
-    })
-
-    const totalPercentage = classStudents.reduce((sum, _student) => {
-      const studentExams = classExams.filter(exam => {
-        const examSubject = subjects.find(s => s.id === exam.subject_id)
-        return examSubject?.class_id === cls.id
-      })
-      const totalMarks = studentExams.reduce((s, exam) => s + (exam.total_marks || 0), 0)
-      return sum + (studentExams.length > 0 ? totalMarks / studentExams.length : 0)
-    }, 0)
-
-    const averagePercentage = classStudents.length > 0 ? totalPercentage / classStudents.length : 0
-
-    return {
-      class: cls.name,
-      students: classStudents.length,
-      average: Math.round(averagePercentage),
-      semester: cls.semester
-    }
-  })
-
-  // Subject performance data
-  const subjectPerformanceData = departmentSubjects.map(subject => {
-    const subjectExams = departmentExams.filter(exam => exam.subject_id === subject.id)
-    const subjectStudents = students.filter(s => s.class_id === subject.class_id)
-
-    const totalPercentage = subjectStudents.reduce((sum, _student) => {
-      const studentExams = subjectExams
-      const totalMarks = studentExams.reduce((s, exam) => s + (exam.total_marks || 0), 0)
-      return sum + (studentExams.length > 0 ? totalMarks / studentExams.length : 0)
-    }, 0)
-
-    const averagePercentage = subjectStudents.length > 0 ? totalPercentage / subjectStudents.length : 0
-
-    return {
-      subject: subject.name,
-      code: subject.code,
-      average: Math.round(averagePercentage),
-      students: subjectStudents.length,
-      exams: subjectExams.length
-    }
-  })
+  // Show error state if no data
+  if (!hodAnalytics) {
+    return (
+      <div className="text-center py-12">
+        <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500">No analytics data available</p>
+        <p className="text-sm text-gray-400">Department data will appear once exams are conducted</p>
+      </div>
+    )
+  }
 
   // Grade distribution
   const gradeDistribution = [

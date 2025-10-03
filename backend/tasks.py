@@ -5,6 +5,7 @@ from schemas import ReportGenerateRequest
 import json
 from datetime import datetime
 from s3_utils import upload_report_to_s3, generate_presigned_url
+from typing import Optional
 
 @shared_task
 def generate_async_report(report_type: str, filters: dict, format_type: str = 'pdf'):

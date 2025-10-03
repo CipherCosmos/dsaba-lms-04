@@ -15,11 +15,15 @@ export default defineConfig({
       }
     }
   },
+  optimizeDeps: {
+    include: ['react', 'react-dom', '@reduxjs/toolkit', 'react-redux', 'react-router-dom', 'axios', 'chart.js', 'react-chartjs-2', 'lucide-react', 'react-hook-form', 'yup', 'date-fns', 'xlsx']
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
     rollupOptions: {
+      input: 'index.html',
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],

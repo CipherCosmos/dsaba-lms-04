@@ -341,13 +341,16 @@ def generate_class_analysis_report(db: Session, filters: Dict[str, Any], format_
         exam_ids = [e.id for e in exams]
         marks = db.query(Mark).filter(Mark.exam_id.in_(exam_ids)).all()
         
-        class_data = students.map(student => {
-            student_marks = marks.filter(m => m.student_id == student.id)
+        class_data = []
+        for student in students:
+            student_marks = [m for m in marks if m.student_id == student.id]
             total_obtained = sum(m.marks_obtained for m in student_marks)
             total_possible = sum(m.question.max_marks for m in student_marks if m.question)
             avg = (total_obtained / total_possible * 100) if total_possible > 0 else 0
-            return { student: student.first_name + ' ' + student.last_name, avg }
-        })
+            class_data.append({
+                'student': f"{student.first_name} {student.last_name}",
+                'avg': avg
+            })
         
         # Create report
         buffer = BytesIO()
@@ -373,11 +376,10 @@ def generate_class_analysis_report(db: Session, filters: Dict[str, Any], format_
         
         # Class statistics
         table_data = [["Student", "Average %", "Grade"]]
-        class_data.sort((a, b) => b.avg - a.avg)
-        class_data.forEach((data, idx) => {
-            grade = data.avg >= 90 ? 'A+' : data.avg >= 80 ? 'A' : data.avg >= 70 ? 'B+' : data.avg >= 60 ? 'B' : data.avg >= 50 ? 'C' : 'F'
-            table_data.push([data.student, `${data.avg.toFixed(1)}%`, grade])
-        })
+        class_data.sort(key=lambda x: x['avg'], reverse=True)
+        for data in class_data:
+            grade = 'A+' if data['avg'] >= 90 else 'A' if data['avg'] >= 80 else 'B+' if data['avg'] >= 70 else 'B' if data['avg'] >= 60 else 'C' if data['avg'] >= 50 else 'F'
+            table_data.append([data['student'], f"{data['avg']:.1f}%", grade])
         
         table = Table(table_data)
         table.setStyle(TableStyle([

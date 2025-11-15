@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchExams, createExam, updateExam, deleteExam, clearExams } from '../../store/slices/examSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { coAPI, poAPI, attainmentAnalyticsAPI } from '../../services/api'
+import { coAPI, poAPI, attainmentAnalyticsAPI, subjectAssignmentAPI, pdfGenerationAPI } from '../../services/api'
 import { 
   Plus, Edit2, Trash2, Settings, Calendar, Clock, FileText, Target, Layers, 
   CheckCircle, X, Search, Filter, Download, Upload, Copy, Eye, BarChart3,
@@ -16,9 +16,9 @@ import {
 import { logger } from '../../core/utils/logger'
 
 const questionSchema = yup.object({
-  question_number: yup.string().required('Question number is required'),
+  question_no: yup.string().required('Question number is required'),
   question_text: yup.string().required('Question text is required'),
-  max_marks: yup.number().min(0.5, 'Minimum 0.5 marks').required('Marks required'),
+  marks_per_question: yup.number().min(0.5, 'Minimum 0.5 marks').required('Marks required'),
   section: yup.string().oneOf(['A', 'B', 'C']).required('Section is required'),
   blooms_level: yup.string().required('Blooms level is required'),
   difficulty: yup.string().oneOf(['easy', 'medium', 'hard']).required('Difficulty is required'),
@@ -31,11 +31,12 @@ const questionSchema = yup.object({
 
 const examSchema = yup.object({
   name: yup.string().required('Exam name is required'),
-  subject_id: yup.number().required('Subject is required'),
-  exam_type: yup.string().oneOf(['internal1', 'internal2', 'final']).required('Exam type is required'),
+  subject_assignment_id: yup.number().required('Subject assignment is required').positive('Please select a subject assignment'),
+  exam_type: yup.string().oneOf(['internal1', 'internal2', 'external']).required('Exam type is required'), // Backend uses 'external', not 'final'
   exam_date: yup.date().nullable(),
-  duration: yup.number().min(30).max(300).nullable(),
+  duration_minutes: yup.number().min(30).max(300).nullable(), // Backend uses duration_minutes
   total_marks: yup.number().min(1).required('Total marks is required'),
+  instructions: yup.string().nullable(),
   questions: yup.array().of(questionSchema).min(1, 'At least one question is required')
 })
 
@@ -97,6 +98,10 @@ const ExamConfiguration = () => {
   const [autoMapPOs, setAutoMapPOs] = useState(true)
   const [expandedMappings, setExpandedMappings] = useState<Set<number>>(new Set())
   
+  // Subject assignments state
+  const [subjectAssignments, setSubjectAssignments] = useState<any[]>([])
+  const [loadingAssignments, setLoadingAssignments] = useState(false)
+  
   // Enhanced UI state
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
@@ -120,15 +125,15 @@ const ExamConfiguration = () => {
     resolver: yupResolver(examSchema),
     defaultValues: {
       name: '',
-      subject_id: 0,
+      subject_assignment_id: 0,
       exam_type: 'internal1' as const,
       exam_date: undefined,
-      duration: 120,
+      duration_minutes: 120,
       total_marks: 0,
       questions: [{
-        question_number: '1',
+        question_no: '1',
         question_text: 'Enter your question here...',
-        max_marks: 10,
+        marks_per_question: 10,
         section: 'A' as const,
         blooms_level: 'Remember',
         difficulty: 'easy' as const,
@@ -145,7 +150,7 @@ const ExamConfiguration = () => {
   const watchedQuestions = watch('questions')
 
   // Form data is managed by react-hook-form
-  const totalMarks = watchedQuestions?.reduce((sum, q) => sum + (q.max_marks || 0), 0) || 0
+  const totalMarks = watchedQuestions?.reduce((sum, q) => sum + (q.marks_per_question || 0), 0) || 0
 
   // Force refresh function
   const forceRefresh = () => {
@@ -160,6 +165,28 @@ const ExamConfiguration = () => {
     dispatch(fetchExams(true) as any) // Force refresh = true
     dispatch(fetchSubjects())
   }
+
+  // Fetch subject assignments for current teacher
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      if (!user?.id) return
+      
+      try {
+        setLoadingAssignments(true)
+        const response = await subjectAssignmentAPI.getByUserId(user.id, 0, 100)
+        const assignments = Array.isArray(response) ? response : (response?.items || [])
+        setSubjectAssignments(assignments)
+        logger.debug('Subject assignments loaded:', assignments.length)
+      } catch (error) {
+        logger.error('Error fetching subject assignments:', error)
+        toast.error('Failed to load subject assignments')
+      } finally {
+        setLoadingAssignments(false)
+      }
+    }
+    
+    fetchAssignments()
+  }, [user?.id, refreshKey])
 
   useEffect(() => {
     logger.debug('Fetching exams on component mount')
@@ -244,37 +271,51 @@ const ExamConfiguration = () => {
     return Array.from(mappedPOs)
   }
 
-  // Watch for subject changes
-  const watchedSubjectId = watch('subject_id')
+  // Watch for subject assignment changes
+  const watchedSubjectAssignmentId = watch('subject_assignment_id')
   useEffect(() => {
-    if (watchedSubjectId) {
-      setSelectedSubjectId(watchedSubjectId)
-      fetchCOsAndPOs(watchedSubjectId)
+    if (watchedSubjectAssignmentId) {
+      // Get subject_id from the selected assignment
+      const assignment = subjectAssignments.find(a => a.id === watchedSubjectAssignmentId)
+      if (assignment?.subject_id) {
+        setSelectedSubjectId(assignment.subject_id)
+        fetchCOsAndPOs(assignment.subject_id)
+      }
     }
-  }, [watchedSubjectId, subjects])
+  }, [watchedSubjectAssignmentId, subjectAssignments])
 
   const onSubmit = async (data: ExamForm) => {
     try {
       logger.debug('Form data received:', data.questions?.length || 0, 'questions')
       
       // Convert date to ISO string if provided
+      // Map frontend format to backend format
       const examData = {
-        ...data,
-        exam_date: data.exam_date ? new Date(data.exam_date).toISOString() : undefined,
-        duration: data.duration || undefined,
-        questions: data.questions?.map((q: any, index: number) => {
-          // Ensure question_text is never null or empty
-          const questionText = q.question_text?.trim() || `Question ${q.question_number || (index + 1)}`
-          
-          return {
-          ...q,
-          id: q.id || index + 1,
-            question_text: questionText,
-            question_number: q.question_number || `${index + 1}`,
-          co_weights: q.co_weights?.filter((cw: any) => cw !== undefined) || []
-          }
-        }) || []
+        name: data.name,
+        subject_assignment_id: data.subject_assignment_id,
+        exam_type: data.exam_type,
+        exam_date: data.exam_date ? new Date(data.exam_date).toISOString().split('T')[0] : undefined,
+        duration_minutes: data.duration_minutes ?? undefined, // Convert null to undefined
+        total_marks: data.total_marks,
+        instructions: data.instructions ?? undefined, // Convert null to undefined
+        // Remove questions from exam data - they are created separately
       }
+      
+      // Prepare questions for separate creation
+      const questionsToCreate = data.questions?.map((q: any, index: number) => {
+        const questionText = q.question_text?.trim() || `Question ${q.question_no || (index + 1)}`
+        return {
+          question_no: q.question_no || `${index + 1}`,
+          question_text: questionText,
+          section: q.section,
+          marks_per_question: q.marks_per_question || 10,
+          required_count: q.required_count || 1,
+          optional_count: q.optional_count || 0,
+          blooms_level: q.blooms_level,
+          difficulty: q.difficulty,
+          co_weights: q.co_weights?.filter((cw: any) => cw !== undefined) || []
+        }
+      }) || []
       
       logger.debug('Exam data prepared for submission')
 
@@ -282,51 +323,153 @@ const ExamConfiguration = () => {
         logger.info('Updating exam:', editingExam.id)
         const result = await dispatch(updateExam({ id: editingExam.id, ...examData })).unwrap()
         logger.info('Exam updated successfully')
+        
+        // Update questions separately if they exist
+        if (questionsToCreate.length > 0) {
+          try {
+            const { questionAPI, questionCoWeightAPI } = await import('../../services/api')
+            // Get existing questions for this exam
+            const existingQuestions = await questionAPI.getAll(result.id)
+            const existingItems = existingQuestions.items || existingQuestions || []
+            
+            // Delete existing questions (or update if needed)
+            // For simplicity, we'll delete all and recreate
+            for (const existingQ of existingItems) {
+              try {
+                await questionAPI.delete(existingQ.id)
+              } catch (e) {
+                logger.warn('Failed to delete question:', existingQ.id, e)
+              }
+            }
+            
+            // Create new questions
+            for (const qData of questionsToCreate) {
+              const { co_weights, ...questionData } = qData
+              const createdQuestion = await questionAPI.create({
+                exam_id: result.id,
+                ...questionData
+              })
+              
+              // Create CO mappings if they exist
+              if (co_weights && co_weights.length > 0) {
+                await questionCoWeightAPI.bulkUpdate(createdQuestion.id, co_weights.map((cw: any) => ({
+                  co_id: cw.co_id,
+                  weight_pct: cw.weight_pct
+                })))
+              }
+            }
+            logger.info('Questions updated successfully')
+          } catch (qError: any) {
+            logger.error('Error updating questions:', qError)
+            toast.error('Exam updated but failed to update questions: ' + (qError.message || 'Unknown error'))
+          }
+        }
+        
         toast.success('Exam updated successfully!')
-        // Force refresh to ensure data is fresh
         forceRefresh()
       } else {
         logger.info('Creating new exam')
         const result = await dispatch(createExam(examData)).unwrap()
         logger.info('Exam created successfully')
+        
+        // Create questions separately after exam creation
+        if (questionsToCreate.length > 0) {
+          try {
+            const { questionAPI, questionCoWeightAPI } = await import('../../services/api')
+            for (const qData of questionsToCreate) {
+              const { co_weights, ...questionData } = qData
+              const createdQuestion = await questionAPI.create({
+                exam_id: result.id,
+                ...questionData
+              })
+              
+              // Create CO mappings if they exist
+              if (co_weights && co_weights.length > 0) {
+                await questionCoWeightAPI.bulkUpdate(createdQuestion.id, co_weights.map((cw: any) => ({
+                  co_id: cw.co_id,
+                  weight_pct: cw.weight_pct
+                })))
+              }
+            }
+            logger.info('Questions created successfully')
+          } catch (qError: any) {
+            logger.error('Error creating questions:', qError)
+            toast.error('Exam created but failed to create questions: ' + (qError.message || 'Unknown error'))
+          }
+        }
+        
         toast.success('Exam created successfully!')
-        // Force refresh to ensure data is fresh
         forceRefresh()
       }
       closeModal()
     } catch (error: any) {
+      logger.error('Error in onSubmit:', error)
       toast.error(error.message || 'An error occurred')
     }
   }
 
-  const handleEdit = (exam: any) => {
+  const handleEdit = async (exam: any) => {
     setEditingExam(exam)
     
+    // Fetch questions if not already loaded
+    let questions = exam.questions || []
+    if (!questions || questions.length === 0) {
+      try {
+        const { questionAPI, questionCoWeightAPI } = await import('../../services/api')
+        const questionsResponse = await questionAPI.getAll(exam.id)
+                const questionsItems = Array.isArray(questionsResponse) ? questionsResponse : (questionsResponse?.items || [])
+        
+        // Fetch CO mappings for each question
+        questions = await Promise.all(questionsItems.map(async (q: any) => {
+          try {
+            const coMappings = await questionCoWeightAPI.getByQuestion(q.id)
+            const coWeights = (Array.isArray(coMappings) ? coMappings : coMappings.items || []).map((m: any) => ({
+              co_id: m.co_id,
+              co_code: m.co_code || `CO${m.co_id}`,
+              weight_pct: m.weight_pct || 100
+            }))
+            return { ...q, co_weights: coWeights }
+          } catch (e) {
+            logger.warn('Failed to fetch CO mappings for question:', q.id, e)
+            return { ...q, co_weights: [] }
+          }
+        }))
+      } catch (error) {
+        logger.error('Error fetching questions:', error)
+        toast.error('Failed to load questions for this exam')
+        questions = []
+      }
+    }
+    
     // Reset form with exam data
-    reset({
-      name: exam.name,
-      subject_id: exam.subject_id,
-      exam_type: exam.exam_type,
-      exam_date: exam.exam_date ? new Date(exam.exam_date) : undefined,
-      duration: exam.duration,
-      total_marks: exam.total_marks,
-      questions: exam.questions?.length > 0 ? exam.questions.map((q: any, index: number) => ({
-        ...q,
-        question_text: q.question_text || `Enter your question here...`,
-        question_number: q.question_number || `${index + 1}`,
-        section: (q.section || 'A') as 'A' | 'B' | 'C',
-        difficulty: (q.difficulty || 'easy') as 'easy' | 'medium' | 'hard',
-        co_weights: q.co_weights || []
-      })) : [{
-        question_number: '1',
-        question_text: 'Enter your question here...',
-        max_marks: 10,
-        section: 'A',
-        blooms_level: 'Remember',
-        difficulty: 'easy',
-        co_weights: [],
-      }]
-    })
+    // Map backend format to frontend format
+            reset({
+              name: exam.name,
+              subject_assignment_id: exam.subject_assignment_id,
+              exam_type: exam.exam_type,
+              exam_date: exam.exam_date ? new Date(exam.exam_date) : undefined,
+              duration_minutes: exam.duration_minutes,
+              total_marks: exam.total_marks,
+              instructions: exam.instructions,
+              questions: questions.length > 0 ? questions.map((q: any) => ({
+                ...q,
+                question_text: q.question_text || `Enter your question here...`,
+                question_no: q.question_no || '1',
+                marks_per_question: q.marks_per_question || 10,
+                section: (q.section || 'A') as 'A' | 'B' | 'C',
+                blooms_level: q.blooms_level || 'Remember',
+                difficulty: (q.difficulty || 'easy') as 'easy' | 'medium' | 'hard',
+                co_weights: q.co_weights || []
+              })) : [{
+                question_no: '1',
+                question_text: 'Enter your question here...',
+                marks_per_question: 10,
+                section: 'A',
+                blooms_level: 'Remember',
+                difficulty: 'easy',
+                co_weights: [],
+              }]
+            })
     
     setIsModalOpen(true)
   }
@@ -356,28 +499,28 @@ const ExamConfiguration = () => {
     setEditingExam(null)
     reset({
       name: '',
-      subject_id: 0,
+      subject_assignment_id: 0,
       exam_type: 'internal1' as const,
       exam_date: undefined,
-      duration: 120,
+      duration_minutes: 120,
       total_marks: 0,
-      questions: [{
-        question_number: '1',
-        question_text: 'Enter your question here...',
-        max_marks: 10,
-        section: 'A' as const,
-        blooms_level: 'Remember',
-        difficulty: 'easy' as const,
-        co_weights: [],
-      }]
+              questions: [{
+                question_no: '1',
+                question_text: 'Enter your question here...',
+                marks_per_question: 10,
+                section: 'A' as const,
+                blooms_level: 'Remember',
+                difficulty: 'easy' as const,
+                co_weights: [],
+              }]
     })
   }
 
   const addQuestion = () => {
     const newQuestion = {
-      question_number: '',
+      question_no: '',
       question_text: 'Enter your question here...',
-      max_marks: 10,
+      marks_per_question: 10,
       section: 'A' as const,
       blooms_level: 'Remember',
       difficulty: 'easy' as const,
@@ -549,11 +692,13 @@ const ExamConfiguration = () => {
 
   // Enhanced filtering and sorting
   const teacherExams = useMemo(() => {
-    logger.debug('Filtering exams:', exams?.length || 0, 'total,', teacherSubjects.length, 'teacher subjects')
-    let filtered = exams?.filter(exam => {
-      const hasSubject = teacherSubjects.some(subject => subject.id === exam.subject_id)
-      return hasSubject
-    }) || []
+    logger.debug('Filtering exams:', exams?.length || 0, 'total,', subjectAssignments.length, 'subject assignments')
+            // Get assignment IDs for current teacher
+            const assignmentIds = new Set(subjectAssignments.map(a => a.id))
+            let filtered = exams?.filter(exam => {
+              // Check if exam belongs to one of teacher's subject assignments
+              return exam.subject_assignment_id && assignmentIds.has(exam.subject_assignment_id)
+            }) || []
     logger.debug('Filtered exams:', filtered.length)
 
     // Search filter
@@ -744,7 +889,7 @@ const ExamConfiguration = () => {
             <option value="all">All Types</option>
             <option value="internal1">Internal 1</option>
             <option value="internal2">Internal 2</option>
-            <option value="final">Final</option>
+            <option value="external">External</option>
           </select>
           <select
             value={sortBy}
@@ -822,7 +967,11 @@ const ExamConfiguration = () => {
       {/* Exams List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {teacherExams.map(exam => {
-          const subject = subjects.find(s => s.id === exam.subject_id)
+                      // Get subject from subject_assignment_id
+                      const assignment = subjectAssignments.find(a => a.id === exam.subject_assignment_id)
+                      const subject = assignment 
+                        ? subjects.find(s => s.id === assignment.subject_id)
+                        : null
           return (
             <div key={exam.id} className="card">
               <div className="flex items-center justify-between mb-3">
@@ -856,7 +1005,9 @@ const ExamConfiguration = () => {
                 
                 <div className="flex items-center space-x-2">
                   <Settings size={16} className="text-gray-400" />
-                  <span className="capitalize">{exam.exam_type.replace('internal', 'Internal ')}</span>
+                  <span className="capitalize">
+                    {exam.exam_type === 'external' ? 'External' : exam.exam_type.replace('internal', 'Internal ')}
+                  </span>
                 </div>
                 
                 {exam.exam_date && (
@@ -866,10 +1017,10 @@ const ExamConfiguration = () => {
                   </div>
                 )}
                 
-                {exam.duration && (
+                {exam.duration_minutes && (
                   <div className="flex items-center space-x-2">
                     <Clock size={16} className="text-gray-400" />
-                    <span>{exam.duration} minutes</span>
+                    <span>{exam.duration_minutes} minutes</span>
                   </div>
                 )}
               </div>
@@ -882,7 +1033,7 @@ const ExamConfiguration = () => {
                 
                 {/* CO/PO Summary */}
                 {exam.questions && exam.questions.length > 0 && (
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 mb-3">
                     <div className="flex flex-wrap gap-1 mb-1">
                       <span className="font-medium">COs:</span>
                       {Array.from(new Set(exam.questions.flatMap(q => q.co_weights?.map(cw => cw.co_code) || []))).slice(0, 3).map(co => (
@@ -901,6 +1052,33 @@ const ExamConfiguration = () => {
                       </span>
                     </div>
                   </div>
+                )}
+                
+                {/* Download Question Paper Button */}
+                {exam.questions && exam.questions.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const pdfBlob = await pdfGenerationAPI.generateQuestionPaper(exam.id)
+                        const url = window.URL.createObjectURL(pdfBlob)
+                        const link = document.createElement('a')
+                        link.href = url
+                        link.download = `question_paper_${exam.id}.pdf`
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                        window.URL.revokeObjectURL(url)
+                        toast.success('Question paper downloaded successfully')
+                      } catch (error: any) {
+                        logger.error('Error downloading question paper:', error)
+                        toast.error(error.response?.data?.detail || 'Failed to download question paper')
+                      }
+                    }}
+                    className="w-full btn-secondary flex items-center justify-center space-x-2 text-sm"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Download Question Paper</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -955,21 +1133,32 @@ const ExamConfiguration = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Subject
+                    Subject Assignment
                   </label>
                   <select
-                    {...register('subject_id', { valueAsNumber: true })}
+                    {...register('subject_assignment_id', { valueAsNumber: true })}
                     className="input-field w-full"
+                    disabled={loadingAssignments}
                   >
-                    <option value="">Select Subject</option>
-                    {teacherSubjects.map(subject => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </option>
-                    ))}
+                    <option value={0}>Select Subject Assignment</option>
+                    {loadingAssignments ? (
+                      <option>Loading assignments...</option>
+                    ) : subjectAssignments.length === 0 ? (
+                      <option value={0}>No assignments available. Please contact admin.</option>
+                    ) : (
+                      subjectAssignments.map(assignment => {
+                        const subject = subjects.find(s => s.id === assignment.subject_id)
+                        const classObj = classes.find(c => c.id === assignment.class_id)
+                        return (
+                          <option key={assignment.id} value={assignment.id}>
+                            {subject?.name || `Subject ${assignment.subject_id}`} - {classObj?.name || `Class ${assignment.class_id}`}
+                          </option>
+                        )
+                      })
+                    )}
                   </select>
-                  {errors.subject_id && (
-                    <p className="text-red-500 text-sm mt-1">{errors.subject_id.message}</p>
+                  {errors.subject_assignment_id && (
+                    <p className="text-red-500 text-sm mt-1">{errors.subject_assignment_id.message}</p>
                   )}
                 </div>
                 </div>
@@ -988,7 +1177,7 @@ const ExamConfiguration = () => {
                     <option value="">Select Type</option>
                     <option value="internal1">Internal 1</option>
                     <option value="internal2">Internal 2</option>
-                    <option value="final">Final Exam</option>
+                    <option value="external">External Exam</option>
                   </select>
                   {errors.exam_type && (
                     <p className="text-red-500 text-sm mt-1">{errors.exam_type.message}</p>
@@ -1011,10 +1200,12 @@ const ExamConfiguration = () => {
                     Duration (minutes)
                   </label>
                   <input
-                    {...register('duration', { valueAsNumber: true })}
+                    {...register('duration_minutes', { valueAsNumber: true })}
                     type="number"
                     className="input-field w-full"
                     placeholder="180"
+                    min={30}
+                    max={300}
                   />
                 </div>
                 </div>
@@ -1115,7 +1306,7 @@ const ExamConfiguration = () => {
                               {watchedQuestions?.[index]?.section || 'A'}
                             </span>
                             <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                              {watchedQuestions?.[index]?.max_marks || 0} marks
+                              {watchedQuestions?.[index]?.marks_per_question || 0} marks
                             </span>
                             <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
                               {watchedQuestions?.[index]?.difficulty || 'medium'}
@@ -1174,7 +1365,7 @@ const ExamConfiguration = () => {
                             Question No.
                           </label>
                           <input
-                            {...register(`questions.${index}.question_number`)}
+                            {...register(`questions.${index}.question_no`)}
                             type="text"
                             className="input-field w-full"
                             placeholder="1a"
@@ -1183,10 +1374,10 @@ const ExamConfiguration = () => {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Max Marks
+                            Marks Per Question
                           </label>
                           <input
-                            {...register(`questions.${index}.max_marks`, { valueAsNumber: true })}
+                            {...register(`questions.${index}.marks_per_question`, { valueAsNumber: true })}
                             type="number"
                             step="0.5"
                             className="input-field w-full"
@@ -1543,7 +1734,7 @@ const ExamConfiguration = () => {
                   <span>Q{index + 1}</span>
                   <div className="flex items-center space-x-1">
                     <span className="text-gray-400">{watchedQuestions[index]?.section || 'A'}</span>
-                    <span className="text-blue-600">{watchedQuestions[index]?.max_marks || 0}m</span>
+                    <span className="text-blue-600">{watchedQuestions[index]?.marks_per_question || 0}m</span>
                   </div>
                 </button>
               ))}

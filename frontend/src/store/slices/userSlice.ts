@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { userAPI } from '../../services/api'
+import { mapUserResponse } from '../../core/utils/contractMapper'
 
 interface User {
   id: number
@@ -7,11 +8,18 @@ interface User {
   email: string
   first_name: string
   last_name: string
-  role: 'admin' | 'hod' | 'teacher' | 'student'
-  department_id?: number
-  class_id?: number
+  full_name: string
+  role: string  // Primary role from roles array
+  roles: string[]
+  department_ids: number[]
   is_active: boolean
+  email_verified: boolean
+  phone_number?: string
+  avatar_url?: string
+  bio?: string
   created_at: string
+  updated_at?: string
+  class_id?: number  // May come from student profile
 }
 
 interface UserState {
@@ -28,8 +36,9 @@ const initialState: UserState = {
 
 export const fetchUsers = createAsyncThunk('users/fetchUsers', async (filters?: { is_active?: boolean; email_verified?: boolean }) => {
   const response = await userAPI.getAll(0, 100, filters)
-  // Backend returns UserListResponse with items array (standardized)
-  return response.items || response.users || response || []
+  // Backend returns UserListResponse with items array
+  const users = response.items || []
+  return users.map((user: any) => mapUserResponse(user))
 })
 
 export const createUser = createAsyncThunk(
@@ -79,12 +88,13 @@ const userSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch users'
       })
       .addCase(createUser.fulfilled, (state, action) => {
-        state.users.push(action.payload)
+        state.users.push(mapUserResponse(action.payload))
       })
       .addCase(updateUser.fulfilled, (state, action) => {
         const index = state.users.findIndex(u => u.id === action.payload.id)
+        const mappedUser = mapUserResponse(action.payload)
         if (index !== -1) {
-          state.users[index] = action.payload
+          state.users[index] = mappedUser
         }
       })
       .addCase(deleteUser.fulfilled, (state, action) => {

@@ -1,33 +1,42 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { examAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
+import { mapExamResponse, mapExamRequest } from '../../core/utils/contractMapper'
 
 interface Question {
   id: number
-  question_number: string
+  question_no: string
   question_text: string
-  max_marks: number
-  co_weights: Array<{
+  marks_per_question: number
+  required_count: number
+  optional_count: number
+  section: 'A' | 'B' | 'C'
+  blooms_level?: string
+  difficulty?: 'easy' | 'medium' | 'hard'
+  exam_id: number
+  created_at?: string
+  co_weights?: Array<{
     co_id: number
     co_code: string
     weight_pct: number
   }>
-  section: 'A' | 'B' | 'C'
-  blooms_level: string
-  difficulty: 'easy' | 'medium' | 'hard'
-  exam_id: number
 }
 
 interface Exam {
   id: number
   name: string
-  subject_id: number
-  exam_type: 'internal1' | 'internal2' | 'final'
+  subject_assignment_id: number
+  exam_type: 'internal1' | 'internal2' | 'external'
   exam_date?: string
-  duration?: number
+  duration_minutes?: number
   total_marks: number
-  questions: Question[]
+  instructions?: string
+  status?: string
+  question_paper_url?: string
+  created_by?: number
   created_at: string
+  updated_at?: string
+  questions?: Question[]
 }
 
 interface ExamState {
@@ -52,8 +61,11 @@ export const createExam = createAsyncThunk(
   'exams/createExam',
   async (exam: Omit<Exam, 'id' | 'created_at'>, { rejectWithValue }) => {
     try {
-      const response = await examAPI.create(exam)
-      return response
+      // Map frontend format to backend format
+      const backendExam = mapExamRequest(exam)
+      const response = await examAPI.create(backendExam)
+      // Map backend response to frontend format
+      return mapExamResponse(response)
     } catch (error: any) {
       logger.error('Create exam error:', error)
       return rejectWithValue(error.response?.data?.detail || 'Failed to create exam')
@@ -65,8 +77,11 @@ export const updateExam = createAsyncThunk(
   'exams/updateExam',
   async ({ id, ...exam }: Partial<Exam> & { id: number }, { rejectWithValue }) => {
     try {
-      const response = await examAPI.update(id, exam)
-      return response
+      // Map frontend format to backend format
+      const backendExam = mapExamRequest(exam)
+      const response = await examAPI.update(id, backendExam)
+      // Map backend response to frontend format
+      return mapExamResponse(response)
     } catch (error: any) {
       logger.error('Update exam error:', error)
       return rejectWithValue(error.response?.data?.detail || 'Failed to update exam')
@@ -108,9 +123,9 @@ const examSlice = createSlice({
       })
       .addCase(fetchExams.fulfilled, (state, action) => {
         state.loading = false
-        // Backend returns ExamListResponse with items array (standardized)
         const payload = action.payload
-        state.exams = Array.isArray(payload) ? payload : (payload?.items || payload?.exams || payload?.data || [])
+        const exams = Array.isArray(payload) ? payload : (payload?.items || [])
+        state.exams = exams.map((exam: any) => mapExamResponse(exam))
         logger.debug('Exams loaded:', state.exams.length)
       })
       .addCase(fetchExams.rejected, (state, action) => {

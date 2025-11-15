@@ -1,23 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { subjectAPI } from '../../services/api'
+import { mapSubjectResponse } from '../../core/utils/contractMapper'
 
-interface Subject {
+export interface Subject {
   id: number
   name: string
   code: string
   department_id: number
   credits: number
-  max_internal?: number
-  max_external?: number
-  total_marks?: number
-  is_active?: boolean
+  max_internal: number  // Backend always includes this
+  max_external: number  // Backend always includes this
+  total_marks: number  // Backend always includes this (computed)
+  is_active: boolean  // Backend always includes this
   created_at: string
-  updated_at?: string
+  updated_at: string  // Backend always includes this
   // Optional fields that may come from API transformations or subject assignments
-  teacher_id?: number | null
-  cos?: string[]
-  pos?: string[]
-  class_id?: number | null // Legacy field, subjects don't have this directly
+  teacher_id?: number | null  // Not in backend SubjectResponse, comes from subject assignments
+  cos?: string[]  // Not in backend SubjectResponse, fetched separately
+  pos?: string[]  // Not in backend SubjectResponse, fetched separately
+  class_id?: number | null  // Not in backend SubjectResponse, subjects don't have this directly
 }
 
 interface SubjectState {
@@ -35,7 +36,9 @@ const initialState: SubjectState = {
 export const fetchSubjects = createAsyncThunk('subjects/fetchSubjects', async (filters?: { department_id?: number; is_active?: boolean }) => {
   const response = await subjectAPI.getAll(0, 100, filters)
   // Backend returns SubjectListResponse with items array (standardized)
-  return response.items || response.subjects || response || []
+  const subjects = response.items || []
+  // Map each subject from backend format to frontend format
+  return subjects.map((subject: any) => mapSubjectResponse(subject))
 })
 
 export const createSubject = createAsyncThunk(
@@ -85,12 +88,13 @@ const subjectSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch subjects'
       })
       .addCase(createSubject.fulfilled, (state, action) => {
-        state.subjects.push(action.payload)
+        state.subjects.push(mapSubjectResponse(action.payload))
       })
       .addCase(updateSubject.fulfilled, (state, action) => {
         const index = state.subjects.findIndex(s => s.id === action.payload.id)
+        const mappedSubject = mapSubjectResponse(action.payload)
         if (index !== -1) {
-          state.subjects[index] = action.payload
+          state.subjects[index] = mappedSubject
         }
       })
       .addCase(deleteSubject.fulfilled, (state, action) => {

@@ -46,7 +46,7 @@ export interface COTarget {
 export interface AssessmentWeight {
   id: number
   subject_id: number
-  exam_type: 'internal1' | 'internal2' | 'final'
+  exam_type: 'internal1' | 'internal2' | 'external'
   weight_pct: number
   created_at: string
   updated_at?: string
@@ -270,7 +270,7 @@ export const fetchCODefinitions = createAsyncThunk(
   async (subjectId: number) => {
     const response = await coAPI.getBySubject(subjectId, 0, 100)
     // Backend returns COListResponse with items array
-    return response.items || response || []
+    return response.items || []
   }
 )
 
@@ -303,7 +303,7 @@ export const fetchPODefinitions = createAsyncThunk(
   async ({ departmentId, poType }: { departmentId: number; poType?: 'PO' | 'PSO' }) => {
     const response = await poAPI.getByDepartment(departmentId, poType, 0, 100)
     // Backend returns POListResponse with items array
-    return response.items || response || []
+    return response.items || []
   }
 )
 
@@ -336,7 +336,7 @@ export const fetchCOTargets = createAsyncThunk(
   async (subjectId: number) => {
     const response = await coTargetAPI.getBySubject(subjectId)
     // Backend returns COListResponse with items array - CO targets are part of CO definitions
-    return response.items || response || []
+    return response.items || []
   }
 )
 

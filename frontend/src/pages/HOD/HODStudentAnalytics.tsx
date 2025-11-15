@@ -6,6 +6,7 @@ import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchExams } from '../../store/slices/examSlice'
 import { subjectAssignmentAPI } from '../../services/api'
+import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -51,12 +52,21 @@ const HODStudentAnalytics: React.FC = () => {
   }, [dispatch])
 
   // Filter data for HOD's department
-  const departmentUsers = users.filter(u => u.department_id === user?.department_id)
+  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const departmentUsers = users.filter(u => {
+    if (u.department_ids && u.department_ids.length > 0) {
+      return u.department_ids[0] === userDeptId
+    }
+    return (u as any).department_id === userDeptId
+  })
   const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
   // Subjects belong to departments directly
   const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
+  // Get subject assignments for exams
+  const { getSubjectForExam, getClassIdForExam } = useExamSubjectAssignments(exams)
+  
   const departmentExams = exams.filter(e => {
-    const examSubject = subjects.find(s => s.id === e.subject_id)
+    const examSubject = getSubjectForExam(e)
     return examSubject?.department_id === user?.department_id
   })
 
@@ -150,12 +160,15 @@ const HODStudentAnalytics: React.FC = () => {
         semester: cls.semester
       }
     })
-  }, [departmentClasses, students, departmentExams, examClassMap])
+  }, [departmentClasses, students, departmentExams, examClassMap, getSubjectForExam])
 
   // Subject performance data - filter students by subject assignments
   const subjectPerformanceData = useMemo(() => {
     return departmentSubjects.map(subject => {
-      const subjectExams = departmentExams.filter(exam => exam.subject_id === subject.id)
+      const subjectExams = departmentExams.filter(exam => {
+        const examSubject = getSubjectForExam(exam)
+        return examSubject?.id === subject.id
+      })
       
       // Get unique class_ids from subject exams via subject assignments
       const subjectClassIds = new Set<number>()
@@ -186,7 +199,7 @@ const HODStudentAnalytics: React.FC = () => {
         exams: subjectExams.length
       }
     })
-  }, [departmentSubjects, departmentExams, students, examClassMap])
+  }, [departmentSubjects, departmentExams, students, examClassMap, getSubjectForExam])
 
   // Grade distribution
   const gradeDistribution = [

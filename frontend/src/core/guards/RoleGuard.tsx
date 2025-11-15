@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { RootState } from '../../store/store'
 import { UserRole, Permission, hasPermission, hasAnyPermission } from '../types/permissions'
 import { AlertTriangle, Home } from 'lucide-react'
+import { logger } from '../utils/logger'
 
 interface RoleGuardProps {
   children: ReactNode
@@ -43,7 +44,7 @@ export const RoleGuard = ({
 
     // Ensure role is available before checking access
     if (!userRole) {
-      console.error('User role not available', { user })
+      logger.error('User role not available', { user })
       return
     }
 

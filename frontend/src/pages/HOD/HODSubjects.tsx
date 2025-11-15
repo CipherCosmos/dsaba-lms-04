@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../store/store'
 import { fetchSubjects, createSubject, updateSubject, deleteSubject } from '../../store/slices/subjectSlice'
+import type { Subject } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { Plus, Edit, Trash2, Search, BookOpen, Users, GraduationCap, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { DEFAULT_INTERNAL_MAX, DEFAULT_EXTERNAL_MAX, DEFAULT_TOTAL_MARKS } from '../../core/constants'
 
 const HODSubjects: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -36,8 +38,15 @@ const HODSubjects: React.FC = () => {
   // Filter subjects to only show those from HOD's department
   const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
   // Subjects belong to departments directly
-  const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
-  const departmentTeachers = users.filter(u => u.role === 'teacher' && u.department_id === user?.department_id)
+  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const departmentSubjects = subjects.filter(s => s.department_id === userDeptId)
+  const departmentTeachers = users.filter(u => {
+    if (u.role !== 'teacher') return false
+    if (u.department_ids && u.department_ids.length > 0) {
+      return u.department_ids[0] === userDeptId
+    }
+    return (u as any).department_id === userDeptId
+  })
 
   // Filter subjects based on search and class
   const filteredSubjects = departmentSubjects.filter(subject => {
@@ -56,11 +65,16 @@ const HODSubjects: React.FC = () => {
     e.preventDefault()
     try {
       // HOD can only create subjects for their own department
-      const subjectData = {
+      const subjectData: Omit<Subject, 'id' | 'created_at'> = {
         code: formData.code,
         name: formData.name,
-        department_id: user?.department_id || 0, // Use HOD's department
+        department_id: userDeptId || 0, // Use HOD's department
         credits: Number(formData.credits),
+        is_active: true,
+        max_internal: DEFAULT_INTERNAL_MAX, // Use constant instead of hardcoded value
+        max_external: DEFAULT_EXTERNAL_MAX, // Use constant instead of hardcoded value
+        total_marks: DEFAULT_TOTAL_MARKS,
+        updated_at: new Date().toISOString(),
         // Remove fields that don't belong to Subject entity
         // class_id, teacher_id, cos, pos are not part of Subject
       }

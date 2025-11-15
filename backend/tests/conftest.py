@@ -445,14 +445,35 @@ def batch_year(test_db_session, batch):
 
 
 @pytest.fixture
-def semester(test_db_session, batch_year):
+def academic_year(test_db_session):
+    """Create a test academic year"""
+    from src.infrastructure.database.models import AcademicYearModel
+    from src.infrastructure.database.models import AcademicYearStatus
+    
+    ay = AcademicYearModel(
+        start_year=2024,
+        end_year=2025,
+        display_name="2024-2025",
+        status=AcademicYearStatus.ACTIVE,
+        is_current=True
+    )
+    test_db_session.add(ay)
+    test_db_session.commit()
+    test_db_session.refresh(ay)
+    return ay
+
+
+@pytest.fixture
+def semester(test_db_session, batch_year, academic_year, department):
     """Create a test semester"""
     from datetime import date
     semester = SemesterModel(
         batch_year_id=batch_year.id,
         semester_no=1,
         start_date=date.today(),
-        end_date=date.today() + timedelta(days=180)
+        end_date=date.today() + timedelta(days=180),
+        academic_year_id=academic_year.id,
+        department_id=department.id
     )
     test_db_session.add(semester)
     test_db_session.commit()

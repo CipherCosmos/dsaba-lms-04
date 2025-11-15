@@ -26,6 +26,12 @@ from src.domain.exceptions import (
     ValidationError
 )
 from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
+from src.infrastructure.database.session import get_db
+from src.infrastructure.database.models import (
+    ExamModel, SubjectAssignmentModel, ClassModel, StudentModel, UserModel
+)
+from sqlalchemy.orm import Session
+from fastapi.responses import Response
 
 
 def get_exam_service(
@@ -235,6 +241,112 @@ async def publish_exam(
     except BusinessRuleViolationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/{exam_id}/students")
+async def get_exam_students(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    exam_service: ExamService = Depends(get_exam_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get students for an exam (for marks entry)
+    
+    Returns list of students enrolled in the class associated with the exam's subject assignment
+    """
+    try:
+        # Get exam
+        exam = await exam_service.get_exam(exam_id)
+        
+        # Get subject assignment
+        assignment = db.query(SubjectAssignmentModel).filter(
+            SubjectAssignmentModel.id == exam.subject_assignment_id
+        ).first()
+        
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subject assignment for exam {exam_id} not found"
+            )
+        
+        # Get class
+        class_model = db.query(ClassModel).filter(
+            ClassModel.id == assignment.class_id
+        ).first()
+        
+        if not class_model:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Class for exam {exam_id} not found"
+            )
+        
+        # Get students in the class
+        students = db.query(StudentModel).join(UserModel).filter(
+            StudentModel.class_id == assignment.class_id,
+            UserModel.is_active == True
+        ).all()
+        
+        # Format response
+        student_list = []
+        for student in students:
+            user = db.query(UserModel).filter(UserModel.id == student.user_id).first()
+            if user:
+                student_list.append({
+                    "id": student.id,
+                    "user_id": student.user_id,
+                    "student_id": student.student_id,
+                    "class_id": student.class_id,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "email": user.email,
+                    "full_name": f"{user.first_name} {user.last_name}"
+                })
+        
+        return {"students": student_list, "total": len(student_list)}
+    except EntityNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Exam with ID {exam_id} not found"
+        )
+
+
+@router.get("/{exam_id}/paper")
+async def get_exam_paper(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate question paper PDF (alias for /pdf/question-paper/{exam_id})
+    
+    - **exam_id**: Exam ID
+    
+    Returns PDF file
+    """
+    from src.application.services.pdf_generation_service import PDFGenerationService
+    from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
+    from src.infrastructure.database.repositories.question_repository_impl import QuestionRepository
+    from src.infrastructure.database.repositories.final_mark_repository_impl import FinalMarkRepository
+    
+    try:
+        exam_repo = ExamRepository(db)
+        question_repo = QuestionRepository(db)
+        final_mark_repo = FinalMarkRepository(db)
+        pdf_service = PDFGenerationService(exam_repo, question_repo, final_mark_repo)
+        
+        pdf_bytes = await pdf_service.generate_question_paper_pdf(exam_id)
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="question_paper_{exam_id}.pdf"'}
+        )
+    except EntityNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
 

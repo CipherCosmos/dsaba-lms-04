@@ -16,7 +16,7 @@ from src.infrastructure.database.models import (
     ExamModel, MarkModel, FinalMarkModel, UserRoleModel, RoleModel,
     SubjectAssignmentModel, StudentModel, TeacherModel
 )
-from sqlalchemy import func, and_, desc
+from sqlalchemy import func, and_, desc, select
 from datetime import datetime, timedelta
 
 router = APIRouter(
@@ -41,11 +41,36 @@ async def get_dashboard_stats(
         Dictionary with role-specific statistics
     """
     try:
+        # Check cache first
+        from src.infrastructure.cache.redis_client import get_cache_service
+        from src.shared.constants import CACHE_KEYS
+        cache_service = get_cache_service()
+        
         # Get user's primary role
         primary_role = current_user.roles[0] if current_user.roles else None
+        cache_key = None
         
+        if cache_service and cache_service.is_enabled:
+            if primary_role == UserRole.ADMIN:
+                cache_key = cache_service.get_cache_key(CACHE_KEYS["dashboard"], user_id=current_user.id, role="admin")
+            elif primary_role == UserRole.HOD:
+                dept_id = current_user.department_ids[0] if current_user.department_ids else None
+                cache_key = cache_service.get_cache_key(CACHE_KEYS["dashboard"], user_id=current_user.id, role="hod", dept_id=dept_id)
+            elif primary_role == UserRole.TEACHER:
+                cache_key = cache_service.get_cache_key(CACHE_KEYS["dashboard"], user_id=current_user.id, role="teacher")
+            elif primary_role == UserRole.STUDENT:
+                student = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+                if student:
+                    cache_key = cache_service.get_cache_key(CACHE_KEYS["dashboard"], user_id=current_user.id, role="student", student_id=student.id)
+            
+            if cache_key:
+                cached = await cache_service.get(cache_key)
+                if cached:
+                    return cached
+        
+        # Generate stats
         if primary_role == UserRole.ADMIN:
-            return await _get_admin_dashboard_stats(db)
+            stats = await _get_admin_dashboard_stats(db)
         elif primary_role == UserRole.HOD:
             # Get department_id from user's roles
             dept_id = current_user.department_ids[0] if current_user.department_ids else None
@@ -54,9 +79,9 @@ async def get_dashboard_stats(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="HOD user must be associated with a department"
                 )
-            return await _get_hod_dashboard_stats(db, dept_id)
+            stats = await _get_hod_dashboard_stats(db, dept_id)
         elif primary_role == UserRole.TEACHER:
-            return await _get_teacher_dashboard_stats(db, current_user.id)
+            stats = await _get_teacher_dashboard_stats(db, current_user.id)
         elif primary_role == UserRole.STUDENT:
             # Get student profile
             student = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
@@ -65,10 +90,17 @@ async def get_dashboard_stats(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Student profile not found"
                 )
-            return await _get_student_dashboard_stats(db, student.id)
+            stats = await _get_student_dashboard_stats(db, student.id)
         else:
             # Default: return basic stats
-            return await _get_admin_dashboard_stats(db)
+            stats = await _get_admin_dashboard_stats(db)
+        
+        # Cache the result (5 minutes TTL)
+        if cache_service and cache_service.is_enabled and cache_key:
+            from src.shared.constants import CACHE_TTL_SHORT
+            await cache_service.set(cache_key, stats, ttl=CACHE_TTL_SHORT)
+        
+        return stats
     except HTTPException:
         raise
     except Exception as e:
@@ -135,11 +167,6 @@ async def _get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
 
 async def _get_hod_dashboard_stats(db: Session, department_id: int) -> Dict[str, Any]:
     """Get HOD dashboard statistics"""
-    # Get users in department
-    dept_users = db.query(UserModel).join(UserRoleModel).filter(
-        UserRoleModel.department_id == department_id
-    )
-    
     student_role = db.query(RoleModel).filter(RoleModel.name == UserRole.STUDENT.value).first()
     teacher_role = db.query(RoleModel).filter(RoleModel.name == UserRole.TEACHER.value).first()
     
@@ -223,18 +250,18 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
     ).count()
     
     # Get students in classes where teacher teaches
-    class_ids = db.query(SubjectAssignmentModel.class_id).filter(
+    class_ids_subq = db.query(SubjectAssignmentModel.class_id).filter(
         SubjectAssignmentModel.teacher_id == teacher.id
     ).distinct().subquery()
     
     total_students = db.query(StudentModel).filter(
-        StudentModel.class_id.in_(db.query(class_ids))
+        StudentModel.class_id.in_(select([class_ids_subq.c.class_id]))
     ).count()
     
     # Get pending marks (exams without marks entered)
     pending_marks_count = db.query(ExamModel).join(SubjectAssignmentModel).filter(
         SubjectAssignmentModel.teacher_id == teacher.id
-    ).outerjoin(MarkModel).filter(MarkModel.id == None).count()
+    ).outerjoin(MarkModel).filter(MarkModel.id.is_(None)).count()
     
     return {
         "timestamp": datetime.utcnow().isoformat(),
@@ -261,9 +288,11 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
             "statistics": {}
         }
     
-    # Get student's marks
-    student_marks = db.query(MarkModel).filter(MarkModel.student_id == student_id).all()
-    total_exams = len(set(mark.exam_id for mark in student_marks))
+    # Get total exams count using SQL aggregation (more efficient than loading all marks)
+    from sqlalchemy import func
+    total_exams = db.query(func.count(func.distinct(MarkModel.exam_id))).filter(
+        MarkModel.student_id == student_id
+    ).scalar() or 0
     
     # Get class subjects
     class_subjects = db.query(SubjectAssignmentModel).filter(
@@ -272,15 +301,15 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
     
     # Get upcoming exams (exams in student's class that haven't been taken yet)
     if student.class_id:
-        class_exam_ids = db.query(ExamModel.id).join(SubjectAssignmentModel).filter(
+        class_exam_ids_subq = db.query(ExamModel.id).join(SubjectAssignmentModel).filter(
             SubjectAssignmentModel.class_id == student.class_id
         ).subquery()
-        taken_exam_ids = db.query(MarkModel.exam_id).filter(
+        taken_exam_ids_subq = db.query(MarkModel.exam_id).filter(
             MarkModel.student_id == student_id
         ).distinct().subquery()
         upcoming_exams = db.query(ExamModel).filter(
-            ExamModel.id.in_(db.query(class_exam_ids)),
-            ~ExamModel.id.in_(db.query(taken_exam_ids))
+            ExamModel.id.in_(select([class_exam_ids_subq.c.id])),
+            ~ExamModel.id.in_(select([taken_exam_ids_subq.c.exam_id]))
         ).count()
     else:
         upcoming_exams = 0
@@ -308,14 +337,15 @@ def _get_recent_activity(db: Session, limit: int = 10) -> List[Dict[str, Any]]:
     """Get recent system activity"""
     activities = []
     
-    # Recent users
-    recent_users = db.query(UserModel).order_by(desc(UserModel.created_at)).limit(limit).all()
+    # Recent users with roles (optimized to avoid N+1 queries)
+    from sqlalchemy.orm import joinedload
+    recent_users = db.query(UserModel).options(
+        joinedload(UserModel.user_roles).joinedload(UserRoleModel.role)
+    ).order_by(desc(UserModel.created_at)).limit(limit).all()
+    
     for user in recent_users[:5]:
-        # Get user roles
-        roles = db.query(RoleModel).join(UserRoleModel).filter(
-            UserRoleModel.user_id == user.id
-        ).all()
-        role_names = [r.name for r in roles]
+        # Get user roles from loaded relationships
+        role_names = [ur.role.name for ur in user.user_roles if ur.role]
         role_str = role_names[0] if role_names else "user"
         
         activities.append({

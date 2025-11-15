@@ -5,10 +5,11 @@ import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
-import { studentProgressAPI } from '../../services/api'
+import { studentProgressAPI, studentAPI, academicStructureAPI, subjectAssignmentAPI } from '../../services/api'
+import toast from 'react-hot-toast'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
 import { Line, Doughnut } from 'react-chartjs-2'
-import { Target, TrendingUp, Award, Calendar, BookOpen, CheckCircle, AlertTriangle, Star, Clock, Trophy } from 'lucide-react'
+import { Target, TrendingUp, Award, Calendar, BookOpen, CheckCircle, AlertTriangle, Star, Clock, Trophy, Download } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
@@ -31,6 +32,12 @@ const StudentProgress = () => {
 
   const [progressLoading, setProgressLoading] = useState(false)
   const [progressError, setProgressError] = useState<string | null>(null)
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(null)
+  const [semesterMarks, setSemesterMarks] = useState<any[]>([])
+  const [loadingMarks, setLoadingMarks] = useState(false)
+  const [semesters, setSemesters] = useState<any[]>([])
+  const [loadingSemesters, setLoadingSemesters] = useState(false)
+  const [subjectAssignments, setSubjectAssignments] = useState<Map<number, any>>(new Map())
 
   useEffect(() => {
     if (user?.id) {
@@ -39,7 +46,33 @@ const StudentProgress = () => {
     }
     dispatch(fetchSubjects())
     dispatch(fetchExams())
+    fetchSemesters()
   }, [dispatch, user])
+
+  const fetchSemesters = async () => {
+    try {
+      setLoadingSemesters(true)
+      // Use student-specific endpoint to get semesters for the current student's batch year
+      const response = await studentAPI.getSemesters(0, 1000)
+      // Backend returns standardized list response with items array
+      const semestersList = response.items || []
+      setSemesters(semestersList)
+    } catch (error) {
+      logger.error('Error fetching semesters:', error)
+      // Fallback to all semesters if student-specific endpoint fails
+      try {
+        const fallbackResponse = await academicStructureAPI.getAllSemesters(0, 1000)
+        // Backend returns standardized list response with items array
+        const semestersList = fallbackResponse.items || []
+        setSemesters(semestersList)
+      } catch (fallbackError) {
+        logger.error('Error fetching semesters (fallback):', fallbackError)
+        toast.error('Failed to fetch semesters')
+      }
+    } finally {
+      setLoadingSemesters(false)
+    }
+  }
 
   const fetchProgressData = async (studentId: number) => {
     try {
@@ -53,6 +86,52 @@ const StudentProgress = () => {
     } finally {
       setProgressLoading(false)
     }
+  }
+
+  const fetchSemesterMarks = async (semesterId: number) => {
+    try {
+      setLoadingMarks(true)
+      const response = await studentAPI.getMarksBySemester(semesterId)
+      const marks = response.items || []
+      setSemesterMarks(marks)
+      
+      // Fetch subject assignments for the marks
+      const assignmentIds = new Set(
+        marks
+          .map((mark: any) => mark.subject_assignment_id)
+          .filter((id: any): id is number => id !== undefined && id !== null)
+      )
+      
+      if (assignmentIds.size > 0) {
+        const assignmentIdsArray = Array.from(assignmentIds) as number[]
+        const assignments = await Promise.allSettled(
+          assignmentIdsArray.map((id: number) => subjectAssignmentAPI.getById(id))
+        )
+        
+        const assignmentMap = new Map<number, any>()
+        assignments.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const assignment = result.value
+            assignmentMap.set(assignment.id, assignment)
+          }
+        })
+        
+        setSubjectAssignments(assignmentMap)
+      }
+    } catch (error) {
+      logger.error('Error fetching semester marks:', error)
+      setSemesterMarks([])
+    } finally {
+      setLoadingMarks(false)
+    }
+  }
+  
+  const getSubjectName = (subjectAssignmentId: number): string => {
+    const assignment = subjectAssignments.get(subjectAssignmentId)
+    if (!assignment) return `Subject ${subjectAssignmentId}`
+    
+    const subject = subjects.find(s => s.id === assignment.subject_id)
+    return subject?.name || `Subject ${subjectAssignmentId}`
   }
 
   // Generate goals dynamically from analytics data
@@ -225,6 +304,52 @@ const StudentProgress = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Progress Tracking</h1>
           <p className="text-gray-600">Monitor your academic journey and achievements</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <select
+            value={selectedSemesterId || ''}
+            onChange={(e) => {
+              const semesterId = e.target.value ? Number(e.target.value) : null
+              setSelectedSemesterId(semesterId)
+              if (semesterId) {
+                fetchSemesterMarks(semesterId)
+              }
+            }}
+            className="input-field"
+            disabled={loadingSemesters}
+          >
+            <option value="">Select Semester</option>
+            {semesters.map((semester) => (
+              <option key={semester.id} value={semester.id}>
+                Semester {semester.semester_no} {semester.start_date ? `(${new Date(semester.start_date).getFullYear()})` : ''}
+              </option>
+            ))}
+          </select>
+          {selectedSemesterId && (
+            <button
+              onClick={async () => {
+                try {
+                  const pdfBlob = await studentAPI.getReportPDF(selectedSemesterId)
+                  const url = window.URL.createObjectURL(pdfBlob)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = `report_card_sem${selectedSemesterId}.pdf`
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                  window.URL.revokeObjectURL(url)
+                  toast.success('Report card downloaded successfully')
+                } catch (error) {
+                  logger.error('Error downloading report:', error)
+                  toast.error('Failed to download report card')
+                }
+              }}
+              className="btn-secondary flex items-center space-x-2"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download Report</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -530,7 +655,7 @@ const StudentProgress = () => {
         </div>
 
         <div className="card">
-          <h3 className="text-lg font-semibant text-gray-900 mb-4">Next Steps</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Next Steps</h3>
           <div className="space-y-3">
             <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="bg-blue-100 p-1 rounded">
@@ -564,6 +689,101 @@ const StudentProgress = () => {
           </div>
         </div>
       </div>
+
+      {/* Semester Marks Display */}
+      {selectedSemesterId && semesterMarks.length > 0 && (
+        <div className="card">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Semester {selectedSemesterId} Marks</h2>
+          {loadingMarks ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-600 border-t-transparent"></div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Subject
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Internal 1
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Internal 2
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Best Internal
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      External
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grade
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      CO Attainment
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {semesterMarks.map((mark) => (
+                    <tr key={mark.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {getSubjectName(mark.subject_assignment_id)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {mark.internal_1?.toFixed(2) || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {mark.internal_2?.toFixed(2) || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {mark.best_internal?.toFixed(2) || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {mark.external?.toFixed(2) || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        {mark.total?.toFixed(2) || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          mark.grade === 'A+' || mark.grade === 'A' ? 'bg-green-100 text-green-800' :
+                          mark.grade === 'B+' || mark.grade === 'B' ? 'bg-blue-100 text-blue-800' :
+                          mark.grade === 'C+' || mark.grade === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {mark.grade || '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {mark.co_attainment ? (
+                          <div className="space-y-1">
+                            {Object.entries(mark.co_attainment).slice(0, 3).map(([co, value]: [string, any]) => (
+                              <div key={co} className="text-xs">
+                                {co}: {typeof value === 'number' ? value.toFixed(1) + '%' : value}
+                              </div>
+                            ))}
+                            {Object.keys(mark.co_attainment).length > 3 && (
+                              <div className="text-xs text-gray-400">
+                                +{Object.keys(mark.co_attainment).length - 3} more
+                              </div>
+                            )}
+                          </div>
+                        ) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

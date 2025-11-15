@@ -108,10 +108,22 @@ def get_db() -> Generator[Session, None, None]:
     Yields:
         Database session
     """
+    from fastapi.exceptions import RequestValidationError
+    from pydantic import ValidationError as PydanticValidationError
+    
     db = SessionLocal()
     try:
         yield db
+    except (RequestValidationError, PydanticValidationError):
+        # Don't catch validation errors - let FastAPI handle them
+        db.rollback()
+        raise
     except Exception as e:
+        from fastapi import HTTPException
+        # Don't log HTTPExceptions as errors - they're expected API responses
+        if isinstance(e, HTTPException):
+            db.rollback()
+            raise
         import traceback
         error_msg = str(e) if str(e) else f"{type(e).__name__}: {repr(e)}"
         logger.error(f"Database session error: {error_msg}")

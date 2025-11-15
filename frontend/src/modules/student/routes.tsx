@@ -6,6 +6,7 @@ import { UserRole, Permission } from '../../core/types/permissions'
 // Lazy load student pages for code splitting
 const StudentAnalytics = lazy(() => import('../../pages/Student/StudentAnalytics'))
 const StudentProgress = lazy(() => import('../../pages/Student/StudentProgress'))
+const StudentResults = lazy(() => import('../../pages/Student/StudentResults'))
 const StudentDashboard = lazy(() => import('../../components/Dashboard/StudentDashboard'))
 
 /**
@@ -45,6 +46,18 @@ export const StudentRoutes = () => {
           requiredPermissions={[Permission.MARKS_READ]}
         >
           <StudentProgress />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="student-results"
+      path="/student/results"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.STUDENT]}
+          requiredPermissions={[Permission.MARKS_READ]}
+        >
+          <StudentResults />
         </RoleGuard>
       }
     />,

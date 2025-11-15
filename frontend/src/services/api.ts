@@ -423,6 +423,16 @@ export const examAPI = {
     const response = await apiClient.get(`/questions/exam/${examId}`)
     return response.data
   },
+  getStudents: async (examId: number) => {
+    const response = await apiClient.get(`/exams/${examId}/students`)
+    return response.data
+  },
+  getQuestionPaper: async (examId: number) => {
+    const response = await apiClient.get(`/exams/${examId}/paper`, {
+      responseType: 'blob'
+    })
+    return response.data
+  },
 }
 
 export const questionAPI = {
@@ -571,6 +581,21 @@ export const analyticsAPI = {
     const params: any = {}
     if (subjectId) params.subject_id = subjectId
     const response = await apiClient.get(`/analytics/po-attainment/department/${departmentId}`, { params })
+    return response.data
+  },
+  getBloomsAnalysis: async (examId?: number, subjectId?: number) => {
+    const params: any = {}
+    if (examId) params.exam_id = examId
+    if (subjectId) params.subject_id = subjectId
+    const response = await apiClient.get('/analytics/blooms', { params })
+    return response.data
+  },
+  getMultiDimensionalAnalytics: async (dimension: 'year' | 'semester' | 'subject' | 'class' | 'teacher', filters?: Record<string, any>) => {
+    const params: any = { dim: dimension }
+    if (filters) {
+      params.filters = JSON.stringify(filters)
+    }
+    const response = await apiClient.get('/analytics/multi', { params })
     return response.data
   },
   // These endpoints may not exist in backend - using available endpoints instead
@@ -793,8 +818,8 @@ export const coPoMatrixAPI = {
   getBySubject: async (subjectId: number) => {
     // Get COs for subject, then get their CO-PO mappings
     const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
-    // Backend returns COListResponse with items array
-    const cos = cosResponse.data.items || cosResponse.data.course_outcomes || (Array.isArray(cosResponse.data) ? cosResponse.data : [])
+    // Backend returns COListResponse with items array (standardized format)
+    const cos = cosResponse.data.items || []
     
     // Get mappings for each CO
     const mappings = await Promise.all(
@@ -802,7 +827,8 @@ export const coPoMatrixAPI = {
         apiClient.get(`/co-po-mappings/co/${co.id}`).then(r => ({
           co_id: co.id,
           co_code: co.code,
-          mappings: r.data.items || r.data || []
+          // Backend returns COPOMappingListResponse with items array (standardized format)
+          mappings: r.data.items || []
         }))
       )
     )
@@ -838,8 +864,8 @@ export const coPoMatrixAPI = {
   bulkUpdate: async (subjectId: number, coPoMatrix: any[]) => {
     // Get COs for subject first
     const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
-    // Backend returns COListResponse with items array
-    const cos = cosResponse.data.items || cosResponse.data.course_outcomes || (Array.isArray(cosResponse.data) ? cosResponse.data : [])
+    // Backend returns COListResponse with items array (standardized format)
+    const cos = cosResponse.data.items || []
     
     // For each CO in the matrix, update/create/delete mappings
     const results = []
@@ -848,7 +874,8 @@ export const coPoMatrixAPI = {
       if (!co) continue
       
       // Get existing mappings for this CO
-      const existingMappings = await apiClient.get(`/co-po-mappings/co/${co.id}`).then(r => r.data || [])
+      // Backend returns COPOMappingListResponse with items array (standardized format)
+      const existingMappings = await apiClient.get(`/co-po-mappings/co/${co.id}`).then(r => r.data.items || [])
       
       // Process updates (existing mappings)
       for (const mapping of matrixItem.mappings || []) {
@@ -893,7 +920,8 @@ export const questionCoWeightAPI = {
   bulkUpdate: async (questionId: number, coMappings: any[]) => {
     // Delete existing mappings
     const existingResponse = await apiClient.get(`/questions/${questionId}/co-mappings`)
-    const existing = existingResponse.data || []
+    // Backend returns COPOMappingListResponse with items array (standardized format)
+    const existing = existingResponse.data.items || []
     
     await Promise.all(
       existing.map((mapping: any) =>
@@ -907,7 +935,7 @@ export const questionCoWeightAPI = {
         apiClient.post('/questions/co-mapping', {
           question_id: questionId,
           co_id: mapping.co_id,
-          weight_percentage: mapping.weight_pct
+          weight_pct: mapping.weight_pct  // Backend expects weight_pct, not weight_percentage
         })
       )
     )
@@ -915,32 +943,46 @@ export const questionCoWeightAPI = {
   },
 }
 
-// Indirect attainment endpoints may not exist in backend yet
+// Indirect attainment API
+// Note: Indirect attainment (surveys, exit exams, etc.) is a future enhancement
+// This API is reserved for future implementation when indirect assessment methods are added
+// Currently returns empty data to prevent errors in components that reference it
 export const indirectAttainmentAPI = {
   getBySubject: async (subjectId: number) => {
-    // This endpoint may need to be implemented in backend
-    // For now, return empty array
+    // Future: GET /indirect-attainment/subject/{subject_id}
+    // Returns indirect attainment data (surveys, exit exams, etc.)
+    // For now, return empty array to prevent errors
+    logger.info('Indirect attainment API not yet implemented - returning empty data', { subjectId })
     return []
   },
   create: async (subjectId: number, attainmentData: any) => {
-    // This endpoint may need to be implemented in backend
-    throw new Error('Indirect attainment API not yet implemented in backend')
+    // Future: POST /indirect-attainment
+    // Creates indirect attainment record
+    logger.warn('Indirect attainment create API not yet implemented', { subjectId })
+    throw new Error('Indirect attainment API is a future enhancement and not yet implemented')
   },
   update: async (attainmentId: number, attainmentData: any) => {
-    // This endpoint may need to be implemented in backend
-    throw new Error('Indirect attainment API not yet implemented in backend')
+    // Future: PUT /indirect-attainment/{id}
+    // Updates indirect attainment record
+    logger.warn('Indirect attainment update API not yet implemented', { attainmentId })
+    throw new Error('Indirect attainment API is a future enhancement and not yet implemented')
   },
   delete: async (attainmentId: number) => {
-    // This endpoint may need to be implemented in backend
-    throw new Error('Indirect attainment API not yet implemented in backend')
+    // Future: DELETE /indirect-attainment/{id}
+    // Deletes indirect attainment record
+    logger.warn('Indirect attainment delete API not yet implemented', { attainmentId })
+    throw new Error('Indirect attainment API is a future enhancement and not yet implemented')
   },
 }
 
-// Attainment audit endpoints may not exist in backend yet
+// Attainment audit endpoints
+// Note: This is a future enhancement for tracking attainment changes over time
 export const attainmentAuditAPI = {
   getBySubject: async (subjectId: number) => {
-    // This endpoint may need to be implemented in backend
-    // For now, return empty array
+    // Future: GET /attainment-audit/subject/{subject_id}
+    // Returns audit trail of attainment changes
+    // For now, return empty array to prevent errors
+    logger.info('Attainment audit API not yet implemented - returning empty data', { subjectId })
     return []
   },
 }
@@ -977,36 +1019,41 @@ export const attainmentAnalyticsAPI = {
     return response.data
   },
   getBlueprintValidation: async (subjectId: number) => {
-    // This endpoint may not exist in backend yet
-    // For now, return empty object
-    return {}
+    // Use subject analytics endpoint for blueprint validation
+    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
+    return response.data
   },
   getStudentPerformance: async (subjectId: number, studentId?: number, examType?: string) => {
-    const params = new URLSearchParams({ exam_type: examType || 'all' })
-    if (studentId) params.append('student_id', studentId.toString())
-    const response = await apiClient.get(`/analytics/student-performance/${subjectId}?${params}`)
+    // Use student analytics endpoint with subject filter
+    if (studentId) {
+      const response = await apiClient.get(`/analytics/student/${studentId}`, {
+        params: { subject_id: subjectId }
+      })
+      return response.data
+    }
+    // If no studentId, use subject analytics
+    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
     return response.data
   },
   getClassPerformance: async (subjectId: number, examType?: string) => {
-    const response = await apiClient.get(`/analytics/class-performance/${subjectId}`, {
-      params: { exam_type: examType || 'all' }
-    })
+    // Use subject analytics endpoint - class performance is part of subject analytics
+    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
     return response.data
   },
   getCOPOMapping: async (subjectId: number) => {
     // Get COs for subject, then get their CO-PO mappings
     const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
-    // Backend returns COListResponse with items array
-    const cos = cosResponse.data.items || cosResponse.data.course_outcomes || (Array.isArray(cosResponse.data) ? cosResponse.data : [])
+    // Backend returns COListResponse with items array (standardized format)
+    const cos = cosResponse.data.items || []
     
     // Get mappings for each CO
-    // Backend returns COPOMappingListResponse with items array
+    // Backend returns COPOMappingListResponse with items array (standardized format)
     const mappings = await Promise.all(
       cos.map((co: any) =>
         apiClient.get(`/co-po-mappings/co/${co.id}`).then((r: any) => ({
           co_id: co.id,
           co_code: co.code,
-          mappings: r.data.items || r.data || []
+          mappings: r.data.items || []
         }))
       )
     )
@@ -1025,12 +1072,54 @@ export const studentProgressAPI = {
 
 // Subject Assignment API
 export const subjectAssignmentAPI = {
+  getAll: async (skip: number = 0, limit: number = 100, filters?: {
+    teacher_id?: number
+    subject_id?: number
+    class_id?: number
+    semester_id?: number
+  }) => {
+    const params: any = { skip, limit }
+    if (filters?.teacher_id) params.teacher_id = filters.teacher_id
+    if (filters?.subject_id) params.subject_id = filters.subject_id
+    if (filters?.class_id) params.class_id = filters.class_id
+    if (filters?.semester_id) params.semester_id = filters.semester_id
+    const response = await apiClient.get('/subject-assignments', { params })
+    return response.data
+  },
   getById: async (assignmentId: number) => {
     const response = await apiClient.get(`/subject-assignments/${assignmentId}`)
     return response.data
   },
   getByExam: async (examId: number) => {
     const response = await apiClient.get(`/subject-assignments/exam/${examId}`)
+    return response.data
+  },
+  create: async (assignmentData: {
+    subject_id: number
+    teacher_id: number
+    class_id: number
+    semester_id: number
+    academic_year: number
+  }) => {
+    const response = await apiClient.post('/subject-assignments', assignmentData)
+    return response.data
+  },
+  getByTeacher: async (teacherId: number, skip: number = 0, limit: number = 100) => {
+    const response = await apiClient.get('/subject-assignments', {
+      params: { teacher_id: teacherId, skip, limit }
+    })
+    return response.data
+  },
+  getByUserId: async (userId: number, skip: number = 0, limit: number = 100) => {
+    const response = await apiClient.get('/subject-assignments', {
+      params: { user_id: userId, skip, limit }
+    })
+    return response.data
+  },
+  getBySubject: async (subjectId: number, skip: number = 0, limit: number = 100) => {
+    const response = await apiClient.get('/subject-assignments', {
+      params: { subject_id: subjectId, skip, limit }
+    })
     return response.data
   },
 }
@@ -1089,7 +1178,8 @@ export const finalMarksAPI = {
 // PDF Generation API
 export const pdfGenerationAPI = {
   generateQuestionPaper: async (examId: number) => {
-    const response = await apiClient.get(`/pdf/question-paper/${examId}`, {
+    // Use new alias endpoint
+    const response = await apiClient.get(`/exams/${examId}/paper`, {
       responseType: 'blob'
     })
     return response.data
@@ -1104,6 +1194,211 @@ export const pdfGenerationAPI = {
     const response = await apiClient.post(`/pdf/co-po-report/subject/${subjectId}`, {}, {
       responseType: 'blob'
     })
+    return response.data
+  },
+}
+
+// Student API
+export const studentAPI = {
+  getSemesters: async (skip: number = 0, limit: number = 100) => {
+    const response = await apiClient.get('/student/semesters', {
+      params: { skip, limit }
+    })
+    return response.data
+  },
+  getMarksBySemester: async (semesterId: number, skip: number = 0, limit: number = 100) => {
+    const response = await apiClient.get(`/student/marks/sem/${semesterId}`, {
+      params: { skip, limit }
+    })
+    return response.data
+  },
+  getReportPDF: async (semesterId: number) => {
+    const response = await apiClient.get('/student/report/pdf', {
+      params: { semester_id: semesterId },
+      responseType: 'blob'
+    })
+    return response.data
+  },
+}
+
+// Academic Structure API (Batches, Semesters, etc.)
+export const academicStructureAPI = {
+  getAllSemesters: async (skip: number = 0, limit: number = 100, filters?: { batch_year_id?: number; is_current?: boolean; academic_year_id?: number; department_id?: number }) => {
+    const params: any = { skip, limit }
+    if (filters?.batch_year_id) params.batch_year_id = filters.batch_year_id
+    if (filters?.is_current !== undefined) params.is_current = filters.is_current
+    if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
+    if (filters?.department_id) params.department_id = filters.department_id
+    const response = await apiClient.get('/academic/semesters', { params })
+    return response.data
+  },
+  getSemestersByBatchYear: async (batchYearId: number) => {
+    const response = await apiClient.get(`/academic/batch-years/${batchYearId}/semesters`)
+    return response.data
+  },
+  publishSemester: async (semesterId: number) => {
+    const response = await apiClient.post(`/academic/semesters/${semesterId}/publish`)
+    return response.data
+  },
+}
+
+// Academic Year API
+export const academicYearAPI = {
+  getAll: async (skip: number = 0, limit: number = 100, filters?: { status?: string; is_current?: boolean }) => {
+    const params: any = { skip, limit }
+    if (filters?.status) params.status = filters.status
+    if (filters?.is_current !== undefined) params.is_current = filters.is_current
+    const response = await apiClient.get('/academic-years', { params })
+    return response.data
+  },
+  getCurrent: async () => {
+    const response = await apiClient.get('/academic-years/current')
+    return response.data
+  },
+  getById: async (academicYearId: number) => {
+    const response = await apiClient.get(`/academic-years/${academicYearId}`)
+    return response.data
+  },
+  create: async (data: { start_year: number; end_year: number; start_date?: string; end_date?: string }) => {
+    const response = await apiClient.post('/academic-years', data)
+    return response.data
+  },
+  update: async (academicYearId: number, data: { start_date?: string; end_date?: string }) => {
+    const response = await apiClient.put(`/academic-years/${academicYearId}`, data)
+    return response.data
+  },
+  activate: async (academicYearId: number) => {
+    const response = await apiClient.post(`/academic-years/${academicYearId}/activate`)
+    return response.data
+  },
+  archive: async (academicYearId: number) => {
+    const response = await apiClient.post(`/academic-years/${academicYearId}/archive`)
+    return response.data
+  },
+}
+
+// Student Enrollment API
+export const studentEnrollmentAPI = {
+  getAll: async (skip: number = 0, limit: number = 100, filters?: { student_id?: number; semester_id?: number; academic_year_id?: number }) => {
+    const params: any = { skip, limit }
+    if (filters?.student_id) params.student_id = filters.student_id
+    if (filters?.semester_id) params.semester_id = filters.semester_id
+    if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
+    const response = await apiClient.get('/student-enrollments', { params })
+    return response.data
+  },
+  getById: async (enrollmentId: number) => {
+    const response = await apiClient.get(`/student-enrollments/${enrollmentId}`)
+    return response.data
+  },
+  create: async (data: { student_id: number; semester_id: number; academic_year_id: number; roll_no: string; enrollment_date?: string }) => {
+    const response = await apiClient.post('/student-enrollments', data)
+    return response.data
+  },
+  bulkCreate: async (data: { semester_id: number; academic_year_id: number; enrollments: Array<{ student_id: number; roll_no: string; enrollment_date?: string }> }) => {
+    const response = await apiClient.post('/student-enrollments/bulk', data)
+    return response.data
+  },
+  promote: async (enrollmentId: number, nextSemesterId: number) => {
+    const response = await apiClient.post(`/student-enrollments/${enrollmentId}/promote`, null, {
+      params: { next_semester_id: nextSemesterId }
+    })
+    return response.data
+  },
+}
+
+// Internal Marks API
+export const internalMarksAPI = {
+  getAll: async (skip: number = 0, limit: number = 100, filters?: { student_id?: number; subject_assignment_id?: number; semester_id?: number; academic_year_id?: number; workflow_state?: string }) => {
+    const params: any = { skip, limit }
+    if (filters?.student_id) params.student_id = filters.student_id
+    if (filters?.subject_assignment_id) params.subject_assignment_id = filters.subject_assignment_id
+    if (filters?.semester_id) params.semester_id = filters.semester_id
+    if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
+    if (filters?.workflow_state) params.workflow_state = filters.workflow_state
+    const response = await apiClient.get('/internal-marks', { params })
+    return response.data
+  },
+  getById: async (markId: number) => {
+    const response = await apiClient.get(`/internal-marks/${markId}`)
+    return response.data
+  },
+  create: async (data: { student_id: number; subject_assignment_id: number; semester_id: number; academic_year_id: number; component_type: string; marks_obtained: number; max_marks: number; notes?: string }) => {
+    const response = await apiClient.post('/internal-marks', data)
+    return response.data
+  },
+  update: async (markId: number, data: { marks_obtained: number; notes?: string }) => {
+    const response = await apiClient.put(`/internal-marks/${markId}`, data)
+    return response.data
+  },
+  submit: async (markId: number) => {
+    const response = await apiClient.post(`/internal-marks/${markId}/submit`)
+    return response.data
+  },
+  bulkSubmit: async (data: { subject_assignment_id: number; mark_ids?: number[] }) => {
+    const response = await apiClient.post('/internal-marks/bulk-submit', data)
+    return response.data
+  },
+  approve: async (markId: number) => {
+    const response = await apiClient.post(`/internal-marks/${markId}/approve`)
+    return response.data
+  },
+  reject: async (markId: number, reason: string) => {
+    const response = await apiClient.post(`/internal-marks/${markId}/reject`, { reason })
+    return response.data
+  },
+  freeze: async (markId: number) => {
+    const response = await apiClient.post(`/internal-marks/${markId}/freeze`)
+    return response.data
+  },
+  publish: async (markId: number) => {
+    const response = await apiClient.post(`/internal-marks/${markId}/publish`)
+    return response.data
+  },
+  getSubmitted: async (skip: number = 0, limit: number = 100, department_id?: number) => {
+    const params: any = { skip, limit }
+    if (department_id) params.department_id = department_id
+    const response = await apiClient.get('/internal-marks/submitted/list', { params })
+    return response.data
+  },
+}
+
+// Audit API
+export const auditAPI = {
+  getMarkAuditLogs: async (filters?: {
+    mark_id?: number
+    exam_id?: number
+    student_id?: number
+    changed_by?: number
+    skip?: number
+    limit?: number
+  }) => {
+    const params: any = {
+      skip: filters?.skip || 0,
+      limit: filters?.limit || 100
+    }
+    if (filters?.mark_id) params.mark_id = filters.mark_id
+    if (filters?.exam_id) params.exam_id = filters.exam_id
+    if (filters?.student_id) params.student_id = filters.student_id
+    if (filters?.changed_by) params.changed_by = filters.changed_by
+    const response = await apiClient.get('/audit/marks', { params })
+    return response.data
+  },
+  getSystemAuditLogs: async (filters?: {
+    user_id?: number
+    action?: string
+    resource?: string
+    skip?: number
+    limit?: number
+  }) => {
+    const params: any = {
+      skip: filters?.skip || 0,
+      limit: filters?.limit || 100
+    }
+    if (filters?.user_id) params.user_id = filters.user_id
+    if (filters?.action) params.action = filters.action
+    if (filters?.resource) params.resource = filters.resource
+    const response = await apiClient.get('/audit/system', { params })
     return response.data
   },
 }

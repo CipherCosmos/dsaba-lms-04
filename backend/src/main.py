@@ -5,6 +5,7 @@ Clean Architecture Implementation
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
@@ -14,10 +15,11 @@ from src.config import settings
 from src.infrastructure.database.session import verify_database_connection, create_tables
 # Import database module to ensure relationships are configured
 from src.infrastructure.database import models as _  # noqa: F401
-from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments
+from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks
 from src.api.middleware.error_handler import setup_error_handlers
 from src.api.middleware.security_headers import add_security_headers
 from src.api.middleware.logging import setup_logging
+from src.api.middleware.rate_limiting import setup_rate_limiting
 
 # Setup logging
 setup_logging()
@@ -82,8 +84,15 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
+# GZip compression middleware for better performance
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Security headers middleware
 app.middleware("http")(add_security_headers)
+
+# Rate limiting middleware (if enabled)
+if settings.RATE_LIMIT_ENABLED:
+    setup_rate_limiting(app)
 
 # Health check endpoint
 @app.get("/health", tags=["System"])
@@ -207,6 +216,26 @@ app.include_router(
 )
 app.include_router(
     subject_assignments.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    audit.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    students.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    academic_years.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    student_enrollments.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    internal_marks.router,
     prefix=settings.api_prefix,
 )
 

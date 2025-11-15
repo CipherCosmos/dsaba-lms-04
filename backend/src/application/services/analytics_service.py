@@ -73,13 +73,18 @@ class AnalyticsService:
             if cached:
                 return cached
         
-        # Get student
-        student = self.db.query(StudentModel).filter(StudentModel.id == student_id).first()
+        # Get student with eager loading
+        from sqlalchemy.orm import joinedload
+        student = self.db.query(StudentModel).options(
+            joinedload(StudentModel.user)
+        ).filter(StudentModel.id == student_id).first()
         if not student:
             raise EntityNotFoundError("Student", student_id)
         
-        # Get all marks for student
-        marks_query = self.db.query(MarkModel).filter(MarkModel.student_id == student_id)
+        # Get marks with eager loading of exams to avoid N+1 queries
+        marks_query = self.db.query(MarkModel).options(
+            joinedload(MarkModel.exam)
+        ).filter(MarkModel.student_id == student_id)
         
         if subject_id:
             # Filter by subject through exam -> subject_assignment -> subject
@@ -89,24 +94,61 @@ class AnalyticsService:
         
         marks = marks_query.all()
         
-        # Calculate statistics
-        total_marks = sum(float(m.marks_obtained) for m in marks)
-        avg_marks = total_marks / len(marks) if marks else 0
+        # Calculate statistics using SQL aggregation for better performance
+        from sqlalchemy import func
+        stats_query = self.db.query(
+            func.sum(MarkModel.marks_obtained).label('total_marks'),
+            func.count(MarkModel.id).label('count'),
+            func.avg(MarkModel.marks_obtained).label('avg_marks')
+        ).filter(MarkModel.student_id == student_id)
         
-        # Get exams
-        exam_ids = list(set(m.exam_id for m in marks))
-        exams = self.db.query(ExamModel).filter(ExamModel.id.in_(exam_ids)).all()
+        if subject_id:
+            stats_query = stats_query.join(ExamModel).join(
+                SubjectAssignmentModel
+            ).filter(SubjectAssignmentModel.subject_id == subject_id)
         
-        # Group by exam type
+        stats = stats_query.first()
+        total_marks = float(stats.total_marks) if stats.total_marks else 0
+        avg_marks = float(stats.avg_marks) if stats.avg_marks else 0
+        marks_count = stats.count if stats.count else 0
+        
+        # Get exam type breakdown using SQL aggregation (more efficient)
+        exam_type_query = self.db.query(
+            ExamModel.exam_type,
+            func.sum(MarkModel.marks_obtained).label('total_marks'),
+            func.count(MarkModel.id).label('count'),
+            func.avg(MarkModel.marks_obtained).label('avg_marks')
+        ).join(MarkModel).filter(
+            MarkModel.student_id == student_id
+        )
+        
+        if subject_id:
+            exam_type_query = exam_type_query.join(
+                SubjectAssignmentModel
+            ).filter(SubjectAssignmentModel.subject_id == subject_id)
+        
+        exam_type_query = exam_type_query.group_by(ExamModel.exam_type)
+        exam_type_results = exam_type_query.all()
+        
+        # Build exam type stats dictionary
         exam_type_stats = {}
-        for exam in exams:
-            exam_marks = [m for m in marks if m.exam_id == exam.id]
-            exam_total = sum(float(m.marks_obtained) for m in exam_marks)
-            exam_type_stats[exam.exam_type] = {
-                "total_marks": exam_total,
-                "count": len(exam_marks),
-                "avg_marks": exam_total / len(exam_marks) if exam_marks else 0
+        for result in exam_type_results:
+            exam_type_stats[result.exam_type] = {
+                "total_marks": float(result.total_marks) if result.total_marks else 0,
+                "count": result.count,
+                "avg_marks": float(result.avg_marks) if result.avg_marks else 0
             }
+        
+        # Get unique exam count
+        exam_count_query = self.db.query(func.count(func.distinct(MarkModel.exam_id))).filter(
+            MarkModel.student_id == student_id
+        )
+        if subject_id:
+            exam_count_query = exam_count_query.join(ExamModel).join(
+                SubjectAssignmentModel
+            ).filter(SubjectAssignmentModel.subject_id == subject_id)
+        
+        total_exams = exam_count_query.scalar() or 0
         
         result = {
             "student_id": student_id,
@@ -114,7 +156,7 @@ class AnalyticsService:
             "roll_no": student.roll_no,
             "total_marks": round(total_marks, 2),
             "average_marks": round(avg_marks, 2),
-            "total_exams": len(exam_ids),
+            "total_exams": total_exams,
             "exam_type_breakdown": exam_type_stats,
             "subject_id": subject_id
         }

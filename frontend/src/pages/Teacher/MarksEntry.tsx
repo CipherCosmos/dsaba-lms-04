@@ -7,6 +7,7 @@ import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchMarksByExam, saveMarks } from '../../store/slices/marksSlice'
 import { marksAPI } from '../../services/api'
+import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
 import { 
   Download, Save, Users, FileSpreadsheet, 
   Search, CheckCircle, AlertTriangle,
@@ -64,11 +65,18 @@ const MarksEntry = () => {
     [subjects, user?.id]
   )
   
+  // Get subject assignments for exams
+  const { getSubjectForExam, getAssignmentForExam } = useExamSubjectAssignments(exams)
+  
   const teacherExams = useMemo(() => {
-    return exams?.filter(exam => 
-      teacherSubjects.some(subject => subject.id === exam.subject_id)
-    ) || []
-  }, [exams, teacherSubjects])
+    // Filter exams by checking if the exam's subject assignment belongs to teacher's subjects
+    return exams.filter(exam => {
+      const assignment = getAssignmentForExam(exam)
+      if (!assignment) return false
+      const examSubject = getSubjectForExam(exam)
+      return examSubject?.teacher_id === user?.id
+    })
+  }, [exams, teacherSubjects, user?.id, getSubjectForExam, getAssignmentForExam])
 
   // Enhanced calculations with proper error handling
   const calculateTotals = useMemo(() => {
@@ -141,27 +149,19 @@ const MarksEntry = () => {
     setSelectedStudents(new Set())
     setBulkMode(false)
     
-    // Get subject assignment to find class_id
+    // Use new endpoint to get students for this exam
+    const { examAPI } = await import('../../services/api')
     let classStudents: any[] = []
-    const { subjectAssignmentAPI } = await import('../../services/api')
     try {
-      const assignment = await subjectAssignmentAPI.getByExam(exam.id)
-      // Get students from the class in the subject assignment
-      classStudents = users.filter(u => 
-        u.role === 'student' && u.class_id === assignment.class_id
-      )
+      const studentsResponse = await examAPI.getStudents(exam.id)
+      classStudents = studentsResponse.students || []
       logger.debug('Class students loaded:', classStudents.length)
       setStudents(classStudents)
-    } catch (error) {
-      logger.error('Error fetching subject assignment:', error)
-      // Fallback: Get students from subject department if assignment fetch fails
-      const subject = subjects.find(s => s.id === exam.subject_id)
-      if (subject) {
-        classStudents = users.filter(u => 
-          u.role === 'student' && u.department_id === subject.department_id
-        )
-        setStudents(classStudents)
-      }
+    } catch (error: any) {
+      logger.error('Error fetching students for exam:', error)
+      toast.error(error.response?.data?.detail || 'Failed to fetch students. Please try again.')
+      setStudents([])
+      return
     }
     
     // Check if exam has questions
@@ -177,7 +177,7 @@ const MarksEntry = () => {
       logger.debug('Marks fetched:', marksResult.length, 'records')
       
       // Initialize marks data structure with proper calculations
-      const initialMarksData = classStudents.map(student => {
+      const initialMarksData = classStudents.map((student: any) => {
         const studentMarks: { [key: number]: number } = {}
         let total = 0
         
@@ -534,8 +534,8 @@ const MarksEntry = () => {
     // Add question headers
     selectedExam.questions?.forEach((question: any, index: number) => {
       const questionTitle = question.question_text 
-        ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.max_marks})`
-        : `Q${index + 1} (${question.max_marks})`
+        ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.marks_per_question})`
+        : `Q${index + 1} (${question.marks_per_question})`
       expectedHeaders.push(questionTitle)
     })
 
@@ -577,8 +577,8 @@ const MarksEntry = () => {
             studentData.errors.push(`Q${qIndex + 1}: Invalid number format`)
           } else if (numValue < 0) {
             studentData.errors.push(`Q${qIndex + 1}: Cannot be negative`)
-          } else if (numValue > question.max_marks) {
-            studentData.errors.push(`Q${qIndex + 1}: Exceeds max marks (${question.max_marks})`)
+          } else if (numValue > question.marks_per_question) {
+            studentData.errors.push(`Q${qIndex + 1}: Exceeds max marks (${question.marks_per_question})`)
           } else {
             studentData.marks[question.id] = numValue
           }
@@ -703,8 +703,8 @@ const MarksEntry = () => {
       // Add individual question marks
       selectedExam.questions?.forEach((question: any, index: number) => {
         const questionTitle = question.question_text 
-          ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.max_marks})`
-          : `Q${index + 1} (${question.max_marks})`
+          ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.marks_per_question})`
+        : `Q${index + 1} (${question.marks_per_question})`
         row[questionTitle] = student.marks[question.id] || 0
       })
       
@@ -733,8 +733,8 @@ const MarksEntry = () => {
       
       selectedExam.questions?.forEach((question: any, index: number) => {
         const questionTitle = question.question_text 
-          ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.max_marks})`
-          : `Q${index + 1} (${question.max_marks})`
+          ? `Q${index + 1}: ${question.question_text.substring(0, 30)}${question.question_text.length > 30 ? '...' : ''} (${question.marks_per_question})`
+        : `Q${index + 1} (${question.marks_per_question})`
         row[questionTitle] = ''
       })
       
@@ -787,7 +787,8 @@ const MarksEntry = () => {
         <h3 className="text-lg font-semibold mb-4">Select Exam</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {teacherExams.map((exam) => {
-            const subject = subjects.find(s => s.id === exam.subject_id)
+            // Get subject from subject assignment using hook
+            const examSubject = getSubjectForExam(exam)
             return (
               <div
                 key={exam.id}
@@ -804,7 +805,7 @@ const MarksEntry = () => {
                     {exam.exam_type}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-2">{subject?.name}</p>
+                <p className="text-sm text-gray-600 mb-2">{examSubject?.name || 'Unknown Subject'}</p>
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>{exam.total_marks} marks</span>
                   <span>{exam.questions?.length || 0} questions</span>
@@ -992,7 +993,7 @@ const MarksEntry = () => {
                     <th key={question.id} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <div className="flex flex-col items-center">
                         <span>Q{index + 1}</span>
-                        <span className="text-gray-400">({question.max_marks})</span>
+                        <span className="text-gray-400">({question.marks_per_question})</span>
                         {question.question_text && (
                           <div className="mt-1 max-w-32">
                             <span 
@@ -1015,7 +1016,7 @@ const MarksEntry = () => {
                               onChange={(e) => setQuickFillValue(e.target.value)}
                               className="w-12 h-6 text-xs text-center border rounded"
                               min="0"
-                              max={question.max_marks}
+                              max={question.marks_per_question}
                             />
                             <button
                               onClick={() => handleBulkFill(question.id, Number(quickFillValue) || 0)}
@@ -1087,7 +1088,7 @@ const MarksEntry = () => {
                             }}
                             type="number"
                             min="0"
-                            max={question.max_marks}
+                            max={question.marks_per_question}
                             step="0.5"
                             value={student.marks[question.id] || ''}
                             onChange={(e) => handleMarksChange(
@@ -1099,23 +1100,23 @@ const MarksEntry = () => {
                             className={`w-16 input-field text-center ${
                               lockStatus?.is_locked
                                 ? 'bg-gray-100 cursor-not-allowed opacity-60'
-                                : student.marks[question.id] > question.max_marks
+                                : student.marks[question.id] > question.marks_per_question
                                 ? 'border-red-300 bg-red-50'
-                                : student.marks[question.id] === question.max_marks
+                                : student.marks[question.id] === question.marks_per_question
                                 ? 'border-green-300 bg-green-50'
                                 : ''
                             }`}
                             placeholder="0"
                           />
-                          {showValidation && student.marks[question.id] > question.max_marks && (
+                          {showValidation && student.marks[question.id] > question.marks_per_question && (
                             <AlertTriangle className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-4 h-4 text-red-500" />
                           )}
-                          {showValidation && student.marks[question.id] === question.max_marks && (
+                          {showValidation && student.marks[question.id] === question.marks_per_question && (
                             <CheckCircle className="absolute -right-6 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-500" />
                           )}
                         </div>
                         <div className="text-xs text-gray-400 mt-1">
-                          /{question.max_marks}
+                          /{question.marks_per_question}
                         </div>
                       </td>
                     ))}
@@ -1260,7 +1261,7 @@ const MarksEntry = () => {
                     <ul className="text-sm text-blue-800 space-y-1">
                       <li>• First column: Roll No (must match student roll numbers)</li>
                       <li>• Second column: Student Name (must match student names)</li>
-                      <li>• Subsequent columns: Q1 (max_marks), Q2 (max_marks), etc.</li>
+                      <li>• Subsequent columns: Q1 (marks_per_question), Q2 (marks_per_question), etc.</li>
                       <li>• Supported formats: .xlsx, .xls, .csv</li>
                       <li>• Use the template for proper formatting</li>
                     </ul>

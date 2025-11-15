@@ -28,16 +28,26 @@ from src.domain.exceptions import (
     BusinessRuleViolationError,
     ValidationError
 )
+from src.infrastructure.database.session import get_db
+from sqlalchemy.orm import Session
 from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
 from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
+from src.infrastructure.database.repositories.question_repository_impl import QuestionRepository
+
+
+def get_question_repository():
+    """Get question repository instance"""
+    db: Session = next(get_db())
+    return QuestionRepository(db)
 
 
 def get_marks_service(
     mark_repo: MarkRepository = Depends(get_mark_repository),
-    exam_repo: ExamRepository = Depends(get_exam_repository)
+    exam_repo: ExamRepository = Depends(get_exam_repository),
+    question_repo: QuestionRepository = Depends(get_question_repository)
 ) -> MarksService:
     """Get marks service instance"""
-    return MarksService(mark_repo, exam_repo)
+    return MarksService(mark_repo, exam_repo, question_repo)
 
 
 # Create router
@@ -182,11 +192,16 @@ async def get_exam_marks(
     skip: int = Query(0, ge=0),
     limit: int = Query(1000, ge=1, le=5000),
     marks_service: MarksService = Depends(get_marks_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
-    Get all marks for an exam
+    Get all marks for an exam with pagination
     """
+    # Get total count efficiently
+    from src.infrastructure.database.models import MarkModel
+    total = db.query(MarkModel).filter(MarkModel.exam_id == exam_id).count()
+    
     marks = await marks_service.get_exam_marks(
         exam_id=exam_id,
         skip=skip,
@@ -195,7 +210,7 @@ async def get_exam_marks(
     
     return MarkListResponse(
         items=[MarkResponse(**mark.to_dict()) for mark in marks],
-        total=len(marks),
+        total=total,
         skip=skip,
         limit=limit
     )

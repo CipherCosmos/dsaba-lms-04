@@ -196,3 +196,18 @@ class AcademicStructureService:
         semester.set_dates(start_date, end_date)
         return await self.semester_repository.update(semester)
 
+    async def list_semesters(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        batch_year_id: Optional[int] = None,
+        is_current: Optional[bool] = None
+    ) -> List[Semester]:
+        """List semesters with optional filters"""
+        filters = {}
+        if batch_year_id is not None:
+            filters['batch_year_id'] = batch_year_id
+        if is_current is not None:
+            filters['is_current'] = is_current
+        return await self.semester_repository.get_all(skip=skip, limit=limit, filters=filters)
+

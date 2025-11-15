@@ -203,9 +203,14 @@ const Reports = () => {
     const subjectClass = departmentClasses.find(c => c.id === s.class_id)
     return !!subjectClass
   })
-  const departmentTeachers = users.filter(u => 
-    u.role === 'teacher' && u.department_id === user?.department_id
-  )
+  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const departmentTeachers = users.filter(u => {
+    if (u.role !== 'teacher') return false
+    if (u.department_ids && u.department_ids.length > 0) {
+      return u.department_ids[0] === userDeptId
+    }
+    return (u as any).department_id === userDeptId
+  })
 
   const handleGenerateReport = async () => {
     if (!selectedReportType) {

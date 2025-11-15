@@ -135,32 +135,37 @@ async def generate_co_po_report_pdf(
         from src.infrastructure.cache.redis_client import get_cache_service
         from src.application.services.analytics_service import AnalyticsService
         
-        db = next(get_db())
-        mark_repo = MarkRepository(db)
-        exam_repo = ExamRepository(db)
-        user_repo = UserRepository(db)
-        subject_repo = SubjectRepository(db)
-        cache_service = get_cache_service()
-        analytics_service = AnalyticsService(db, mark_repo, exam_repo, subject_repo, user_repo, cache_service)
-        
-        # Calculate CO attainment
-        co_attainment_result = await analytics_service.calculate_co_attainment(
-            subject_id=subject_id
-        )
-        
-        # Structure data for PDF generation
-        co_attainment_data = {
-            "subject_id": subject_id,
-            "co_attainment": co_attainment_result.get("co_attainment", {}) if isinstance(co_attainment_result, dict) else {}
-        }
-        
-        pdf_bytes = await service.generate_co_po_report_pdf(subject_id, co_attainment_data)
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="co_po_report_{subject_id}.pdf"'}
-        )
+        # Use dependency injection for database session
+        db_gen = get_db()
+        db = next(db_gen)
+        try:
+            mark_repo = MarkRepository(db)
+            exam_repo = ExamRepository(db)
+            user_repo = UserRepository(db)
+            subject_repo = SubjectRepository(db)
+            cache_service = get_cache_service()
+            analytics_service = AnalyticsService(db, mark_repo, exam_repo, subject_repo, user_repo, cache_service)
+            
+            # Calculate CO attainment
+            co_attainment_result = await analytics_service.calculate_co_attainment(
+                subject_id=subject_id
+            )
+            
+            # Structure data for PDF generation
+            co_attainment_data = {
+                "subject_id": subject_id,
+                "co_attainment": co_attainment_result.get("co_attainment", {}) if isinstance(co_attainment_result, dict) else {}
+            }
+            
+            pdf_bytes = await service.generate_co_po_report_pdf(subject_id, co_attainment_data)
+            
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="co_po_report_{subject_id}.pdf"'}
+            )
+        finally:
+            db.close()
     except EntityNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

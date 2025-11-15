@@ -9,8 +9,10 @@ from decimal import Decimal
 
 from src.domain.repositories.mark_repository import IMarkRepository
 from src.domain.repositories.exam_repository import IExamRepository
+from src.domain.repositories.question_repository import IQuestionRepository
 from src.domain.entities.mark import Mark
 from src.domain.entities.exam import Exam
+from src.domain.entities.question import Question
 from src.domain.enums.exam_type import ExamType, ExamStatus
 from src.domain.exceptions import (
     EntityNotFoundError,
@@ -35,10 +37,12 @@ class MarksService:
     def __init__(
         self,
         mark_repository: IMarkRepository,
-        exam_repository: IExamRepository
+        exam_repository: IExamRepository,
+        question_repository: Optional[IQuestionRepository] = None
     ):
         self.mark_repository = mark_repository
         self.exam_repository = exam_repository
+        self.question_repository = question_repository
     
     async def enter_mark(
         self,
@@ -275,16 +279,21 @@ class MarksService:
         """
         Calculate total marks for a student with smart calculation
         
-        Smart calculation handles optional questions:
-        - If question is optional and student answered it, include it
-        - If question is optional and student didn't answer, exclude it
-        - Required questions are always included
+        Smart calculation implements "best of N" logic per section:
+        - Groups questions by section (A, B, C)
+        - For sections with optional_count > 0:
+          * Collects all answered questions (required + optional)
+          * Sorts by marks descending
+          * Takes top required_count questions
+          * Caps total at required_count * marks_per_question
+        - Required-only sections: sum all marks
+        - Handles sub-question capping (sum children ≤ parent)
         
         Args:
             exam_id: Exam ID
             student_id: Student ID
             question_max_marks: Dict mapping question_id to max marks
-            optional_questions: Optional list of question IDs that are optional
+            optional_questions: Optional list of question IDs that are optional (legacy support)
         
         Returns:
             Dict with:
@@ -296,20 +305,99 @@ class MarksService:
         # Get all marks for student
         marks = await self.get_student_exam_marks(exam_id, student_id)
         
-        # Group marks by question
+        # Group marks by question (including sub-questions)
         marks_by_question: Dict[int, float] = {}
+        sub_marks_by_parent: Dict[int, List[float]] = {}  # parent_qn_id -> [sub_marks]
+        
         for mark in marks:
             question_id = mark.question_id
-            if question_id not in marks_by_question:
-                marks_by_question[question_id] = 0.0
-            marks_by_question[question_id] += mark.marks_obtained
+            sub_question_id = mark.sub_question_id
+            
+            if sub_question_id:
+                # Sub-question mark
+                if question_id not in sub_marks_by_parent:
+                    sub_marks_by_parent[question_id] = []
+                sub_marks_by_parent[question_id].append(mark.marks_obtained)
+            else:
+                # Main question mark
+                if question_id not in marks_by_question:
+                    marks_by_question[question_id] = 0.0
+                marks_by_question[question_id] += mark.marks_obtained
         
-        # Calculate totals
-        optional_questions_set = set(optional_questions or [])
+        # Get questions with section info if repository available
+        questions_by_section: Dict[str, List[Dict[str, Any]]] = {}
+        if self.question_repository:
+            all_questions = await self.question_repository.get_by_exam(exam_id)
+            for q in all_questions:
+                section = q.section
+                if section not in questions_by_section:
+                    questions_by_section[section] = []
+                
+                # Calculate sub-question total if exists
+                question_total = marks_by_question.get(q.id, 0.0)
+                if q.id in sub_marks_by_parent:
+                    sub_total = sum(sub_marks_by_parent[q.id])
+                    # Cap sub-total at parent marks_per_question
+                    max_parent = float(q.marks_per_question)
+                    question_total = min(sub_total, max_parent)
+                
+                questions_by_section[section].append({
+                    'id': q.id,
+                    'marks': question_total,
+                    'max_marks': float(q.marks_per_question),
+                    'required_count': q.required_count,
+                    'optional_count': q.optional_count
+                })
+        
+        # Calculate totals per section with smart capping
         total_obtained = 0.0
         total_max = 0.0
         questions_counted = []
         
+        if questions_by_section:
+            # Use section-based smart calculation
+            for section, questions in questions_by_section.items():
+                # Check if section has optional questions
+                has_optional = any(q['optional_count'] > 0 for q in questions)
+                
+                if has_optional:
+                    # Smart "best of N" logic
+                    # Get required_count from first question (assuming same for section)
+                    required_count = questions[0]['required_count'] if questions else 1
+                    marks_per_qn = questions[0]['max_marks'] if questions else 0
+                    
+                    # Collect all answered questions with marks
+                    answered_questions = [
+                        (q['id'], q['marks'], q['max_marks'])
+                        for q in questions
+                        if q['marks'] > 0
+                    ]
+                    
+                    if answered_questions:
+                        # Sort by marks descending
+                        answered_questions.sort(key=lambda x: x[1], reverse=True)
+                        
+                        # Take top required_count
+                        top_questions = answered_questions[:required_count]
+                        
+                        # Sum marks and cap at required_count * marks_per_qn
+                        section_obtained = sum(q[1] for q in top_questions)
+                        section_max = required_count * marks_per_qn
+                        section_obtained = min(section_obtained, section_max)
+                        
+                        total_obtained += section_obtained
+                        total_max += section_max
+                        questions_counted.extend([q[0] for q in top_questions])
+                else:
+                    # Required-only section: sum all
+                    for q in questions:
+                        total_obtained += q['marks']
+                        total_max += q['max_marks']
+                        if q['marks'] > 0:
+                            questions_counted.append(q['id'])
+        else:
+            # Fallback to simple calculation if questions not available
+            optional_questions_set = set(optional_questions or [])
         for question_id, max_marks in question_max_marks.items():
             is_optional = question_id in optional_questions_set
             student_marks = marks_by_question.get(question_id, 0.0)
@@ -341,18 +429,21 @@ class MarksService:
         subject_assignment_id: int,
         student_id: int,
         internal_1_marks: Optional[float],
-        internal_2_marks: Optional[float]
+        internal_2_marks: Optional[float],
+        department_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Calculate best internal marks
         
-        Uses the method specified in settings (best, avg, weighted)
+        Uses department-specific method from DepartmentSettingsModel if available,
+        otherwise falls back to global settings (best, avg, weighted)
         
         Args:
             subject_assignment_id: Subject assignment ID
             student_id: Student ID
             internal_1_marks: Internal 1 marks (if available)
             internal_2_marks: Internal 2 marks (if available)
+            department_id: Optional department ID to get department-specific settings
         
         Returns:
             Dict with:
@@ -361,7 +452,22 @@ class MarksService:
                 - internal_1: Optional[float]
                 - internal_2: Optional[float]
         """
-        method = settings.INTERNAL_CALCULATION_METHOD
+        # Try to get department-specific method
+        method = settings.INTERNAL_CALCULATION_METHOD  # Default fallback
+        
+        if department_id:
+            # Query department settings
+            from src.infrastructure.database.models import DepartmentSettingsModel
+            
+            # Get database session from repository if available
+            if hasattr(self.mark_repository, 'db'):
+                db = self.mark_repository.db
+                dept_settings = db.query(DepartmentSettingsModel).filter(
+                    DepartmentSettingsModel.department_id == department_id
+                ).first()
+                
+                if dept_settings and dept_settings.internal_method:
+                    method = dept_settings.internal_method
         
         # Filter out None values
         available_marks = [m for m in [internal_1_marks, internal_2_marks] if m is not None]

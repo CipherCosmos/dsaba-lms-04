@@ -10,6 +10,8 @@ const TeacherAnalytics = lazy(() => import('../../pages/Teacher/TeacherAnalytics
 const AttainmentAnalytics = lazy(() => import('../../pages/Teacher/AttainmentAnalytics'))
 const ComprehensiveAnalytics = lazy(() => import('../../pages/Teacher/ComprehensiveAnalytics'))
 const ReportManagement = lazy(() => import('../../pages/Teacher/ReportManagement'))
+const BloomsAnalytics = lazy(() => import('../../pages/Teacher/BloomsAnalytics'))
+const InternalMarksEntry = lazy(() => import('../../pages/Teacher/InternalMarksEntry'))
 const TeacherDashboard = lazy(() => import('../../components/Dashboard/TeacherDashboard'))
 
 /**
@@ -97,6 +99,30 @@ export const TeacherRoutes = () => {
           requiredPermissions={[Permission.REPORT_GENERATE]}
         >
           <ReportManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="teacher-blooms-analytics"
+      path="/teacher/blooms-analytics"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.TEACHER]}
+          requiredPermissions={[Permission.ANALYTICS_VIEW]}
+        >
+          <BloomsAnalytics />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="teacher-internal-marks"
+      path="/teacher/internal-marks"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.TEACHER, UserRole.ADMIN]}
+          requiredPermissions={[Permission.MARKS_WRITE]}
+        >
+          <InternalMarksEntry />
         </RoleGuard>
       }
     />,

@@ -111,6 +111,11 @@ class User(AggregateRoot):
         return self._roles.copy()
     
     @property
+    def role(self) -> Optional[UserRole]:
+        """Get primary role (first role) for backward compatibility"""
+        return self._roles[0] if self._roles else None
+    
+    @property
     def department_ids(self) -> List[int]:
         return self._department_ids.copy()
     

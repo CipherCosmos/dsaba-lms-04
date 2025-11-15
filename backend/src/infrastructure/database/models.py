@@ -6,11 +6,12 @@ Maps domain entities to database tables
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, Text, 
     Boolean, ForeignKey, Date, DECIMAL, CheckConstraint,
-    UniqueConstraint, Index, JSON, and_
+    UniqueConstraint, Index, JSON, and_, Enum as SQLEnum
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .session import Base
+import enum
 
 
 # ============================================
@@ -169,6 +170,7 @@ class DepartmentModel(Base):
     classes = relationship("ClassModel", back_populates="department")
     subjects = relationship("SubjectModel", back_populates="department")
     program_outcomes = relationship("ProgramOutcomeModel", back_populates="department")
+    semesters = relationship("SemesterModel", back_populates="department")
 
 
 class BatchModel(Base):
@@ -210,28 +212,173 @@ class BatchYearModel(Base):
     students = relationship("StudentModel", back_populates="batch_year")
 
 
-class SemesterModel(Base):
-    """Semester database model"""
-    __tablename__ = "semesters"
+# ============================================
+# Enums for Workflow States
+# ============================================
+
+class MarksWorkflowState(str, enum.Enum):
+    """Marks workflow states"""
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    FROZEN = "frozen"
+    PUBLISHED = "published"
+
+
+class MarkComponentType(str, enum.Enum):
+    """Internal marks component types"""
+    IA1 = "ia1"  # Internal Assessment 1
+    IA2 = "ia2"  # Internal Assessment 2
+    ASSIGNMENT = "assignment"
+    PRACTICAL = "practical"
+    ATTENDANCE = "attendance"
+    QUIZ = "quiz"
+    PROJECT = "project"
+    OTHER = "other"
+
+
+class AcademicYearStatus(str, enum.Enum):
+    """Academic year status"""
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    PLANNED = "planned"
+
+
+# ============================================
+# Academic Year Model (NEW)
+# ============================================
+
+class AcademicYearModel(Base):
+    """Academic Year database model (e.g., 2024-2025)"""
+    __tablename__ = "academic_years"
     __table_args__ = (
-        UniqueConstraint('batch_year_id', 'semester_no', name='unique_semester'),
-        CheckConstraint('semester_no BETWEEN 1 AND 12', name='check_semester_no'),
-        CheckConstraint('end_date > start_date', name='check_semester_dates'),
-        Index('idx_semesters_current', 'is_current'),
+        UniqueConstraint('start_year', 'end_year', name='unique_academic_year'),
+        CheckConstraint('end_year > start_year', name='check_academic_year_order'),
+        Index('idx_academic_years_status', 'status'),
+        Index('idx_academic_years_current', 'is_current'),
     )
     
     id = Column(Integer, primary_key=True, index=True)
-    batch_year_id = Column(Integer, ForeignKey("batch_years.id", ondelete="CASCADE"), nullable=False)
+    start_year = Column(Integer, nullable=False)
+    end_year = Column(Integer, nullable=False)
+    display_name = Column(String(20), nullable=False)  # e.g., "2024-2025"
+    is_current = Column(Boolean, default=False, nullable=False)
+    status = Column(SQLEnum(AcademicYearStatus), default=AcademicYearStatus.PLANNED, nullable=False)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    semesters = relationship("SemesterModel", back_populates="academic_year", cascade="all, delete-orphan")
+    student_enrollments = relationship("StudentEnrollmentModel", back_populates="academic_year")
+    subject_assignments = relationship("SubjectAssignmentModel", back_populates="academic_year_obj")
+    internal_marks = relationship("InternalMarkModel", back_populates="academic_year")
+    
+    def __repr__(self):
+        return f"<AcademicYearModel(id={self.id}, {self.display_name})>"
+
+
+class SemesterModel(Base):
+    """Enhanced Semester database model - linked to Academic Year and Department"""
+    __tablename__ = "semesters"
+    __table_args__ = (
+        UniqueConstraint('academic_year_id', 'department_id', 'semester_no', name='unique_semester_dept_ay'),
+        CheckConstraint('semester_no BETWEEN 1 AND 12', name='check_semester_no'),
+        CheckConstraint('end_date > start_date', name='check_semester_dates'),
+        Index('idx_semesters_current', 'is_current'),
+        Index('idx_semesters_dept', 'department_id'),
+        Index('idx_semesters_ay', 'academic_year_id'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # Made nullable for migration
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)  # Made nullable for migration
     semester_no = Column(Integer, nullable=False)
     is_current = Column(Boolean, default=False, nullable=False)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
+    status = Column(String(20), default='active')  # active, completed, archived
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Keep batch_year_id for backward compatibility (optional)
+    batch_year_id = Column(Integer, ForeignKey("batch_years.id", ondelete="SET NULL"), nullable=True)
+    
+    # Relationships
+    academic_year = relationship("AcademicYearModel", back_populates="semesters")
+    department = relationship("DepartmentModel", back_populates="semesters")
+    batch_year = relationship("BatchYearModel", back_populates="semesters")
+    classes = relationship("ClassModel", back_populates="semester")
+    student_enrollments = relationship("StudentEnrollmentModel", back_populates="semester", foreign_keys="[StudentEnrollmentModel.semester_id]")
+    subjects = relationship("SubjectModel", back_populates="semester")
+    final_marks = relationship("FinalMarkModel", back_populates="semester")
+    internal_marks = relationship("InternalMarkModel", back_populates="semester")
+
+
+# ============================================
+# Student Enrollment Model (NEW)
+# ============================================
+
+class StudentEnrollmentModel(Base):
+    """Student enrollment in a semester for a specific academic year"""
+    __tablename__ = "student_enrollments"
+    __table_args__ = (
+        UniqueConstraint('student_id', 'semester_id', 'academic_year_id', name='unique_student_enrollment'),
+        Index('idx_enrollments_student', 'student_id'),
+        Index('idx_enrollments_semester', 'semester_id'),
+        Index('idx_enrollments_ay', 'academic_year_id'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=False)
+    roll_no = Column(String(20), nullable=False)  # Roll number for this semester
+    enrollment_date = Column(Date, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    promotion_status = Column(String(20), default='pending')  # pending, promoted, retained, failed
+    next_semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    student = relationship("StudentModel", back_populates="enrollments")
+    semester = relationship("SemesterModel", foreign_keys=[semester_id], back_populates="student_enrollments")
+    academic_year = relationship("AcademicYearModel", back_populates="student_enrollments")
+    next_semester = relationship("SemesterModel", foreign_keys=[next_semester_id])
+
+
+# ============================================
+# Promotion History Model (NEW)
+# ============================================
+
+class PromotionHistoryModel(Base):
+    """Track student promotions across semesters"""
+    __tablename__ = "promotion_history"
+    __table_args__ = (
+        Index('idx_promotion_student', 'student_id'),
+        Index('idx_promotion_from_sem', 'from_semester_id'),
+        Index('idx_promotion_to_sem', 'to_semester_id'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    from_semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="SET NULL"), nullable=False)
+    to_semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="SET NULL"), nullable=False)
+    from_academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"), nullable=False)
+    to_academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"), nullable=False)
+    promotion_date = Column(Date, nullable=False)
+    promotion_type = Column(String(20), default='regular')  # regular, lateral, failed, retained
+    promoted_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    batch_year = relationship("BatchYearModel", back_populates="semesters")
-    classes = relationship("ClassModel", back_populates="semester")
-    final_marks = relationship("FinalMarkModel", back_populates="semester")
+    student = relationship("StudentModel", back_populates="promotion_history")
+    from_semester = relationship("SemesterModel", foreign_keys=[from_semester_id])
+    to_semester = relationship("SemesterModel", foreign_keys=[to_semester_id])
 
 
 class ClassModel(Base):
@@ -284,6 +431,9 @@ class StudentModel(Base):
     class_obj = relationship("ClassModel", back_populates="students")
     marks = relationship("MarkModel", back_populates="student")
     final_marks = relationship("FinalMarkModel", back_populates="student")
+    enrollments = relationship("StudentEnrollmentModel", back_populates="student")
+    internal_marks = relationship("InternalMarkModel", back_populates="student")
+    promotion_history = relationship("PromotionHistoryModel", back_populates="student")
 
 
 class TeacherModel(Base):
@@ -324,6 +474,7 @@ class SubjectModel(Base):
     code = Column(String(20), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
+    semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="SET NULL"), nullable=True)  # Optional: subject can be linked to semester
     credits = Column(DECIMAL(3, 1), nullable=False, default=3.0)
     max_internal = Column(DECIMAL(5, 2), default=40.0, nullable=False)
     max_external = Column(DECIMAL(5, 2), default=60.0, nullable=False)
@@ -333,6 +484,7 @@ class SubjectModel(Base):
     
     # Relationships
     department = relationship("DepartmentModel", back_populates="subjects")
+    semester = relationship("SemesterModel", back_populates="subjects")
     course_outcomes = relationship("CourseOutcomeModel", back_populates="subject", cascade="all, delete-orphan")
     subject_assignments = relationship("SubjectAssignmentModel", back_populates="subject")
 
@@ -345,6 +497,9 @@ class SubjectAssignmentModel(Base):
         Index('idx_assignments_subject', 'subject_id'),
         Index('idx_assignments_teacher', 'teacher_id'),
         Index('idx_assignments_class', 'class_id'),
+        Index('idx_assignments_semester', 'semester_id'),
+        Index('idx_assignments_ay', 'academic_year_id'),
+        Index('idx_assignments_composite', 'teacher_id', 'semester_id', 'academic_year_id'),
     )
     
     id = Column(Integer, primary_key=True, index=True)
@@ -352,7 +507,8 @@ class SubjectAssignmentModel(Base):
     teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete="CASCADE"), nullable=False)
     class_id = Column(Integer, ForeignKey("classes.id", ondelete="CASCADE"), nullable=False)
     semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
-    academic_year = Column(Integer, nullable=False)
+    academic_year = Column(Integer, nullable=False)  # Keep for backward compatibility
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # New FK
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
@@ -361,6 +517,8 @@ class SubjectAssignmentModel(Base):
     class_obj = relationship("ClassModel", back_populates="subject_assignments")
     exams = relationship("ExamModel", back_populates="subject_assignment")
     final_marks = relationship("FinalMarkModel", back_populates="subject_assignment")
+    academic_year_obj = relationship("AcademicYearModel", back_populates="subject_assignments", foreign_keys=[academic_year_id])
+    internal_marks = relationship("InternalMarkModel", back_populates="subject_assignment")
 
 
 class ProgramOutcomeModel(Base):
@@ -448,6 +606,9 @@ class ExamModel(Base):
         Index('idx_exams_assignment', 'subject_assignment_id'),
         Index('idx_exams_type', 'exam_type'),
         Index('idx_exams_date', 'exam_date'),
+        Index('idx_exams_status', 'status'),
+        Index('idx_exams_assignment_type', 'subject_assignment_id', 'exam_type'),
+        Index('idx_exams_created_by', 'created_by'),
     )
     
     id = Column(Integer, primary_key=True, index=True)
@@ -573,6 +734,9 @@ class FinalMarkModel(Base):
         CheckConstraint("status IN ('draft', 'published', 'locked')", name='check_status'),
         Index('idx_final_marks_student', 'student_id'),
         Index('idx_final_marks_semester', 'semester_id'),
+        Index('idx_final_marks_subject', 'subject_assignment_id'),
+        Index('idx_final_marks_status', 'status'),
+        Index('idx_final_marks_composite', 'student_id', 'semester_id'),
     )
     
     id = Column(Integer, primary_key=True, index=True)
@@ -616,6 +780,67 @@ class FinalMarkModel(Base):
 
 
 # ============================================
+# Internal Marks Model (NEW - Enhanced)
+# ============================================
+
+class InternalMarkModel(Base):
+    """Internal marks with workflow states"""
+    __tablename__ = "internal_marks"
+    __table_args__ = (
+        UniqueConstraint('student_id', 'subject_assignment_id', 'component_type', name='unique_internal_mark'),
+        Index('idx_internal_marks_student', 'student_id'),
+        Index('idx_internal_marks_subject', 'subject_assignment_id'),
+        Index('idx_internal_marks_workflow', 'workflow_state'),
+        Index('idx_internal_marks_semester', 'semester_id'),
+        Index('idx_internal_marks_ay', 'academic_year_id'),
+        Index('idx_internal_marks_composite', 'student_id', 'semester_id', 'academic_year_id'),
+        Index('idx_internal_marks_workflow_subject', 'workflow_state', 'subject_assignment_id'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    subject_assignment_id = Column(Integer, ForeignKey("subject_assignments.id", ondelete="CASCADE"), nullable=False)
+    semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=False)
+    
+    # Component details
+    component_type = Column(SQLEnum(MarkComponentType), nullable=False)
+    marks_obtained = Column(DECIMAL(5, 2), default=0, nullable=False)
+    max_marks = Column(DECIMAL(5, 2), nullable=False)
+    
+    # Workflow
+    workflow_state = Column(SQLEnum(MarksWorkflowState), default=MarksWorkflowState.DRAFT, nullable=False)
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    submitted_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    rejected_at = Column(DateTime(timezone=True), nullable=True)
+    rejected_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    frozen_at = Column(DateTime(timezone=True), nullable=True)
+    frozen_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Metadata
+    entered_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    entered_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    notes = Column(Text, nullable=True)
+    
+    # Relationships
+    student = relationship("StudentModel", back_populates="internal_marks")
+    subject_assignment = relationship("SubjectAssignmentModel", back_populates="internal_marks")
+    semester = relationship("SemesterModel", back_populates="internal_marks")
+    academic_year = relationship("AcademicYearModel", back_populates="internal_marks")
+    entered_by_user = relationship("UserModel", foreign_keys=[entered_by])
+    submitted_by_user = relationship("UserModel", foreign_keys=[submitted_by])
+    approved_by_user = relationship("UserModel", foreign_keys=[approved_by])
+    rejected_by_user = relationship("UserModel", foreign_keys=[rejected_by])
+    frozen_by_user = relationship("UserModel", foreign_keys=[frozen_by])
+    audit_logs = relationship("MarksWorkflowAuditModel", back_populates="internal_mark", cascade="all, delete-orphan")
+
+
+# ============================================
 # Audit Schema - Audit Trail & Logs
 # ============================================
 
@@ -641,6 +866,29 @@ class MarkAuditLogModel(Base):
     
     # Relationships
     mark = relationship("MarkModel", back_populates="audit_logs")
+
+
+class MarksWorkflowAuditModel(Base):
+    """Audit log for marks workflow state changes"""
+    __tablename__ = "marks_workflow_audit"
+    __table_args__ = (
+        Index('idx_workflow_audit_mark', 'internal_mark_id'),
+        Index('idx_workflow_audit_user', 'changed_by'),
+        Index('idx_workflow_audit_date', 'changed_at'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    internal_mark_id = Column(Integer, ForeignKey("internal_marks.id", ondelete="CASCADE"), nullable=False)
+    old_state = Column(String(20), nullable=True)
+    new_state = Column(String(20), nullable=False)
+    changed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False)
+    changed_at = Column(DateTime(timezone=True), server_default=func.now())
+    reason = Column(Text, nullable=True)
+    change_metadata = Column(JSON, nullable=True)  # Additional context (renamed from 'metadata' - reserved word)
+    
+    # Relationships
+    internal_mark = relationship("InternalMarkModel", back_populates="audit_logs")
+    changed_by_user = relationship("UserModel")
 
 
 class AuditLogModel(Base):

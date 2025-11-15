@@ -48,8 +48,14 @@ const HODUsers: React.FC = () => {
   }
 
   // Filter users to only show those from HOD's department
-  const departmentUsers = users.filter(u => u.department_id === user?.department_id)
-  const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
+  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const departmentUsers = users.filter(u => {
+    if (u.department_ids && u.department_ids.length > 0) {
+      return u.department_ids[0] === userDeptId
+    }
+    return (u as any).department_id === userDeptId
+  })
+  const departmentClasses = classes.filter(c => c.department_id === userDeptId)
 
   // Filter users based on search and role
   const filteredUsers = departmentUsers.filter(user => {
@@ -69,10 +75,13 @@ const HODUsers: React.FC = () => {
     try {
       const userData = {
         ...formData,
-        department_id: user?.department_id!,
+        department_ids: user?.department_ids && user.department_ids.length > 0 ? user.department_ids : (user?.department_id ? [user.department_id] : []),
         password: formData.password || generatePassword(),
         role: formData.role as 'student' | 'teacher',
-        class_id: formData.class_id || undefined
+        class_id: formData.class_id || undefined,
+        email_verified: false,
+        roles: [formData.role],
+        full_name: `${formData.first_name} ${formData.last_name}`
       }
       
       await dispatch(createUser(userData)).unwrap()
@@ -97,15 +106,17 @@ const HODUsers: React.FC = () => {
 
   const handleEditUser = (userToEdit: any) => {
     setEditingUser(userToEdit)
+    // Backend returns roles array, extract first role for form
+    const primaryRole = userToEdit.roles?.[0] || userToEdit.role || 'student'
     setFormData({
       username: userToEdit.username,
       email: userToEdit.email,
       first_name: userToEdit.first_name,
       last_name: userToEdit.last_name,
-      role: userToEdit.role,
-      class_id: userToEdit.class_id,
+      role: primaryRole,
+      class_id: userToEdit.class_id || null,
       password: '', // Don't show existing password
-      is_active: userToEdit.is_active
+      is_active: userToEdit.is_active ?? true
     })
     setShowModal(true)
   }
@@ -116,13 +127,13 @@ const HODUsers: React.FC = () => {
     
     try {
       const userData: any = {
-        ...formData,
-        department_id: user?.department_id!,
-        role: formData.role as 'student' | 'teacher',
-        class_id: formData.class_id || undefined
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        is_active: formData.is_active
       }
       
-      // Only include password if it's provided
+      // Only include password if it's provided (for password reset)
       if (formData.password) {
         userData.password = formData.password
       }

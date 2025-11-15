@@ -38,7 +38,7 @@ class CacheService:
             self.redis_client.ping()
             self._enabled = True
         except (ConnectionError, RedisError) as e:
-            print(f"Redis connection failed: {e}. Caching disabled.")
+            logger.warning(f"Redis connection failed: {e}. Caching disabled.")
             self.redis_client = None
             self._enabled = False
     
@@ -90,7 +90,7 @@ class CacheService:
                 return None
             return self._deserialize(value)
         except (RedisError, ValueError) as e:
-            print(f"Cache get error for key {key}: {e}")
+            logger.error(f"Cache get error for key {key}: {e}")
             return None
     
     async def set(
@@ -120,7 +120,7 @@ class CacheService:
             
             return self.redis_client.setex(key, ttl, serialized)
         except (RedisError, ValueError) as e:
-            print(f"Cache set error for key {key}: {e}")
+            logger.error(f"Cache set error for key {key}: {e}")
             return False
     
     async def delete(self, key: str) -> bool:
@@ -139,7 +139,7 @@ class CacheService:
         try:
             return bool(self.redis_client.delete(key))
         except RedisError as e:
-            print(f"Cache delete error for key {key}: {e}")
+            logger.error(f"Cache delete error for key {key}: {e}")
             return False
     
     async def delete_pattern(self, pattern: str) -> int:
@@ -161,7 +161,7 @@ class CacheService:
                 return 0
             return self.redis_client.delete(*keys)
         except RedisError as e:
-            print(f"Cache delete pattern error for {pattern}: {e}")
+            logger.error(f"Cache delete pattern error for {pattern}: {e}")
             return 0
     
     async def exists(self, key: str) -> bool:
@@ -196,7 +196,7 @@ class CacheService:
             self.redis_client.flushdb()
             return True
         except RedisError as e:
-            print(f"Cache clear error: {e}")
+            logger.error(f"Cache clear error: {e}")
             return False
 
     async def clear_cache(self) -> bool:
@@ -213,7 +213,7 @@ class CacheService:
             self.redis_client.flushdb()
             return True
         except RedisError as e:
-            print(f"Cache clear error: {e}")
+            logger.error(f"Cache clear error: {e}")
             return False
 
     def get_cache_key(

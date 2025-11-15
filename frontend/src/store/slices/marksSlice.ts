@@ -1,13 +1,17 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { marksAPI } from '../../services/api'
+import { mapMarkResponse } from '../../core/utils/contractMapper'
 
 interface Mark {
   id: number
   exam_id: number
   student_id: number
   question_id: number
+  sub_question_id?: number
   marks_obtained: number
-  created_at: string
+  entered_by?: number
+  entered_at: string
+  updated_at?: string
 }
 
 interface MarksState {
@@ -27,7 +31,9 @@ export const fetchMarksByExam = createAsyncThunk(
   async (examId: number) => {
     const response = await marksAPI.getByExam(examId, 0, 1000)
     // Backend returns MarkListResponse with items array (standardized)
-    return response.items || response.marks || response || []
+    const marks = response.items || []
+    // Map each mark from backend format to frontend format
+    return marks.map((mark: any) => mapMarkResponse(mark))
   }
 )
 

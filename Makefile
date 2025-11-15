@@ -6,58 +6,80 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+# Detect docker compose command
+DOCKER_COMPOSE := $(shell which docker-compose 2>/dev/null || echo "docker compose")
+
 build: ## Build all Docker images
-	docker-compose build
+	$(DOCKER_COMPOSE) build
 
 up: ## Start all services
-	docker-compose up -d
+	$(DOCKER_COMPOSE) up -d
 
 down: ## Stop all services
-	docker-compose down
+	$(DOCKER_COMPOSE) down
 
 logs: ## View logs from all services
-	docker-compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 logs-backend: ## View backend logs
-	docker-compose logs -f backend
+	$(DOCKER_COMPOSE) logs -f backend
 
 logs-frontend: ## View frontend logs
-	docker-compose logs -f frontend
+	$(DOCKER_COMPOSE) logs -f frontend
 
 test: ## Run backend tests
 	cd backend && pytest tests/ --cov=src --cov-report=term-missing -v
 
+test-frontend: ## Run frontend tests
+	cd frontend && npm run test
+
+test-all: ## Run all tests
+	./scripts/test-all.sh
+
 test-docker: ## Run tests in Docker
-	docker-compose exec backend pytest tests/ --cov=src --cov-report=term-missing -v
+	$(DOCKER_COMPOSE) exec -T backend pytest tests/ --cov=src --cov-report=term-missing -v
+
+build-and-test: ## Build and test everything
+	./scripts/build-and-test.sh
 
 clean: ## Remove all containers, volumes, and images
-	docker-compose down -v
+	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
 
 restart: ## Restart all services
-	docker-compose restart
+	$(DOCKER_COMPOSE) restart
 
 ps: ## Show running services
-	docker-compose ps
+	$(DOCKER_COMPOSE) ps
 
 shell-backend: ## Open shell in backend container
-	docker-compose exec backend /bin/bash
+	$(DOCKER_COMPOSE) exec backend /bin/bash
 
 shell-frontend: ## Open shell in frontend container
-	docker-compose exec frontend /bin/sh
+	$(DOCKER_COMPOSE) exec frontend /bin/sh
 
 init-db: ## Initialize database
-	docker-compose exec backend python scripts/init_db.py
+	$(DOCKER_COMPOSE) exec -T backend python scripts/init_db.py
 
 migrate: ## Run database migrations
-	docker-compose exec backend alembic upgrade head
+	$(DOCKER_COMPOSE) exec -T backend alembic upgrade head
+
+health-check: ## Check service health
+	@echo "Checking service health..."
+	@$(DOCKER_COMPOSE) ps
+	@echo ""
+	@echo "Backend health:"
+	@$(DOCKER_COMPOSE) exec -T backend curl -f http://localhost:8000/health || echo "Backend not healthy"
+	@echo ""
+	@echo "Frontend health:"
+	@$(DOCKER_COMPOSE) exec -T frontend wget --spider --quiet http://localhost/ && echo "Frontend is healthy" || echo "Frontend not healthy"
 
 prod-build: ## Build production images
-	docker-compose -f docker-compose.prod.yml build
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml build
 
 prod-up: ## Start production services
-	docker-compose -f docker-compose.prod.yml up -d
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml up -d
 
 prod-down: ## Stop production services
-	docker-compose -f docker-compose.prod.yml down
+	$(DOCKER_COMPOSE) -f docker-compose.prod.yml down
 

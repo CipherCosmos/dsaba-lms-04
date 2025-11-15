@@ -20,14 +20,18 @@ class IExamRepository(IRepository[Exam]):
     async def get_by_subject_assignment(
         self,
         subject_assignment_id: int,
-        exam_type: Optional[ExamType] = None
+        exam_type: Optional[ExamType] = None,
+        skip: int = 0,
+        limit: int = 100
     ) -> List[Exam]:
         """
-        Get exams by subject assignment
+        Get exams by subject assignment with pagination
         
         Args:
             subject_assignment_id: Subject assignment ID
             exam_type: Optional exam type filter
+            skip: Number of records to skip
+            limit: Maximum number of records
         
         Returns:
             List of exams

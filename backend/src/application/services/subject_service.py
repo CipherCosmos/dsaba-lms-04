@@ -31,7 +31,9 @@ class SubjectService:
         department_id: int,
         credits: float,
         max_internal: float = 40.0,
-        max_external: float = 60.0
+        max_external: float = 60.0,
+        semester_id: Optional[int] = None,
+        academic_year_id: Optional[int] = None
     ) -> Subject:
         """
         Create a new subject

@@ -6,10 +6,12 @@ POST /api/v1/auth/refresh - Refresh access token
 GET  /api/v1/auth/me - Get current user info
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
 
 from src.application.services.auth_service import AuthService
+from src.api.middleware.rate_limiting import limiter
+from src.config import settings
 from src.application.dto.auth_dto import (
     LoginRequest,
     LoginResponse,
@@ -48,7 +50,9 @@ router = APIRouter(
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit(f"{settings.RATE_LIMIT_LOGIN_PER_MINUTE}/minute")
 async def login(
+    request: Request,
     credentials: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service)
 ):
@@ -177,8 +181,10 @@ async def get_current_user_info(
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse, status_code=status.HTTP_200_OK)
+@limiter.limit(f"{settings.RATE_LIMIT_LOGIN_PER_MINUTE}/minute")
 async def forgot_password(
-    request: ForgotPasswordRequest,
+    request: Request,
+    request_data: ForgotPasswordRequest,
     password_reset_service = Depends(get_password_reset_service)
 ):
     """
@@ -200,7 +206,7 @@ async def forgot_password(
         reset_url_template = f"{settings.FRONTEND_URL}/reset-password?token={{token}}"
     
     await password_reset_service.request_password_reset(
-        email_or_username=request.email_or_username,
+        email_or_username=request_data.email_or_username,
         reset_url_template=reset_url_template
     )
     

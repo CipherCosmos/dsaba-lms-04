@@ -7,13 +7,13 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 from src.infrastructure.queue.celery_app import celery_app
-from src.infrastructure.database.session import get_db
+from src.infrastructure.database.session import SessionLocal
 from src.infrastructure.cache.redis_client import get_cache_service
 from src.shared.constants import CACHE_KEYS
 
 
 @celery_app.task(name="calculate_nightly_analytics")
-async def calculate_nightly_analytics() -> Dict[str, Any]:
+def calculate_nightly_analytics() -> Dict[str, Any]:
     """
     Calculate analytics for all departments/classes nightly
     Pre-computes analytics to improve response times
@@ -21,8 +21,9 @@ async def calculate_nightly_analytics() -> Dict[str, Any]:
     Returns:
         Calculation result
     """
+    import asyncio
+    db = SessionLocal()
     try:
-        db = next(get_db())
         cache_service = get_cache_service()
         
         # Get all departments
@@ -45,6 +46,7 @@ async def calculate_nightly_analytics() -> Dict[str, Any]:
         # Initialize analytics service with cache
         analytics_service = AnalyticsService(db, mark_repo, exam_repo, subject_repo, user_repo, cache_service)
         
+        async def _process_departments():
         results = []
         for dept in departments:
             try:
@@ -72,6 +74,9 @@ async def calculate_nightly_analytics() -> Dict[str, Any]:
                     "status": "failed",
                     "error": str(e)
                 })
+            return results
+        
+        results = asyncio.run(_process_departments())
         
         return {
             "status": "completed",
@@ -79,10 +84,13 @@ async def calculate_nightly_analytics() -> Dict[str, Any]:
             "processed_at": datetime.utcnow().isoformat()
         }
     except Exception as e:
+        db.rollback()
         return {
             "status": "failed",
             "error": str(e)
         }
+    finally:
+        db.close()
 
 
 @celery_app.task(name="invalidate_analytics_cache")

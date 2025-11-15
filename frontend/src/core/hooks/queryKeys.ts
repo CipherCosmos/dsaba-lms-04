@@ -131,5 +131,43 @@ export const queryKeys = {
     byClass: (classId: number) => [...queryKeys.reports.all, 'class', classId] as const,
     coPo: (subjectId: number) => [...queryKeys.reports.all, 'co-po', subjectId] as const,
   },
+
+  // Academic Years
+  academicYears: {
+    all: ['academic-years'] as const,
+    lists: () => [...queryKeys.academicYears.all, 'list'] as const,
+    list: (skip?: number, limit?: number, filters?: Record<string, any>) =>
+      [...queryKeys.academicYears.lists(), skip, limit, filters] as const,
+    details: () => [...queryKeys.academicYears.all, 'detail'] as const,
+    detail: (id: number) => [...queryKeys.academicYears.details(), id] as const,
+    current: () => [...queryKeys.academicYears.all, 'current'] as const,
+  },
+
+  // Student Enrollments
+  studentEnrollments: {
+    all: ['student-enrollments'] as const,
+    lists: () => [...queryKeys.studentEnrollments.all, 'list'] as const,
+    list: (skip?: number, limit?: number, filters?: Record<string, any>) =>
+      [...queryKeys.studentEnrollments.lists(), skip, limit, filters] as const,
+    details: () => [...queryKeys.studentEnrollments.all, 'detail'] as const,
+    detail: (id: number) => [...queryKeys.studentEnrollments.details(), id] as const,
+    byStudent: (studentId: number) => [...queryKeys.studentEnrollments.all, 'student', studentId] as const,
+    bySemester: (semesterId: number) => [...queryKeys.studentEnrollments.all, 'semester', semesterId] as const,
+  },
+
+  // Internal Marks
+  internalMarks: {
+    all: ['internal-marks'] as const,
+    lists: () => [...queryKeys.internalMarks.all, 'list'] as const,
+    list: (skip?: number, limit?: number, filters?: Record<string, any>) =>
+      [...queryKeys.internalMarks.lists(), skip, limit, filters] as const,
+    details: () => [...queryKeys.internalMarks.all, 'detail'] as const,
+    detail: (id: number) => [...queryKeys.internalMarks.details(), id] as const,
+    submitted: (skip?: number, limit?: number, department_id?: number) =>
+      [...queryKeys.internalMarks.all, 'submitted', skip, limit, department_id] as const,
+    byStudent: (studentId: number) => [...queryKeys.internalMarks.all, 'student', studentId] as const,
+    bySubject: (subjectAssignmentId: number) =>
+      [...queryKeys.internalMarks.all, 'subject-assignment', subjectAssignmentId] as const,
+  },
 }
 

@@ -24,7 +24,11 @@ def create_celery_app() -> Celery:
             "src.infrastructure.queue.tasks.report_tasks",
             "src.infrastructure.queue.tasks.analytics_tasks",
             "src.infrastructure.queue.tasks.email_tasks",
-        ]
+        ],
+        task_routes={
+            "publish_semester_async": {"queue": "publishing"},
+            "generate_report_async": {"queue": "reports"},
+        }
     )
     
     # Celery configuration

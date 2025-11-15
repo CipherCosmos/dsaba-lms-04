@@ -13,6 +13,11 @@ const HODTeacherAnalytics = lazy(() => import('../../pages/HOD/HODTeacherAnalyti
 const Reports = lazy(() => import('../../pages/HOD/Reports'))
 const HODReportManagement = lazy(() => import('../../pages/HOD/HODReportManagement'))
 const StrategicDashboard = lazy(() => import('../../pages/HOD/StrategicDashboard'))
+const SemesterPublishing = lazy(() => import('../../pages/HOD/SemesterPublishing'))
+const MultiDimensionalAnalytics = lazy(() => import('../../pages/HOD/MultiDimensionalAnalytics'))
+const AuditTrail = lazy(() => import('../../pages/HOD/AuditTrail'))
+const StudentEnrollment = lazy(() => import('../../pages/HOD/StudentEnrollment'))
+const MarksApproval = lazy(() => import('../../pages/HOD/MarksApproval'))
 const HODDashboard = lazy(() => import('../../components/Dashboard/HODDashboard'))
 
 /**
@@ -136,6 +141,66 @@ export const HODRoutes = () => {
           requiredPermissions={[Permission.ANALYTICS_VIEW]}
         >
           <StrategicDashboard />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="hod-semester-publishing"
+      path="/hod/semester-publishing"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.HOD, UserRole.ADMIN, UserRole.PRINCIPAL]}
+          requiredPermissions={[Permission.MARKS_PUBLISH]}
+        >
+          <SemesterPublishing />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="hod-multi-analytics"
+      path="/hod/multi-analytics"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.HOD, UserRole.ADMIN]}
+          requiredPermissions={[Permission.ANALYTICS_VIEW]}
+        >
+          <MultiDimensionalAnalytics />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="hod-audit-trail"
+      path="/hod/audit-trail"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.HOD, UserRole.ADMIN, UserRole.PRINCIPAL]}
+          requiredPermissions={[Permission.AUDIT_VIEW]}
+        >
+          <AuditTrail />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="hod-student-enrollment"
+      path="/hod/student-enrollment"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.HOD, UserRole.ADMIN]}
+          requiredPermissions={[Permission.STUDENT_WRITE]}
+        >
+          <StudentEnrollment />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="hod-marks-approval"
+      path="/hod/marks-approval"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.HOD, UserRole.ADMIN]}
+          requiredPermissions={[Permission.MARKS_WRITE]}
+        >
+          <MarksApproval />
         </RoleGuard>
       }
     />,

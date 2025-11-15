@@ -5,6 +5,7 @@ import { fetchTeacherAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
+import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
 import { ClipboardList, Users, BarChart3, AlertTriangle, CheckCircle, Clock, BookOpen } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -25,10 +26,17 @@ const TeacherDashboard = () => {
     dispatch(fetchUsers())
   }, [dispatch, user])
 
-  // Get teacher's data
+  // Get teacher's subject assignments
+  const { getSubjectForExam, getAssignmentForExam } = useExamSubjectAssignments(exams)
+  
+  // Get teacher's data - filter exams by subject assignments
   const teacherSubjects = subjects.filter(s => s.teacher_id === user?.id)
   const teacherExams = exams.filter(exam => {
-    const subject = subjects.find(s => s.id === exam.subject_id)
+    const assignment = getAssignmentForExam(exam)
+    if (!assignment) return false
+    // Check if assignment's teacher_id matches current user
+    // Note: assignment.teacher_id is the teacher profile ID, we need to check via user_id
+    const subject = getSubjectForExam(exam)
     return subject?.teacher_id === user?.id
   })
 
@@ -91,8 +99,6 @@ const TeacherDashboard = () => {
     upcomingExams.forEach(exam => {
       const examDate = new Date(exam.exam_date || exam.created_at)
       const daysUntil = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const subject = subjects.find(s => s.id === exam.subject_id)
       
       tasks.push({
         task: `Grade ${exam.name}`,
@@ -132,8 +138,11 @@ const TeacherDashboard = () => {
         u.role === 'student' && u.class_id === subject.class_id
       )
       
-      // Get exams for this subject
-      const subjectExams = teacherExams.filter(exam => exam.subject_id === subject.id)
+      // Get exams for this subject via subject assignments
+      const subjectExams = teacherExams.filter(exam => {
+        const examSubject = getSubjectForExam(exam)
+        return examSubject?.id === subject.id
+      })
       
       // Calculate average performance from actual exam data
       let averagePerformance = 0
@@ -171,7 +180,10 @@ const TeacherDashboard = () => {
       const strugglingSubjects: Array<{name: string, performance: number}> = []
       
       studentSubjects.forEach(subject => {
-        const subjectExams = teacherExams.filter(exam => exam.subject_id === subject.id)
+        const subjectExams = teacherExams.filter(exam => {
+          const examSubject = getSubjectForExam(exam)
+          return examSubject?.id === subject.id
+        })
         if (subjectExams.length > 0) {
           const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
           const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
@@ -203,7 +215,7 @@ const TeacherDashboard = () => {
     })
     
     return atRisk.slice(0, 3) // Limit to 3 students
-  }, [users, teacherSubjects, teacherExams])
+  }, [users, teacherSubjects, teacherExams, getSubjectForExam])
 
   if (loading && !teacherAnalytics) {
     return (

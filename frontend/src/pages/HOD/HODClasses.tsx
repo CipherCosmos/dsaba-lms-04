@@ -36,7 +36,14 @@ const HODClasses: React.FC = () => {
   const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
   // Subjects belong to departments directly
   const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
-  const departmentStudents = users.filter(u => u.role === 'student' && u.department_id === user?.department_id)
+  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const departmentStudents = users.filter(u => {
+    if (u.role !== 'student') return false
+    if (u.department_ids && u.department_ids.length > 0) {
+      return u.department_ids[0] === userDeptId
+    }
+    return (u as any).department_id === userDeptId
+  })
 
   // Filter classes based on search and semester
   const filteredClasses = departmentClasses.filter(cls => {

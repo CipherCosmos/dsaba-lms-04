@@ -13,6 +13,8 @@ class SubjectCreateRequest(BaseModel):
     code: str = Field(..., min_length=2, max_length=20)
     name: str = Field(..., min_length=3, max_length=100)
     department_id: int = Field(..., gt=0)
+    semester_id: Optional[int] = Field(None, gt=0)  # Optional: link to specific semester
+    academic_year_id: Optional[int] = Field(None, gt=0)  # Optional: link to academic year
     credits: float = Field(..., ge=1, le=10)
     max_internal: float = Field(default=40.0, ge=0, le=100)
     max_external: float = Field(default=60.0, ge=0, le=100)

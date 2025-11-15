@@ -26,7 +26,7 @@ const HODDashboard = () => {
   }, [dispatch, user])
 
   // Get department-specific data
-  const departmentUsers = users.filter(u => u.department_id === user?.department_id)
+  const departmentUsers = users.filter(u => (u.department_ids && u.department_ids.length > 0 && u.department_ids[0] === (user?.department_ids?.[0] || user?.department_id)))
   const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
   const departmentSubjects = subjects.filter(s => {
     const subjectClass = classes.find(c => c.id === s.class_id)

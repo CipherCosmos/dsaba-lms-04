@@ -64,7 +64,9 @@ async def create_subject(
             department_id=request.department_id,
             credits=request.credits,
             max_internal=request.max_internal,
-            max_external=request.max_external
+            max_external=request.max_external,
+            semester_id=request.semester_id,
+            academic_year_id=request.academic_year_id
         )
         return SubjectResponse(**subject.to_dict())
     except EntityAlreadyExistsError as e:

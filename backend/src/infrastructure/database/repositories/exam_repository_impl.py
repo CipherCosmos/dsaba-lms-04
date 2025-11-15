@@ -4,14 +4,14 @@ SQLAlchemy implementation of IExamRepository
 """
 
 from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from src.domain.repositories.exam_repository import IExamRepository
 from src.domain.entities.exam import Exam
 from src.domain.enums.exam_type import ExamType, ExamStatus
 from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError
 
-from ..models import ExamModel
+from ..models import ExamModel, SubjectAssignmentModel
 
 
 class ExamRepository(IExamRepository):
@@ -60,24 +60,31 @@ class ExamRepository(IExamRepository):
         )
     
     async def get_by_id(self, id: int) -> Optional[Exam]:
-        """Get exam by ID"""
-        model = self.db.query(ExamModel).filter(ExamModel.id == id).first()
+        """Get exam by ID with eager loading"""
+        model = self.db.query(ExamModel).options(
+            joinedload(ExamModel.subject_assignment).joinedload(SubjectAssignmentModel.subject),
+            joinedload(ExamModel.subject_assignment).joinedload(SubjectAssignmentModel.teacher)
+        ).filter(ExamModel.id == id).first()
         return self._to_entity(model)
     
     async def get_by_subject_assignment(
         self,
         subject_assignment_id: int,
-        exam_type: Optional[ExamType] = None
+        exam_type: Optional[ExamType] = None,
+        skip: int = 0,
+        limit: int = 100
     ) -> List[Exam]:
-        """Get exams by subject assignment"""
-        query = self.db.query(ExamModel).filter(
+        """Get exams by subject assignment with pagination"""
+        query = self.db.query(ExamModel).options(
+            joinedload(ExamModel.subject_assignment)
+        ).filter(
             ExamModel.subject_assignment_id == subject_assignment_id
         )
         
         if exam_type:
             query = query.filter(ExamModel.exam_type == exam_type.value)
         
-        models = query.all()
+        models = query.order_by(ExamModel.exam_date.desc()).offset(skip).limit(limit).all()
         return [self._to_entity(model) for model in models]
     
     async def get_by_status(
@@ -110,8 +117,10 @@ class ExamRepository(IExamRepository):
         limit: int = 100,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Exam]:
-        """Get all exams with optional filtering"""
-        query = self.db.query(ExamModel)
+        """Get all exams with optional filtering and eager loading"""
+        query = self.db.query(ExamModel).options(
+            joinedload(ExamModel.subject_assignment)
+        )
         
         if filters:
             if 'status' in filters:
@@ -121,7 +130,7 @@ class ExamRepository(IExamRepository):
             if 'subject_assignment_id' in filters:
                 query = query.filter(ExamModel.subject_assignment_id == filters['subject_assignment_id'])
         
-        models = query.offset(skip).limit(limit).all()
+        models = query.order_by(ExamModel.exam_date.desc()).offset(skip).limit(limit).all()
         return [self._to_entity(model) for model in models]
     
     async def create(self, entity: Exam) -> Exam:

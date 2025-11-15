@@ -5,6 +5,7 @@ import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchExams } from '../../store/slices/examSlice'
+import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
 import { Bar, Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -49,12 +50,21 @@ const HODTeacherAnalytics: React.FC = () => {
   }, [dispatch])
 
   // Filter data for HOD's department
-  const departmentUsers = users.filter(u => u.department_id === user?.department_id)
+  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const departmentUsers = users.filter(u => {
+    if (u.department_ids && u.department_ids.length > 0) {
+      return u.department_ids[0] === userDeptId
+    }
+    return (u as any).department_id === userDeptId
+  })
   // Subjects belong to departments directly
-  const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
+  const departmentSubjects = subjects.filter(s => s.department_id === userDeptId)
+  // Get subject assignments for exams
+  const { getSubjectForExam } = useExamSubjectAssignments(exams)
+  
   const departmentExams = exams.filter(e => {
-    const examSubject = subjects.find(s => s.id === e.subject_id)
-    return examSubject?.department_id === user?.department_id
+    const examSubject = getSubjectForExam(e)
+    return examSubject?.department_id === userDeptId
   })
 
   // Get teachers from department
@@ -71,7 +81,7 @@ const HODTeacherAnalytics: React.FC = () => {
   const teacherPerformanceData = filteredTeachers.map(teacher => {
     const teacherSubjects = departmentSubjects.filter(s => s.teacher_id === teacher.id)
     const teacherExams = departmentExams.filter(e => {
-      const examSubject = subjects.find(s => s.id === e.subject_id)
+      const examSubject = getSubjectForExam(e)
       return examSubject?.teacher_id === teacher.id
     })
 
@@ -79,11 +89,18 @@ const HODTeacherAnalytics: React.FC = () => {
     const classPerformance = teacherSubjects.map(subject => {
       // Subjects are linked to classes through subject_assignments
       // Using department-based filtering for teacher's students
-      const subjectStudents = users.filter(u => 
-        u.role === 'student' && u.department_id === subject.department_id
-      )
+      const subjectStudents = users.filter(u => {
+        if (u.role !== 'student') return false
+        if (u.department_ids && u.department_ids.length > 0) {
+          return u.department_ids[0] === subject.department_id
+        }
+        return (u as any).department_id === subject.department_id
+      })
       
-      const subjectExams = departmentExams.filter(e => e.subject_id === subject.id)
+      const subjectExams = departmentExams.filter(e => {
+        const examSubject = getSubjectForExam(e)
+        return examSubject?.id === subject.id
+      })
       
       const totalPercentage = subjectStudents.reduce((sum, _student) => {
         const studentExams = subjectExams
@@ -100,9 +117,13 @@ const HODTeacherAnalytics: React.FC = () => {
 
     const totalStudents = teacherSubjects.reduce((sum, subject) => {
       // Get students count from department - class info available through subject assignments
-      const subjectStudents = users.filter(u => 
-        u.role === 'student' && u.department_id === subject.department_id
-      )
+      const subjectStudents = users.filter(u => {
+        if (u.role !== 'student') return false
+        if (u.department_ids && u.department_ids.length > 0) {
+          return u.department_ids[0] === subject.department_id
+        }
+        return (u as any).department_id === subject.department_id
+      })
       return sum + subjectStudents.length
     }, 0)
 
@@ -128,7 +149,13 @@ const HODTeacherAnalytics: React.FC = () => {
       users.find(u => u.id === subject.teacher_id)?.last_name : 'Unassigned',
     // Subjects are linked to classes through subject_assignments
     // Showing department-based student count
-    students: users.filter(u => u.role === 'student' && u.department_id === subject.department_id).length,
+    students: users.filter(u => {
+      if (u.role !== 'student') return false
+      if (u.department_ids && u.department_ids.length > 0) {
+        return u.department_ids[0] === subject.department_id
+      }
+      return (u as any).department_id === subject.department_id
+    }).length,
     class: 'Multiple classes' // Subject can be assigned to multiple classes via subject_assignments
   }))
 
@@ -138,9 +165,13 @@ const HODTeacherAnalytics: React.FC = () => {
     const totalStudents = teacherSubjects.reduce((sum, subject) => {
       // Subjects are linked to classes through subject_assignments
       // Using department-based filtering for student count
-      const subjectStudents = users.filter(u => 
-        u.role === 'student' && u.department_id === subject.department_id
-      )
+      const subjectStudents = users.filter(u => {
+        if (u.role !== 'student') return false
+        if (u.department_ids && u.department_ids.length > 0) {
+          return u.department_ids[0] === subject.department_id
+        }
+        return (u as any).department_id === subject.department_id
+      })
       return sum + subjectStudents.length
     }, 0)
 

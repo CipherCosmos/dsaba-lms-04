@@ -73,8 +73,12 @@ class MarkRepository(IMarkRepository):
         skip: int = 0,
         limit: int = 1000
     ) -> List[Mark]:
-        """Get all marks for an exam"""
-        models = self.db.query(MarkModel).filter(
+        """Get all marks for an exam with eager loading"""
+        from sqlalchemy.orm import joinedload
+        models = self.db.query(MarkModel).options(
+            joinedload(MarkModel.exam),
+            joinedload(MarkModel.student).joinedload("user")
+        ).filter(
             MarkModel.exam_id == exam_id
         ).offset(skip).limit(limit).all()
         
@@ -86,8 +90,12 @@ class MarkRepository(IMarkRepository):
         skip: int = 0,
         limit: int = 1000
     ) -> List[Mark]:
-        """Get all marks for a student"""
-        models = self.db.query(MarkModel).filter(
+        """Get all marks for a student with eager loading"""
+        from sqlalchemy.orm import joinedload
+        models = self.db.query(MarkModel).options(
+            joinedload(MarkModel.exam),
+            joinedload(MarkModel.question)
+        ).filter(
             MarkModel.student_id == student_id
         ).offset(skip).limit(limit).all()
         
@@ -166,11 +174,33 @@ class MarkRepository(IMarkRepository):
         return [self._to_entity(model) for model in models]
     
     async def bulk_update(self, marks: List[Mark]) -> List[Mark]:
-        """Update multiple marks at once"""
-        updated = []
-        for mark in marks:
-            updated_mark = await self.update(mark)
-            updated.append(updated_mark)
+        """Update multiple marks at once with optimized batch processing"""
+        if not marks:
+            return []
         
-        return updated
+        # Get all mark IDs
+        mark_ids = [mark.id for mark in marks]
+        
+        # Fetch all models in one query
+        models = self.db.query(MarkModel).filter(MarkModel.id.in_(mark_ids)).all()
+        model_dict = {model.id: model for model in models}
+        
+        # Update all models in memory
+        updated_models = []
+        for mark in marks:
+            if mark.id not in model_dict:
+                continue
+            
+            model = model_dict[mark.id]
+            model.marks_obtained = mark.marks_obtained
+            model.updated_at = func.now()
+            updated_models.append(model)
+        
+        # Batch commit all updates
+        if updated_models:
+            self.db.commit()
+            for model in updated_models:
+                self.db.refresh(model)
+        
+        return [self._to_entity(model) for model in updated_models]
 

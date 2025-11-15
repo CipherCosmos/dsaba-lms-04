@@ -32,6 +32,7 @@ from src.infrastructure.database.repositories.academic_structure_repository_impl
     SemesterRepository
 )
 from src.infrastructure.database.session import get_db
+from src.infrastructure.database.models import SemesterModel
 from sqlalchemy.orm import Session
 
 
@@ -209,6 +210,54 @@ async def create_semester(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
+@router.get("/semesters", response_model=SemesterListResponse)
+async def list_semesters(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
+    batch_year_id: Optional[int] = Query(None, gt=0),
+    is_current: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    service: AcademicStructureService = Depends(get_academic_structure_service),
+    current_user: User = Depends(get_current_user)
+):
+    """List all semesters with optional filters"""
+    from src.infrastructure.database.models import FinalMarkModel
+    
+    semesters = await service.list_semesters(
+        skip=skip,
+        limit=limit,
+        batch_year_id=batch_year_id,
+        is_current=is_current
+    )
+    
+    # Check published status for each semester
+    semester_responses = []
+    for s in semesters:
+        semester_dict = s.to_dict()
+        
+        # Check if semester is published (all final_marks are published)
+        final_marks_count = db.query(FinalMarkModel).filter(
+            FinalMarkModel.semester_id == s.id
+        ).count()
+        
+        published_count = db.query(FinalMarkModel).filter(
+            FinalMarkModel.semester_id == s.id,
+            FinalMarkModel.is_published == True
+        ).count()
+        
+        # Semester is published if it has final_marks and all are published
+        semester_dict['is_published'] = final_marks_count > 0 and published_count == final_marks_count
+        
+        semester_responses.append(SemesterResponse(**semester_dict))
+    
+    return SemesterListResponse(
+        items=semester_responses,
+        total=len(semester_responses),
+        skip=skip,
+        limit=limit
+    )
+
+
 @router.get("/batch-years/{batch_year_id}/semesters", response_model=List[SemesterResponse])
 async def get_semesters(
     batch_year_id: int,
@@ -253,4 +302,113 @@ async def update_semester_dates(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Semester {semester_id} not found")
     except BusinessRuleViolationError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/semesters/{semester_id}/publish")
+async def publish_semester(
+    semester_id: int,
+    db: Session = Depends(get_db),
+    service: AcademicStructureService = Depends(get_academic_structure_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Publish semester results
+    
+    Validates all exams are complete, then triggers Celery job to:
+    - Calculate best internal, total, grade, SGPA
+    - Calculate CO attainment
+    - Generate PDF report cards
+    - Upload to S3
+    - Send email notifications to students
+    - Update status to published
+    """
+    from src.infrastructure.database.models import SemesterModel, FinalMarkModel, ExamModel, SubjectAssignmentModel
+    from src.infrastructure.queue.celery_app import celery_app
+    
+    # Only HOD and Principal can publish
+    if current_user.role.value not in ['hod', 'principal', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only HOD, Principal, and Admin can publish semester results"
+        )
+    
+    try:
+        # Get semester
+        semester = db.query(SemesterModel).filter(SemesterModel.id == semester_id).first()
+        if not semester:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Semester {semester_id} not found"
+            )
+        
+        # Validate all exams are complete
+        # Get all subject assignments for this semester
+        assignments = db.query(SubjectAssignmentModel).filter(
+            SubjectAssignmentModel.semester_id == semester_id
+        ).all()
+        
+        missing_exams = []
+        for assignment in assignments:
+            # Check if all required exams exist (internal1, internal2, external)
+            internal1 = db.query(ExamModel).filter(
+                ExamModel.subject_assignment_id == assignment.id,
+                ExamModel.exam_type == 'internal1',
+                ExamModel.status.in_(['locked', 'published'])
+            ).first()
+            
+            internal2 = db.query(ExamModel).filter(
+                ExamModel.subject_assignment_id == assignment.id,
+                ExamModel.exam_type == 'internal2',
+                ExamModel.status.in_(['locked', 'published'])
+            ).first()
+            
+            external = db.query(ExamModel).filter(
+                ExamModel.subject_assignment_id == assignment.id,
+                ExamModel.exam_type == 'external',
+                ExamModel.status.in_(['locked', 'published'])
+            ).first()
+            
+            if not internal1 or not internal2 or not external:
+                from src.infrastructure.database.models import SubjectModel
+                subject = db.query(SubjectModel).filter(SubjectModel.id == assignment.subject_id).first()
+                missing_exams.append({
+                    "subject_id": assignment.subject_id,
+                    "subject_name": subject.name if subject else "Unknown",
+                    "missing": []
+                })
+                if not internal1:
+                    missing_exams[-1]["missing"].append("internal1")
+                if not internal2:
+                    missing_exams[-1]["missing"].append("internal2")
+                if not external:
+                    missing_exams[-1]["missing"].append("external")
+        
+        if missing_exams:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Cannot publish semester: Some exams are incomplete",
+                    "missing_exams": missing_exams
+                }
+            )
+        
+        # Trigger Celery task for publishing
+        from src.infrastructure.queue.tasks.report_tasks import publish_semester_async
+        
+        task = publish_semester_async.delay(semester_id, current_user.id)
+        
+        return {
+            "status": "processing",
+            "message": "Semester publish job started",
+            "task_id": task.id,
+            "semester_id": semester_id
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to publish semester: {str(e)}"
+        )
 

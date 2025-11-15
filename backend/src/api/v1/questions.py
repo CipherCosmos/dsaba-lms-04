@@ -315,9 +315,25 @@ async def create_question_co_mapping(
             weight_pct=float(mapping.weight_pct)
         )
     except EntityNotFoundError as e:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(e, IntegrityError):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Question-CO mapping already exists or violates database constraints"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create question-CO mapping: {str(e)}"
         )
 
 
@@ -365,17 +381,26 @@ async def delete_question_co_mapping(
     - **question_id**: Question ID
     - **co_id**: Course Outcome ID
     """
-    mapping = db.query(QuestionCOMappingModel).filter(
-        QuestionCOMappingModel.question_id == question_id,
-        QuestionCOMappingModel.co_id == co_id
-    ).first()
-    
-    if not mapping:
+    try:
+        mapping = db.query(QuestionCOMappingModel).filter(
+            QuestionCOMappingModel.question_id == question_id,
+            QuestionCOMappingModel.co_id == co_id
+        ).first()
+        
+        if not mapping:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Question-CO mapping not found"
+            )
+        
+        db.delete(mapping)
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Question-CO mapping not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete question-CO mapping: {str(e)}"
         )
-    
-    db.delete(mapping)
-    db.commit()
 

@@ -70,9 +70,7 @@ def get_user_service(
 ):
     """Get user service instance"""
     from src.application.services.user_service import UserService
-    from src.infrastructure.security.password_hasher import PasswordHasher
-    password_hasher = PasswordHasher()
-    return UserService(user_repo, password_hasher)
+    return UserService(user_repo)
 
 
 # Authentication dependency

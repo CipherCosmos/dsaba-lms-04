@@ -7,7 +7,7 @@ import {
   ClipboardList, BarChart3, FileText, Settings,
   TrendingUp, Award, PieChart, Target, Layers, Gauge, Brain,
   UserCheck, BookMarked, BarChart2, FileBarChart, 
-  Activity,
+  Activity, Calendar, Shield, Eye,
   ChevronLeft, ChevronRight, Menu, X
 } from 'lucide-react'
 
@@ -59,8 +59,11 @@ const Sidebar = () => {
           { name: 'Student Analytics', href: '/hod/student-analytics', icon: TrendingUp, section: 'analytics' },
           { name: 'Teacher Analytics', href: '/hod/teacher-analytics', icon: Activity, section: 'analytics' },
           { name: 'Strategic Dashboard', href: '/hod/strategic-dashboard', icon: Brain, section: 'analytics' },
+          { name: 'Multi-Dimensional Analytics', href: '/hod/multi-analytics', icon: BarChart3, section: 'analytics' },
           // Reports & Documentation
           { name: 'Reports & Analytics', href: '/hod/reports', icon: FileBarChart, section: 'reports' },
+          { name: 'Semester Publishing', href: '/hod/semester-publishing', icon: Calendar, section: 'reports' },
+          { name: 'Audit Trail', href: '/hod/audit-trail', icon: Shield, section: 'reports' },
         ]
       
       case 'teacher':
@@ -73,6 +76,7 @@ const Sidebar = () => {
           { name: 'Analytics', href: '/teacher/analytics', icon: PieChart, section: 'analytics' },
           { name: 'Attainment Analytics', href: '/teacher/attainment-analytics', icon: BarChart3, section: 'analytics' },
           { name: 'Comprehensive Analytics', href: '/teacher/comprehensive-analytics', icon: TrendingUp, section: 'analytics' },
+          { name: 'Bloom\'s Analysis', href: '/teacher/blooms-analytics', icon: Brain, section: 'analytics' },
           // Reports
           { name: 'Report Management', href: '/teacher/reports', icon: FileText, section: 'reports' },
         ]
@@ -134,35 +138,35 @@ const Sidebar = () => {
 
       {/* Sidebar */}
       <div className={`
-        fixed left-0 top-16 h-full bg-white shadow-sm border-r border-gray-200 z-40 transition-all duration-300 ease-in-out
+        fixed left-0 top-16 h-full bg-white/95 backdrop-blur-md shadow-xl border-r border-gray-200/60 z-40 transition-all duration-300 ease-in-out
         ${isCollapsed ? 'w-16' : 'w-64'}
         ${isMobileMenuOpen ? 'translate-x-0' : 'lg:translate-x-0 -translate-x-full'}
       `}>
         {/* Toggle button */}
-        <div className="flex justify-end p-2 border-b border-gray-200">
+        <div className="flex justify-end p-3 border-b border-gray-200/60 bg-gradient-to-r from-gray-50 to-white">
           <button
             onClick={toggleSidebar}
-            className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg hover:bg-gray-100 transition-all duration-200 transform hover:scale-110 active:scale-95"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            {isCollapsed ? <ChevronRight size={18} className="text-gray-600" /> : <ChevronLeft size={18} className="text-gray-600" />}
           </button>
         </div>
 
-        <nav className={`p-4 space-y-4 overflow-y-auto h-full pb-20 ${isCollapsed ? 'px-2' : ''}`} style={{ maxHeight: 'calc(100vh - 80px)' }}>
+        <nav className={`p-4 space-y-6 overflow-y-auto h-full pb-20 ${isCollapsed ? 'px-2' : ''}`} style={{ maxHeight: 'calc(100vh - 80px)' }}>
           {Object.entries(groupedItems).map(([section, items]) => (
             <div key={section} className="space-y-2">
               {/* Section Header */}
               {section !== 'main' && !isCollapsed && (
                 <div className="px-3 py-2">
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                     {getSectionTitle(section)}
                   </h3>
                 </div>
               )}
               
               {/* Section Items */}
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {items.map((item) => {
                   const Icon = item.icon
                   const isActive = location.pathname === item.href
@@ -173,31 +177,34 @@ const Sidebar = () => {
                       to={item.href}
                       onClick={() => toggleMobileMenu()}
                       className={`
-                        flex items-center rounded-lg transition-colors group relative
-                        ${isCollapsed ? 'justify-center px-3 py-2' : 'space-x-3 px-3 py-2'}
+                        flex items-center rounded-xl transition-all duration-200 group relative
+                        ${isCollapsed ? 'justify-center px-3 py-3' : 'space-x-3 px-4 py-3'}
                         ${isActive
-                          ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-600'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          ? 'bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 shadow-md border-l-4 border-blue-600 font-semibold'
+                          : 'text-gray-600 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 hover:text-gray-900 hover:shadow-sm'
                         }
+                        transform hover:scale-105 active:scale-95
                       `}
                       title={isCollapsed ? item.name : undefined}
                     >
-                      <Icon 
-                        size={20} 
-                        className={`transition-colors ${
-                          isActive 
-                            ? 'text-primary-600' 
-                            : 'text-gray-400 group-hover:text-gray-600'
-                        }`} 
-                      />
+                      <div className={`
+                        p-1.5 rounded-lg transition-all duration-200
+                        ${isActive 
+                          ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-lg' 
+                          : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200 group-hover:text-gray-700'
+                        }
+                      `}>
+                        <Icon size={18} />
+                      </div>
                       {!isCollapsed && (
                         <span className="font-medium text-sm">{item.name}</span>
                       )}
                       
                       {/* Tooltip for collapsed state */}
                       {isCollapsed && (
-                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                        <div className="absolute left-full ml-3 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
                           {item.name}
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full w-0 h-0 border-t-4 border-t-transparent border-r-4 border-r-gray-900 border-b-4 border-b-transparent"></div>
                         </div>
                       )}
                     </Link>

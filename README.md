@@ -135,10 +135,11 @@ pytest tests/ --cov=src --cov-report=term-missing
 
 All documentation is organized in the `docs/` directory:
 
+- **Quick Start**: `docs/QUICK_START.md`
+- **Project Structure**: `docs/PROJECT_STRUCTURE.md`
 - **Architecture**: `docs/architecture/`
-- **Testing**: `docs/testing/`
-- **Phases**: `docs/phases/`
-- **Verification**: `docs/verification/`
+- **Docker & CI/CD**: `docs/DOCKER_BUILD_AND_CI_CD_COMPLETE.md`, `docs/CI_CD_SETUP.md`
+- **Implementation Status**: `docs/FRONTEND_BACKEND_INTEGRATION_COMPLETE.md`, `docs/SEQUENCE_DIAGRAM_IMPLEMENTATION.md`
 
 See `docs/README.md` for the complete documentation index.
 

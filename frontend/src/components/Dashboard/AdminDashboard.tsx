@@ -99,26 +99,38 @@ const AdminDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
+      <div className="grid-stats">
+        {stats.map((stat, index) => {
           const Icon = stat.icon
+          const gradients = [
+            'from-blue-500 to-blue-600',
+            'from-green-500 to-green-600',
+            'from-purple-500 to-purple-600',
+            'from-orange-500 to-orange-600'
+          ]
           return (
             <Link
               key={stat.name}
               to={stat.href}
-              className="card hover:shadow-lg transition-shadow cursor-pointer"
+              className="stat-card group"
+              style={{ animationDelay: `${index * 100}ms` }}
             >
-              <div className="flex items-center">
-                <div className={`${stat.color} p-3 rounded-lg`}>
-                  <Icon className="h-6 w-6 text-white" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`stat-icon bg-gradient-to-br ${gradients[index % gradients.length]} text-white`}>
+                    <Icon size={24} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">{stat.name}</p>
+                    <p className="text-3xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{stat.change}</p>
+                  </div>
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <TrendingUp className="text-gray-400" size={20} />
                 </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-xs text-gray-500">{stat.change}</p>
               </div>
             </Link>
           )
@@ -155,39 +167,51 @@ const AdminDashboard = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <Link to="/admin/departments" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
-              <Building className="h-8 w-8 text-blue-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-medium text-center">Manage Departments</p>
+            <Link to="/admin/departments" className="p-5 border-2 border-gray-200 rounded-xl hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:to-white transition-all duration-300 group transform hover:scale-105 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <Building className="h-6 w-6 text-white" />
+              </div>
+              <p className="text-sm font-semibold text-center text-gray-900 group-hover:text-blue-600">Manage Departments</p>
               <p className="text-xs text-gray-500 text-center mt-1">Create & configure departments</p>
             </Link>
             
-            <Link to="/admin/users" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
-              <Users className="h-8 w-8 text-green-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-medium text-center">Manage Users</p>
+            <Link to="/admin/users" className="p-5 border-2 border-gray-200 rounded-xl hover:border-green-300 hover:bg-gradient-to-br hover:from-green-50 hover:to-white transition-all duration-300 group transform hover:scale-105 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <Users className="h-6 w-6 text-white" />
+              </div>
+              <p className="text-sm font-semibold text-center text-gray-900 group-hover:text-green-600">Manage Users</p>
               <p className="text-xs text-gray-500 text-center mt-1">Add & manage all users</p>
             </Link>
             
-            <Link to="/admin/classes" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
-              <GraduationCap className="h-8 w-8 text-purple-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-medium text-center">Manage Classes</p>
+            <Link to="/admin/classes" className="p-5 border-2 border-gray-200 rounded-xl hover:border-purple-300 hover:bg-gradient-to-br hover:from-purple-50 hover:to-white transition-all duration-300 group transform hover:scale-105 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <GraduationCap className="h-6 w-6 text-white" />
+              </div>
+              <p className="text-sm font-semibold text-center text-gray-900 group-hover:text-purple-600">Manage Classes</p>
               <p className="text-xs text-gray-500 text-center mt-1">Create & organize classes</p>
             </Link>
             
-            <Link to="/admin/subjects" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
-              <BookOpen className="h-8 w-8 text-orange-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-medium text-center">Manage Subjects</p>
+            <Link to="/admin/subjects" className="p-5 border-2 border-gray-200 rounded-xl hover:border-orange-300 hover:bg-gradient-to-br hover:from-orange-50 hover:to-white transition-all duration-300 group transform hover:scale-105 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <BookOpen className="h-6 w-6 text-white" />
+              </div>
+              <p className="text-sm font-semibold text-center text-gray-900 group-hover:text-orange-600">Manage Subjects</p>
               <p className="text-xs text-gray-500 text-center mt-1">Configure course subjects</p>
             </Link>
             
-            <Link to="/admin/co-management" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
-              <Target className="h-8 w-8 text-red-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-medium text-center">CO Management</p>
+            <Link to="/admin/co-management" className="p-5 border-2 border-gray-200 rounded-xl hover:border-red-300 hover:bg-gradient-to-br hover:from-red-50 hover:to-white transition-all duration-300 group transform hover:scale-105 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <Target className="h-6 w-6 text-white" />
+              </div>
+              <p className="text-sm font-semibold text-center text-gray-900 group-hover:text-red-600">CO Management</p>
               <p className="text-xs text-gray-500 text-center mt-1">Define course outcomes</p>
             </Link>
             
-            <Link to="/admin/po-management" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group">
-              <BarChart3 className="h-8 w-8 text-indigo-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-              <p className="text-sm font-medium text-center">PO Management</p>
+            <Link to="/admin/po-management" className="p-5 border-2 border-gray-200 rounded-xl hover:border-indigo-300 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-white transition-all duration-300 group transform hover:scale-105 hover:shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-md">
+                <BarChart3 className="h-6 w-6 text-white" />
+              </div>
+              <p className="text-sm font-semibold text-center text-gray-900 group-hover:text-indigo-600">PO Management</p>
               <p className="text-xs text-gray-500 text-center mt-1">Define program outcomes</p>
             </Link>
           </div>

@@ -46,6 +46,41 @@ export {
   useDeleteMark,
 } from './useMarks'
 
+// Academic Year hooks
+export {
+  useAcademicYears,
+  useCurrentAcademicYear,
+  useAcademicYear,
+  useCreateAcademicYear,
+  useUpdateAcademicYear,
+  useActivateAcademicYear,
+  useArchiveAcademicYear,
+} from './useAcademicYears'
+
+// Student Enrollment hooks
+export {
+  useStudentEnrollments,
+  useStudentEnrollment,
+  useCreateStudentEnrollment,
+  useBulkCreateStudentEnrollments,
+  usePromoteStudent,
+} from './useStudentEnrollments'
+
+// Internal Marks hooks
+export {
+  useInternalMarks,
+  useInternalMark,
+  useSubmittedMarks,
+  useCreateInternalMark,
+  useUpdateInternalMark,
+  useSubmitInternalMark,
+  useBulkSubmitInternalMarks,
+  useApproveInternalMark,
+  useRejectInternalMark,
+  useFreezeInternalMark,
+  usePublishInternalMark,
+} from './useInternalMarks'
+
 // Subject hooks
 export {
   useSubjects,

@@ -4,8 +4,28 @@ Request/Response models for subject assignment endpoints
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+
+
+class SubjectAssignmentCreateRequest(BaseModel):
+    """Create subject assignment request DTO"""
+    subject_id: int = Field(..., gt=0)
+    teacher_id: int = Field(..., gt=0)
+    class_id: int = Field(..., gt=0)
+    semester_id: int = Field(..., gt=0)
+    academic_year: int = Field(..., ge=2000, le=3000)
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "subject_id": 1,
+                "teacher_id": 1,
+                "class_id": 1,
+                "semester_id": 1,
+                "academic_year": 2024
+            }
+        }
 
 
 class SubjectAssignmentResponse(BaseModel):
@@ -31,4 +51,12 @@ class SubjectAssignmentResponse(BaseModel):
                 "created_at": "2024-01-01T00:00:00Z"
             }
         }
+
+
+class SubjectAssignmentListResponse(BaseModel):
+    """Subject assignment list response DTO"""
+    items: List[SubjectAssignmentResponse]
+    total: int
+    skip: int
+    limit: int
 

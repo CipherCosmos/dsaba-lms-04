@@ -4,13 +4,13 @@ SQLAlchemy implementation of ISubjectRepository
 """
 
 from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.domain.repositories.subject_repository import ISubjectRepository
 from src.domain.entities.subject import Subject
 from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError
 
-from ..models import SubjectModel
+from ..models import SubjectModel, DepartmentModel
 
 
 class SubjectRepository(ISubjectRepository):
@@ -41,7 +41,7 @@ class SubjectRepository(ISubjectRepository):
     
     def _to_model(self, entity: Subject) -> SubjectModel:
         """Convert domain entity to database model"""
-        return SubjectModel(
+        model = SubjectModel(
             id=entity.id,
             code=entity.code,
             name=entity.name,
@@ -51,10 +51,16 @@ class SubjectRepository(ISubjectRepository):
             max_external=entity.max_external,
             is_active=entity.is_active
         )
+        # Set optional fields if available in entity
+        if hasattr(entity, 'semester_id'):
+            model.semester_id = getattr(entity, 'semester_id', None)
+        return model
     
     async def get_by_id(self, id: int) -> Optional[Subject]:
-        """Get subject by ID"""
-        model = self.db.query(SubjectModel).filter(SubjectModel.id == id).first()
+        """Get subject by ID with eager loading"""
+        model = self.db.query(SubjectModel).options(
+            joinedload(SubjectModel.department)
+        ).filter(SubjectModel.id == id).first()
         return self._to_entity(model)
     
     async def get_by_code(self, code: str) -> Optional[Subject]:
@@ -70,10 +76,12 @@ class SubjectRepository(ISubjectRepository):
         skip: int = 0,
         limit: int = 100
     ) -> List[Subject]:
-        """Get all subjects in a department"""
-        models = self.db.query(SubjectModel).filter(
+        """Get all subjects in a department with eager loading"""
+        models = self.db.query(SubjectModel).options(
+            joinedload(SubjectModel.department)
+        ).filter(
             SubjectModel.department_id == department_id
-        ).offset(skip).limit(limit).all()
+        ).order_by(SubjectModel.code).offset(skip).limit(limit).all()
         
         return [self._to_entity(model) for model in models]
     
@@ -94,8 +102,10 @@ class SubjectRepository(ISubjectRepository):
         limit: int = 100,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Subject]:
-        """Get all subjects with optional filtering"""
-        query = self.db.query(SubjectModel)
+        """Get all subjects with optional filtering and eager loading"""
+        query = self.db.query(SubjectModel).options(
+            joinedload(SubjectModel.department)
+        )
         
         if filters:
             if 'is_active' in filters:
@@ -103,7 +113,7 @@ class SubjectRepository(ISubjectRepository):
             if 'department_id' in filters:
                 query = query.filter(SubjectModel.department_id == filters['department_id'])
         
-        models = query.offset(skip).limit(limit).all()
+        models = query.order_by(SubjectModel.code).offset(skip).limit(limit).all()
         return [self._to_entity(model) for model in models]
     
     async def create(self, entity: Subject) -> Subject:
@@ -148,6 +158,9 @@ class SubjectRepository(ISubjectRepository):
         model.max_internal = entity.max_internal
         model.max_external = entity.max_external
         model.is_active = entity.is_active
+        # Update optional fields if available
+        if hasattr(entity, 'semester_id'):
+            model.semester_id = getattr(entity, 'semester_id', None)
         
         self.db.commit()
         self.db.refresh(model)

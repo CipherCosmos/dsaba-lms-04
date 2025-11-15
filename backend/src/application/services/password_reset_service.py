@@ -211,9 +211,21 @@ class PasswordResetService:
         )
     
     async def _send_reset_sms(self, user: User, token: str) -> None:
-        """Send password reset SMS"""
-        # SMS implementation would go here
-        # For now, this is a placeholder
-        # You would integrate with an SMS service like Twilio, AWS SNS, etc.
+        """
+        Send password reset SMS
+        
+        Note: SMS functionality is not currently implemented.
+        To enable SMS notifications, integrate with an SMS service provider such as:
+        - Twilio (https://www.twilio.com/)
+        - AWS SNS (https://aws.amazon.com/sns/)
+        - MessageBird (https://www.messagebird.com/)
+        
+        Implementation would involve:
+        1. Configuring SMS service credentials in settings
+        2. Creating SMS client instance
+        3. Sending SMS with reset link/token
+        4. Handling delivery status and errors
+        """
+        # SMS functionality disabled - email is the primary reset method
         pass
 

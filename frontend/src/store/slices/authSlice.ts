@@ -6,7 +6,6 @@ interface User {
   username: string
   email: string
   role: 'admin' | 'hod' | 'teacher' | 'student'
-  department_id?: number
   class_id?: number
   first_name: string
   last_name: string
@@ -18,6 +17,8 @@ interface User {
   is_active?: boolean
   roles?: string[]
   department_ids?: number[]
+  // Legacy field for backward compatibility - use department_ids[0] instead
+  department_id?: number
 }
 
 interface AuthState {

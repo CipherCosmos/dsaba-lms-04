@@ -120,6 +120,7 @@ class SemesterResponse(BaseModel):
     is_current: bool
     start_date: Optional[date]
     end_date: Optional[date]
+    is_published: Optional[bool] = False  # Computed field: true if all final_marks are published
     created_at: datetime
     
     class Config:

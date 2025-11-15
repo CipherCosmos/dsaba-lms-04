@@ -4,6 +4,7 @@ import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
+import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
 import { TrendingUp, Award, Target, BookOpen, Star, Trophy, Brain, Calendar } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -25,10 +26,17 @@ const StudentDashboard = () => {
   // Get student's class subjects
   const classSubjects = subjects.filter(s => s.class_id === user?.class_id)
   
-  // Get upcoming exams
+  // Get subject assignments for exams
+  const { getSubjectForExam, getClassIdForExam } = useExamSubjectAssignments(exams)
+  
+  // Get upcoming exams - filter by class_id from subject assignments
   const upcomingExams = exams.filter(exam => {
-    const subject = classSubjects.find(s => s.id === exam.subject_id)
-    return subject && exam.exam_date && new Date(exam.exam_date) > new Date()
+    const examClassId = getClassIdForExam(exam)
+    const examSubject = getSubjectForExam(exam)
+    return examClassId === user?.class_id && 
+           examSubject && 
+           exam.exam_date && 
+           new Date(exam.exam_date) > new Date()
   }).slice(0, 3)
 
   const getPerformanceColor = (percentage: number) => {
@@ -104,7 +112,7 @@ const StudentDashboard = () => {
     
     // Generate reminders based on upcoming exams
     upcomingExams.forEach(exam => {
-      const subject = classSubjects.find(s => s.id === exam.subject_id)
+      const subject = getSubjectForExam(exam)
       if (subject) {
         const examDate = new Date(exam.exam_date || exam.created_at)
         const daysUntil = Math.ceil((examDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
@@ -153,7 +161,7 @@ const StudentDashboard = () => {
     }
     
     return reminders.slice(0, 3) // Limit to 3 reminders
-  }, [upcomingExams, classSubjects, studentAnalytics])
+  }, [upcomingExams, classSubjects, studentAnalytics, getSubjectForExam])
 
   const achievements = []
   if (studentAnalytics) {
@@ -268,11 +276,11 @@ const StudentDashboard = () => {
           {upcomingExams.length > 0 ? (
             <div className="space-y-3">
               {upcomingExams.map((exam, index) => {
-                const subject = classSubjects.find(s => s.id === exam.subject_id)
+                const subject = getSubjectForExam(exam)
                 return (
                   <div key={index} className="p-3 bg-blue-50 rounded-lg">
                     <p className="font-medium text-gray-900">{exam.name}</p>
-                    <p className="text-sm text-gray-600">{subject?.name}</p>
+                    <p className="text-sm text-gray-600">{subject?.name || 'Unknown Subject'}</p>
                     <p className="text-xs text-blue-600">
                       {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'TBD'}
                     </p>

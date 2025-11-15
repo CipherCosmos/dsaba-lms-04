@@ -1,32 +1,27 @@
 #!/usr/bin/env python3
+"""
+Run script for DSABA LMS
+Uses new Clean Architecture implementation
+"""
 import uvicorn
+import sys
 import os
-from database import engine, Base
-from init_db import init_database
-from seed_data import create_seed_data
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 def main():
     """Main function to start the FastAPI server"""
-    # Create database tables
-    print("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
+    print("Starting DSABA LMS (Clean Architecture)...")
+    print("Using new implementation from src/main.py")
     
-    # Initialize with basic data
-    print("Initializing database...")
-    init_database()
-    
-    # Add seed data
-    print("Adding seed data...")
-    create_seed_data()
-    
-    # Start the server
-    print("Starting FastAPI server...")
+    # Start the server using new main
     uvicorn.run(
-        "main:app",
+        "src.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        reload_dirs=["./"],
+        reload_dirs=["./src"],
         log_level="info"
     )
 

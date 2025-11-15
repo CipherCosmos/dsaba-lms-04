@@ -1,2 +1,34 @@
 node_modules
 *.pyc
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Test artifacts
+htmlcov/
+coverage.xml
+.coverage
+.pytest_cache/
+.coverage.*
+
+# Backup files
+*.bak
+*.tmp
+*~
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

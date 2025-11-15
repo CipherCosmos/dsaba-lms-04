@@ -1,0 +1,115 @@
+"""
+Analytics Background Tasks
+Celery tasks for async analytics calculation
+"""
+
+from typing import Dict, Any, List
+from datetime import datetime
+
+from src.infrastructure.queue.celery_app import celery_app
+from src.infrastructure.database.session import get_db
+from src.infrastructure.cache.redis_client import get_cache_service
+from src.shared.constants import CACHE_KEYS
+
+
+@celery_app.task(name="calculate_nightly_analytics")
+async def calculate_nightly_analytics() -> Dict[str, Any]:
+    """
+    Calculate analytics for all departments/classes nightly
+    Pre-computes analytics to improve response times
+    
+    Returns:
+        Calculation result
+    """
+    try:
+        db = next(get_db())
+        cache_service = get_cache_service()
+        
+        # Get all departments
+        from src.infrastructure.database.models import DepartmentModel
+        departments = db.query(DepartmentModel).all()
+        
+        # Import analytics service and repositories
+        from src.application.services.analytics_service import AnalyticsService
+        from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
+        from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
+        from src.infrastructure.database.repositories.user_repository_impl import UserRepository
+        from src.infrastructure.database.repositories.subject_repository_impl import SubjectRepository
+        
+        # Initialize repositories
+        mark_repo = MarkRepository(db)
+        exam_repo = ExamRepository(db)
+        user_repo = UserRepository(db)
+        subject_repo = SubjectRepository(db)
+        
+        # Initialize analytics service with cache
+        analytics_service = AnalyticsService(db, mark_repo, exam_repo, subject_repo, user_repo, cache_service)
+        
+        results = []
+        for dept in departments:
+            try:
+                # Calculate HOD analytics for department
+                hod_analytics = await analytics_service.get_hod_analytics(
+                    department_id=dept.id
+                )
+                
+                # Cache the result
+                cache_key = cache_service.get_cache_key(
+                    CACHE_KEYS["analytics"],
+                    type="hod",
+                    department_id=dept.id
+                )
+                await cache_service.set(cache_key, hod_analytics, ttl=3600)  # 1 hour
+                
+                results.append({
+                    "department_id": dept.id,
+                    "status": "cached",
+                    "analytics_keys": len(hod_analytics) if isinstance(hod_analytics, dict) else 0
+                })
+            except Exception as e:
+                results.append({
+                    "department_id": dept.id,
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        return {
+            "status": "completed",
+            "departments_processed": len(results),
+            "processed_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e)
+        }
+
+
+@celery_app.task(name="invalidate_analytics_cache")
+def invalidate_analytics_cache(
+    cache_pattern: str = "analytics:*"
+) -> Dict[str, Any]:
+    """
+    Invalidate analytics cache
+    
+    Args:
+        cache_pattern: Cache key pattern to invalidate
+    
+    Returns:
+        Invalidation result
+    """
+    try:
+        cache_service = get_cache_service()
+        deleted_count = cache_service.delete_pattern(cache_pattern)
+        
+        return {
+            "status": "completed",
+            "keys_deleted": deleted_count,
+            "pattern": cache_pattern
+        }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e)
+        }
+

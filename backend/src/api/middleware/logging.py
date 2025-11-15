@@ -83,6 +83,12 @@ def setup_logging():
     # File handler (if configured)
     if settings.LOG_FILE:
         try:
+            import os
+            # Create logs directory if it doesn't exist
+            log_dir = os.path.dirname(settings.LOG_FILE)
+            if log_dir and not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
+            
             file_handler = logging.FileHandler(settings.LOG_FILE)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)

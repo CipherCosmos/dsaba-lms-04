@@ -39,6 +39,7 @@ def create_celery_app() -> Celery:
         task_soft_time_limit=25 * 60,  # 25 minutes
         worker_prefetch_multiplier=1,
         worker_max_tasks_per_child=1000,
+        broker_connection_retry_on_startup=True,  # Fix deprecation warning
     )
     
     # Periodic tasks (beat schedule)

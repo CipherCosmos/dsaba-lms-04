@@ -25,6 +25,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.pyc
+*.pyo
+*.pyd
 
 # Virtual environments
 venv/
@@ -35,18 +38,23 @@ env/
 # Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .hypothesis/
+coverage.xml
 
 # Logs
 *.log
 logs/
+*.log.*
 
 # Environment
 .env
 .env.local
 .env.*.local
+*.env
+!*.env.example
 
 # IDEs
 .vscode/
@@ -54,10 +62,13 @@ logs/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+.DS_Store?
 
 # Uploads & Reports
 uploads/
@@ -65,7 +76,8 @@ media/
 reports/*.pdf
 reports/*.xlsx
 
-# Alembic
-# Don't ignore alembic/, but ignore temporary files
-*.pyc
+# Temporary files
+tmp/
+temp/
+*.tmp
 

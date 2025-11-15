@@ -16,96 +16,103 @@ const AdminDashboard = lazy(() => import('../../components/Dashboard/AdminDashbo
 /**
  * Admin Module Routes
  * All admin routes with proper RBAC
+ * Returns an array of Route elements for React Router v6
  */
 export const AdminRoutes = () => {
-  return (
-    <>
-      <Route
-        path="/admin"
-        element={
-          <RoleGuard allowedRoles={[UserRole.ADMIN]}>
-            <AdminDashboard />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/departments"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
-            requiredPermissions={[Permission.DEPARTMENT_READ]}
-          >
-            <DepartmentManagement />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/classes"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
-            requiredPermissions={[Permission.SUBJECT_READ]}
-          >
-            <ClassManagement />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/subjects"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
-            requiredPermissions={[Permission.SUBJECT_READ]}
-          >
-            <SubjectManagement />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/users"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
-            requiredPermissions={[Permission.USER_READ]}
-          >
-            <UserManagement />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/co-management"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
-            requiredPermissions={[Permission.CO_READ]}
-          >
-            <COManagement />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/po-management"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
-            requiredPermissions={[Permission.CO_READ]}
-          >
-            <POManagement />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/admin/co-targets"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.ADMIN, UserRole.HOD, UserRole.TEACHER]}
-            requiredPermissions={[Permission.CO_UPDATE]}
-          >
-            <COTargetsManagement />
-          </RoleGuard>
-        }
-      />
-    </>
-  )
+  return [
+    <Route
+      key="admin"
+      path="/admin"
+      element={
+        <RoleGuard allowedRoles={[UserRole.ADMIN]}>
+          <AdminDashboard />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-departments"
+      path="/admin/departments"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
+          requiredPermissions={[Permission.DEPARTMENT_READ]}
+        >
+          <DepartmentManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-classes"
+      path="/admin/classes"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
+          requiredPermissions={[Permission.SUBJECT_READ]}
+        >
+          <ClassManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-subjects"
+      path="/admin/subjects"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
+          requiredPermissions={[Permission.SUBJECT_READ]}
+        >
+          <SubjectManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-users"
+      path="/admin/users"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
+          requiredPermissions={[Permission.USER_READ]}
+        >
+          <UserManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-co-management"
+      path="/admin/co-management"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
+          requiredPermissions={[Permission.CO_READ]}
+        >
+          <COManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-po-management"
+      path="/admin/po-management"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
+          requiredPermissions={[Permission.CO_READ]}
+        >
+          <POManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-co-targets"
+      path="/admin/co-targets"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.HOD, UserRole.TEACHER]}
+          requiredPermissions={[Permission.CO_UPDATE]}
+        >
+          <COTargetsManagement />
+        </RoleGuard>
+      }
+    />,
+  ]
 }
 

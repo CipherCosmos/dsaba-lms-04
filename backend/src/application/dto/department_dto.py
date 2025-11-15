@@ -57,7 +57,7 @@ class DepartmentResponse(BaseModel):
 
 class DepartmentListResponse(BaseModel):
     """Department list response DTO"""
-    departments: List[DepartmentResponse]
+    items: List[DepartmentResponse]
     total: int
     skip: int
     limit: int

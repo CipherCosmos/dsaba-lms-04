@@ -77,7 +77,7 @@ class SubjectResponse(BaseModel):
 
 class SubjectListResponse(BaseModel):
     """Subject list response DTO"""
-    subjects: List[SubjectResponse]
+    items: List[SubjectResponse]
     total: int
     skip: int
     limit: int

@@ -112,7 +112,10 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        import traceback
+        error_msg = str(e) if str(e) else f"{type(e).__name__}: {repr(e)}"
+        logger.error(f"Database session error: {error_msg}")
+        logger.debug(f"Database session error traceback: {traceback.format_exc()}")
         db.rollback()
         raise
     finally:

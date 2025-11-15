@@ -194,7 +194,7 @@ async def get_exam_marks(
     )
     
     return MarkListResponse(
-        marks=[MarkResponse(**mark.to_dict()) for mark in marks],
+        items=[MarkResponse(**mark.to_dict()) for mark in marks],
         total=len(marks),
         skip=skip,
         limit=limit

@@ -24,7 +24,8 @@ const initialState: ClassState = {
 
 export const fetchClasses = createAsyncThunk('classes/fetchClasses', async () => {
   const response = await classAPI.getAll()
-  return response
+  // Backend returns BatchListResponse with items array (standardized)
+  return response.items || response.batches || response || []
 })
 
 export const createClass = createAsyncThunk(

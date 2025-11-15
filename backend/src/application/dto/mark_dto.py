@@ -93,7 +93,7 @@ class MarkResponse(BaseModel):
 
 class MarkListResponse(BaseModel):
     """Mark list response DTO"""
-    marks: List[MarkResponse]
+    items: List[MarkResponse]
     total: int
     skip: int
     limit: int

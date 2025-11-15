@@ -11,40 +11,42 @@ const StudentDashboard = lazy(() => import('../../components/Dashboard/StudentDa
 /**
  * Student Module Routes
  * All student routes with proper RBAC
+ * Returns an array of Route elements for React Router v6
  */
 export const StudentRoutes = () => {
-  return (
-    <>
-      <Route
-        path="/student"
-        element={
-          <RoleGuard allowedRoles={[UserRole.STUDENT]}>
-            <StudentDashboard />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/student/analytics"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.STUDENT]}
-            requiredPermissions={[Permission.ANALYTICS_VIEW]}
-          >
-            <StudentAnalytics />
-          </RoleGuard>
-        }
-      />
-      <Route
-        path="/student/progress"
-        element={
-          <RoleGuard
-            allowedRoles={[UserRole.STUDENT]}
-            requiredPermissions={[Permission.MARKS_READ]}
-          >
-            <StudentProgress />
-          </RoleGuard>
-        }
-      />
-    </>
-  )
+  return [
+    <Route
+      key="student"
+      path="/student"
+      element={
+        <RoleGuard allowedRoles={[UserRole.STUDENT]}>
+          <StudentDashboard />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="student-analytics"
+      path="/student/analytics"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.STUDENT]}
+          requiredPermissions={[Permission.ANALYTICS_VIEW]}
+        >
+          <StudentAnalytics />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="student-progress"
+      path="/student/progress"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.STUDENT]}
+          requiredPermissions={[Permission.MARKS_READ]}
+        >
+          <StudentProgress />
+        </RoleGuard>
+      }
+    />,
+  ]
 }

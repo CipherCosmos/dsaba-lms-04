@@ -82,7 +82,7 @@ class ExamResponse(BaseModel):
 
 class ExamListResponse(BaseModel):
     """Exam list response DTO"""
-    exams: List[ExamResponse]
+    items: List[ExamResponse]
     total: int
     skip: int
     limit: int

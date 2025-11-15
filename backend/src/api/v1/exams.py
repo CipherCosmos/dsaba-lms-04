@@ -109,7 +109,7 @@ async def list_exams(
     total = await exam_service.count_exams(filters=filters)
     
     return ExamListResponse(
-        exams=[ExamResponse(**exam.to_dict()) for exam in exams],
+        items=[ExamResponse(**exam.to_dict()) for exam in exams],
         total=total,
         skip=skip,
         limit=limit

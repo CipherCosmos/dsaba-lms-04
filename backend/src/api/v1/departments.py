@@ -118,7 +118,7 @@ async def list_departments(
     total = await department_service.count_departments(filters=filters)
     
     return DepartmentListResponse(
-        departments=[DepartmentResponse(**dept.to_dict()) for dept in departments],
+        items=[DepartmentResponse(**dept.to_dict()) for dept in departments],
         total=total,
         skip=skip,
         limit=limit

@@ -83,7 +83,11 @@ async def create_user(
             department_ids=request.department_ids
         )
         
-        return UserResponse(**user.to_dict())
+        user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
+        return UserResponse(**user_dict)
         
     except EntityAlreadyExistsError as e:
         raise HTTPException(
@@ -123,8 +127,17 @@ async def list_users(
     users = await user_service.list_users(skip=skip, limit=limit, filters=filters)
     total = await user_service.count_users(filters=filters)
     
+    # Convert users to response format with role field
+    user_responses = []
+    for user in users:
+        user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
+        user_responses.append(UserResponse(**user_dict))
+    
     return UserListResponse(
-        users=[UserResponse(**user.to_dict()) for user in users],
+        items=user_responses,
         total=total,
         skip=skip,
         limit=limit
@@ -144,7 +157,11 @@ async def get_user(
     """
     try:
         user = await user_service.get_user(user_id)
-        return UserResponse(**user.to_dict())
+        user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
+        return UserResponse(**user_dict)
     except EntityNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -172,7 +189,11 @@ async def update_user(
             email=request.email,
             is_active=request.is_active
         )
-        return UserResponse(**user.to_dict())
+        user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
+        return UserResponse(**user_dict)
     except EntityNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -291,7 +312,11 @@ async def assign_role(
             role=role,
             department_id=request.department_id
         )
-        return UserResponse(**user.to_dict())
+        user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
+        return UserResponse(**user_dict)
     except EntityNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -323,7 +348,11 @@ async def remove_role(
             role=role,
             department_id=request.department_id
         )
-        return UserResponse(**user.to_dict())
+        user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
+        return UserResponse(**user_dict)
     except EntityNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

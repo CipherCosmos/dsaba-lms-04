@@ -169,7 +169,11 @@ async def get_current_user_info(
     Returns:
         User information
     """
-    return UserInfoResponse(**current_user.to_dict())
+    user_dict = current_user.to_dict()
+    # Add role field for backward compatibility (use first role)
+    if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+        user_dict["role"] = user_dict["roles"][0]
+    return UserInfoResponse(**user_dict)
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse, status_code=status.HTTP_200_OK)

@@ -6,15 +6,15 @@ Creates an admin user using the new Clean Architecture
 import sys
 import os
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add app directory to path (for Docker container)
+app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if app_dir not in sys.path:
+    sys.path.insert(0, app_dir)
 
 from sqlalchemy.orm import Session
 from src.infrastructure.database.session import SessionLocal
 from src.infrastructure.database.models import UserModel, RoleModel, UserRoleModel
-from src.infrastructure.security.password_hasher import PasswordHasher
-from src.domain.enums.user_role import UserRole
-from src.domain.value_objects.email import Email
+import bcrypt
 
 def add_admin_user():
     """Create admin user using new architecture"""
@@ -22,32 +22,35 @@ def add_admin_user():
     
     try:
         # Check if admin role exists
-        admin_role = db.query(RoleModel).filter(RoleModel.name == UserRole.ADMIN.value).first()
+        admin_role = db.query(RoleModel).filter(RoleModel.name == "admin").first()
         if not admin_role:
-            admin_role = RoleModel(name=UserRole.ADMIN.value, description="System Administrator")
+            admin_role = RoleModel(name="admin", description="System Administrator")
             db.add(admin_role)
             db.commit()
             db.refresh(admin_role)
         
         # Check if admin user already exists
-        existing_admin = db.query(UserModel).join(UserRoleModel).filter(
+        existing_admin = db.query(UserModel).join(
+            UserRoleModel, UserModel.id == UserRoleModel.user_id
+        ).filter(
             UserRoleModel.role_id == admin_role.id
         ).first()
         
         if existing_admin:
             print(f"✅ Admin user already exists: {existing_admin.username}")
+            print(f"   Email: {existing_admin.email}")
             return
         
         # Create admin user
-        password_hasher = PasswordHasher()
         password = "admin123"
-        hashed_password = password_hasher.hash_password(password)
+        # Hash password using bcrypt directly
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        admin_email = Email("admin@college.edu")
+        admin_email = "admin@college.edu"
         
         admin_user = UserModel(
             username="admin",
-            email=admin_email.value,
+            email=admin_email,
             first_name="System",
             last_name="Administrator",
             hashed_password=hashed_password,
@@ -70,7 +73,7 @@ def add_admin_user():
         print("✅ Admin user created successfully!")
         print(f"   Username: admin")
         print(f"   Password: {password}")
-        print(f"   Email: {admin_email.value}")
+        print(f"   Email: {admin_email}")
         
     except Exception as e:
         print(f"❌ Error creating admin user: {e}")

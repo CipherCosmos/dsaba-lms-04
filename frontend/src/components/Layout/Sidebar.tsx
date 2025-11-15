@@ -16,13 +16,16 @@ const Sidebar = () => {
   const { user } = useSelector((state: RootState) => state.auth)
   const { isCollapsed, toggleSidebar, isMobileMenuOpen, toggleMobileMenu } = useSidebar()
 
+  // Normalize role from roles array if needed
+  const userRole = user?.role || (user?.roles && user.roles.length > 0 ? user.roles[0] : null)
+
   const getMenuItems = () => {
     const baseItems = [
       { name: 'Dashboard', href: '/', icon: Home, section: 'main' },
       { name: 'My Profile', href: '/profile', icon: UserCheck, section: 'main' },
     ]
 
-    switch (user?.role) {
+    switch (userRole) {
       case 'admin':
         return [
           ...baseItems,

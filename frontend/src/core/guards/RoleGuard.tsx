@@ -32,34 +32,47 @@ export const RoleGuard = ({
   const { user, isAuthenticated, loading } = useSelector((state: RootState) => state.auth)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    if (loading) return
+  // Normalize role from roles array if needed
+  const userRole = user?.role || (user?.roles && user.roles.length > 0 ? user.roles[0] : null)
 
-    if (!isAuthenticated || !user) {
-      navigate('/login', { replace: true })
+  useEffect(() => {
+    // Don't navigate during loading or if user data is not ready
+    if (loading || !user || !isAuthenticated) {
+      return
+    }
+
+    // Ensure role is available before checking access
+    if (!userRole) {
+      console.error('User role not available', { user })
       return
     }
 
     // Check role-based access
-    if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
-      const dashboardPath = getDashboardPath(user.role)
-      navigate(fallbackPath || dashboardPath, { replace: true })
+    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole as UserRole)) {
+      const dashboardPath = getDashboardPath(userRole)
+      // Use requestAnimationFrame to defer navigation until after render
+      requestAnimationFrame(() => {
+        navigate(fallbackPath || dashboardPath, { replace: true })
+      })
       return
     }
 
     // Check permission-based access
     if (requiredPermissions && requiredPermissions.length > 0) {
       const hasAccess = requireAllPermissions
-        ? requiredPermissions.every(permission => hasPermission(user.role as UserRole, permission))
-        : hasAnyPermission(user.role as UserRole, requiredPermissions)
+        ? requiredPermissions.every(permission => hasPermission(userRole as UserRole, permission))
+        : hasAnyPermission(userRole as UserRole, requiredPermissions)
 
       if (!hasAccess) {
-        const dashboardPath = getDashboardPath(user.role)
-        navigate(fallbackPath || dashboardPath, { replace: true })
+        const dashboardPath = getDashboardPath(userRole)
+        // Use requestAnimationFrame to defer navigation until after render
+        requestAnimationFrame(() => {
+          navigate(fallbackPath || dashboardPath, { replace: true })
+        })
         return
       }
     }
-  }, [isAuthenticated, user, loading, allowedRoles, requiredPermissions, requireAllPermissions, fallbackPath, navigate])
+  }, [isAuthenticated, user, userRole, loading, allowedRoles, requiredPermissions, requireAllPermissions, fallbackPath, navigate])
 
   if (loading) {
     return (
@@ -83,19 +96,31 @@ export const RoleGuard = ({
     )
   }
 
+  // Ensure role is available
+  if (!userRole) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-500 mb-2">Unable to determine user role.</p>
+          <p className="text-gray-500 text-sm">Please contact support.</p>
+        </div>
+      </div>
+    )
+  }
+
   // Check role access
-  if (allowedRoles && !allowedRoles.includes(user.role as UserRole)) {
-    return <AccessDenied userRole={user.role} />
+  if (allowedRoles && !allowedRoles.includes(userRole as UserRole)) {
+    return <AccessDenied userRole={userRole} />
   }
 
   // Check permission access
   if (requiredPermissions && requiredPermissions.length > 0) {
     const hasAccess = requireAllPermissions
-      ? requiredPermissions.every(permission => hasPermission(user.role as UserRole, permission))
-      : hasAnyPermission(user.role as UserRole, requiredPermissions)
+      ? requiredPermissions.every(permission => hasPermission(userRole as UserRole, permission))
+      : hasAnyPermission(userRole as UserRole, requiredPermissions)
 
     if (!hasAccess) {
-      return <AccessDenied userRole={user.role} />
+      return <AccessDenied userRole={userRole} />
     }
   }
 
@@ -169,7 +194,9 @@ function getDashboardPath(role: string): string {
 export function useHasPermission(permission: Permission): boolean {
   const { user } = useSelector((state: RootState) => state.auth)
   if (!user) return false
-  return hasPermission(user.role as UserRole, permission)
+  const userRole = user.role || (user.roles && user.roles.length > 0 ? user.roles[0] : null)
+  if (!userRole) return false
+  return hasPermission(userRole as UserRole, permission)
 }
 
 /**
@@ -178,6 +205,8 @@ export function useHasPermission(permission: Permission): boolean {
 export function useHasAnyPermission(permissions: Permission[]): boolean {
   const { user } = useSelector((state: RootState) => state.auth)
   if (!user) return false
-  return hasAnyPermission(user.role as UserRole, permissions)
+  const userRole = user.role || (user.roles && user.roles.length > 0 ? user.roles[0] : null)
+  if (!userRole) return false
+  return hasAnyPermission(userRole as UserRole, permissions)
 }
 

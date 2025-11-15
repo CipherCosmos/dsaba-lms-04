@@ -52,6 +52,17 @@ function App() {
     )
   }
 
+  // Ensure user data is loaded and role is normalized before rendering routes
+  if (!user || (!user.role && (!user.roles || user.roles.length === 0))) {
+    return <LoadingFallback />
+  }
+
+  // Normalize role to ensure it's available
+  const userRole = user.role || (user.roles && user.roles.length > 0 ? user.roles[0] : null)
+  if (!userRole) {
+    return <LoadingFallback />
+  }
+
   return (
     <ErrorBoundary>
       <SidebarProvider>
@@ -63,11 +74,11 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/profile" element={<Profile />} />
               
-              {/* Role-based modular routes */}
-              <AdminRoutes />
-              <TeacherRoutes />
-              <StudentRoutes />
-              <HODRoutes />
+              {/* Role-based modular routes - spread arrays to flatten */}
+              {...AdminRoutes()}
+              {...TeacherRoutes()}
+              {...StudentRoutes()}
+              {...HODRoutes()}
               
               {/* Catch all route */}
               <Route path="*" element={<Navigate to="/" replace />} />

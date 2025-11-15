@@ -86,7 +86,7 @@ async def list_batches(
     """List batches"""
     batches = await service.list_batches(skip=skip, limit=limit, is_active=is_active)
     return BatchListResponse(
-        batches=[BatchResponse(**b.to_dict()) for b in batches],
+        items=[BatchResponse(**b.to_dict()) for b in batches],
         total=len(batches),
         skip=skip,
         limit=limit

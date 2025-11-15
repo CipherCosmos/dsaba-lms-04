@@ -79,6 +79,7 @@ class UserInfoResponse(BaseModel):
     bio: Optional[str] = None
     roles: List[str]
     department_ids: List[int]
+    role: Optional[str] = None  # For backward compatibility (first role from roles array)
     
     class Config:
         json_schema_extra = {

@@ -76,6 +76,7 @@ class ProfileResponse(BaseModel):
     email_verified: bool
     roles: List[str]
     department_ids: List[int]
+    role: Optional[str] = None  # For backward compatibility (first role from roles array)
     created_at: datetime
     updated_at: datetime
     
@@ -115,6 +116,7 @@ class UserResponse(BaseModel):
     bio: Optional[str] = None
     roles: List[str]
     department_ids: List[int]
+    role: Optional[str] = None  # For backward compatibility (first role from roles array)
     created_at: datetime
     updated_at: datetime
     
@@ -140,7 +142,7 @@ class UserResponse(BaseModel):
 
 class UserListResponse(BaseModel):
     """User list response DTO"""
-    users: List[UserResponse]
+    items: List[UserResponse]
     total: int
     skip: int
     limit: int

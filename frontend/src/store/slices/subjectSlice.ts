@@ -34,8 +34,8 @@ const initialState: SubjectState = {
 
 export const fetchSubjects = createAsyncThunk('subjects/fetchSubjects', async (filters?: { department_id?: number; is_active?: boolean }) => {
   const response = await subjectAPI.getAll(0, 100, filters)
-  // Backend returns SubjectListResponse with subjects array
-  return response.subjects || response || []
+  // Backend returns SubjectListResponse with items array (standardized)
+  return response.items || response.subjects || response || []
 })
 
 export const createSubject = createAsyncThunk(

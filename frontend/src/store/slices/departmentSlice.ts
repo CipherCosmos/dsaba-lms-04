@@ -23,8 +23,8 @@ const initialState: DepartmentState = {
 
 export const fetchDepartments = createAsyncThunk('departments/fetchDepartments', async (filters?: { is_active?: boolean; has_hod?: boolean }) => {
   const response = await departmentAPI.getAll(0, 100, filters)
-  // Backend returns DepartmentListResponse with departments array
-  return response.departments || response || []
+  // Backend returns DepartmentListResponse with items array (standardized)
+  return response.items || response.departments || response || []
 })
 
 export const createDepartment = createAsyncThunk(

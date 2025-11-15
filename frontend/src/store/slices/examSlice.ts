@@ -108,9 +108,9 @@ const examSlice = createSlice({
       })
       .addCase(fetchExams.fulfilled, (state, action) => {
         state.loading = false
-        // Backend returns ExamListResponse with exams array
+        // Backend returns ExamListResponse with items array (standardized)
         const payload = action.payload
-        state.exams = Array.isArray(payload) ? payload : (payload?.exams || payload?.data || [])
+        state.exams = Array.isArray(payload) ? payload : (payload?.items || payload?.exams || payload?.data || [])
         logger.debug('Exams loaded:', state.exams.length)
       })
       .addCase(fetchExams.rejected, (state, action) => {

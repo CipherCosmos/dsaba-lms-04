@@ -26,8 +26,8 @@ export const fetchMarksByExam = createAsyncThunk(
   'marks/fetchMarksByExam',
   async (examId: number) => {
     const response = await marksAPI.getByExam(examId, 0, 1000)
-    // Backend returns MarkListResponse with marks array
-    return response.marks || response || []
+    // Backend returns MarkListResponse with items array (standardized)
+    return response.items || response.marks || response || []
   }
 )
 

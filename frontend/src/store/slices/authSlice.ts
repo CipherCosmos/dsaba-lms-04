@@ -79,7 +79,16 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false
         state.isAuthenticated = true
-        state.user = action.payload
+        // Normalize user data: ensure role field exists from roles array
+        const userData = { ...action.payload }
+        if (userData && !userData.role && userData.roles && userData.roles.length > 0) {
+          userData.role = userData.roles[0] as 'admin' | 'hod' | 'teacher' | 'student'
+        }
+        // Ensure role is always set if roles array exists
+        if (userData && userData.roles && userData.roles.length > 0 && !userData.role) {
+          userData.role = userData.roles[0] as 'admin' | 'hod' | 'teacher' | 'student'
+        }
+        state.user = userData
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false
@@ -99,7 +108,16 @@ const authSlice = createSlice({
       .addCase(fetchCurrentUser.fulfilled, (state, action) => {
         state.loading = false
         state.isAuthenticated = true
-        state.user = action.payload
+        // Normalize user data: ensure role field exists from roles array
+        const userData = { ...action.payload }
+        if (userData && !userData.role && userData.roles && userData.roles.length > 0) {
+          userData.role = userData.roles[0] as 'admin' | 'hod' | 'teacher' | 'student'
+        }
+        // Ensure role is always set if roles array exists
+        if (userData && userData.roles && userData.roles.length > 0 && !userData.role) {
+          userData.role = userData.roles[0] as 'admin' | 'hod' | 'teacher' | 'student'
+        }
+        state.user = userData
       })
       .addCase(fetchCurrentUser.rejected, (state) => {
         state.loading = false

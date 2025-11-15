@@ -50,6 +50,9 @@ async def get_my_profile(
         User profile information
     """
     user_dict = current_user.to_dict()
+    # Add role field for backward compatibility
+    if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+        user_dict["role"] = user_dict["roles"][0]
     return ProfileResponse(**user_dict)
 
 
@@ -82,6 +85,9 @@ async def update_my_profile(
         )
         
         user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
         return ProfileResponse(**user_dict)
         
     except EntityAlreadyExistsError as e:
@@ -150,6 +156,9 @@ async def get_user_profile(
     try:
         user = await user_service.get_user(user_id)
         user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
         return ProfileResponse(**user_dict)
     except EntityNotFoundError:
         raise HTTPException(
@@ -221,6 +230,9 @@ async def update_user_profile(
         )
         
         user_dict = user.to_dict()
+        # Add role field for backward compatibility
+        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+            user_dict["role"] = user_dict["roles"][0]
         return ProfileResponse(**user_dict)
         
     except EntityNotFoundError:

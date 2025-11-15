@@ -28,8 +28,8 @@ const initialState: UserState = {
 
 export const fetchUsers = createAsyncThunk('users/fetchUsers', async (filters?: { is_active?: boolean; email_verified?: boolean }) => {
   const response = await userAPI.getAll(0, 100, filters)
-  // Backend returns UserListResponse with users array
-  return response.users || response || []
+  // Backend returns UserListResponse with items array (standardized)
+  return response.items || response.users || response || []
 })
 
 export const createUser = createAsyncThunk(

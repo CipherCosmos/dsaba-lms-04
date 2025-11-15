@@ -108,7 +108,7 @@ async def list_subjects(
     )
     
     return SubjectListResponse(
-        subjects=[SubjectResponse(**subject.to_dict()) for subject in subjects],
+        items=[SubjectResponse(**subject.to_dict()) for subject in subjects],
         total=total,
         skip=skip,
         limit=limit
@@ -258,7 +258,7 @@ async def get_subjects_by_department(
     )
     
     return SubjectListResponse(
-        subjects=[SubjectResponse(**subject.to_dict()) for subject in subjects],
+        items=[SubjectResponse(**subject.to_dict()) for subject in subjects],
         total=len(subjects),
         skip=skip,
         limit=limit

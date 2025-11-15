@@ -37,7 +37,7 @@ class BatchResponse(BaseModel):
 
 class BatchListResponse(BaseModel):
     """Batch list response DTO"""
-    batches: List[BatchResponse]
+    items: List[BatchResponse]
     total: int
     skip: int
     limit: int
@@ -78,7 +78,7 @@ class BatchYearResponse(BaseModel):
 
 class BatchYearListResponse(BaseModel):
     """BatchYear list response DTO"""
-    batch_years: List[BatchYearResponse]
+    items: List[BatchYearResponse]
     total: int
     skip: int
     limit: int
@@ -128,7 +128,7 @@ class SemesterResponse(BaseModel):
 
 class SemesterListResponse(BaseModel):
     """Semester list response DTO"""
-    semesters: List[SemesterResponse]
+    items: List[SemesterResponse]
     total: int
     skip: int
     limit: int

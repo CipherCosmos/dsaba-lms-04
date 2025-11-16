@@ -28,7 +28,7 @@ const SemesterPublishing: React.FC = () => {
       // Backend now returns is_published status based on final_marks
       const transformedSemesters = semestersList.map((semester: any) => ({
         ...semester,
-        academic_year: semester.batch_year_id ? `Batch Year ${semester.batch_year_id}` : 'N/A',
+        academic_year: semester.academic_year?.display_name || semester.academic_year_id || 'N/A',
         is_published: semester.is_published || false // Backend provides this field
       }))
       

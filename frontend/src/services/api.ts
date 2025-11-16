@@ -1197,19 +1197,17 @@ export const studentAPI = {
 
 // Academic Structure API (Batches, Semesters, etc.)
 export const academicStructureAPI = {
-  getAllSemesters: async (skip: number = 0, limit: number = 100, filters?: { batch_year_id?: number; is_current?: boolean; academic_year_id?: number; department_id?: number }) => {
+  getAllSemesters: async (skip: number = 0, limit: number = 100, filters?: { is_current?: boolean; academic_year_id?: number; department_id?: number; batch_instance_id?: number }) => {
     const params: any = { skip, limit }
-    if (filters?.batch_year_id) params.batch_year_id = filters.batch_year_id
+    // Note: batch_year_id filter removed - use batch_instance_id or academic_year_id instead
     if (filters?.is_current !== undefined) params.is_current = filters.is_current
     if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
     if (filters?.department_id) params.department_id = filters.department_id
+    if (filters?.batch_instance_id) params.batch_instance_id = filters.batch_instance_id
     const response = await apiClient.get('/academic/semesters', { params })
     return response.data
   },
-  getSemestersByBatchYear: async (batchYearId: number) => {
-    const response = await apiClient.get(`/academic/batch-years/${batchYearId}/semesters`)
-    return response.data
-  },
+  // Note: getSemestersByBatchYear deprecated - use getAllSemesters with batch_instance_id filter
   publishSemester: async (semesterId: number) => {
     const response = await apiClient.post(`/academic/semesters/${semesterId}/publish`)
     return response.data
@@ -1454,6 +1452,16 @@ export const batchInstanceAPI = {
       batch_instance_id: batchInstanceId,
       notes
     })
+    return response.data
+  },
+}
+
+// Batches (Program catalog) API – current, non-legacy
+export const batchesAPI = {
+  getAll: async (skip: number = 0, limit: number = 200, isActive?: boolean) => {
+    const params: any = { skip, limit }
+    if (isActive !== undefined) params.is_active = isActive
+    const response = await apiClient.get('/academic/batches', { params })
     return response.data
   },
 }
@@ -1803,23 +1811,6 @@ export const enhancedAnalyticsAPI = {
 
 // Export utility for backward compatibility
 // Components using classAPI should be updated to use batchInstanceAPI
-export const classAPI = {
-  getAll: () => {
-    console.warn('classAPI.getAll() is deprecated. Use batchInstanceAPI.getAll() instead.')
-    return batchInstanceAPI.getAll()
-  },
-  getBatches: (skip?: number, limit?: number, isActive?: boolean) => {
-    console.warn('classAPI.getBatches() is deprecated. Use batchInstanceAPI.getAll() instead.')
-    return batchInstanceAPI.getAll(skip, limit, { is_active: isActive })
-  },
-  create: (data: any) => {
-    console.warn('classAPI.create() is deprecated. Use batchInstanceAPI.create() instead.')
-    return batchInstanceAPI.create(data)
-  },
-  delete: (id: number) => {
-    console.warn('classAPI.delete() is deprecated. Use batchInstanceAPI.deactivate() instead.')
-    return batchInstanceAPI.deactivate(id)
-  },
-}
+// NOTE: Legacy classAPI fully removed. Use batchInstanceAPI, batchesAPI, and academicStructureAPI instead.
 
 export default apiClient

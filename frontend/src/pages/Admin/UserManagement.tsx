@@ -26,9 +26,7 @@ const schema = yup.object({
   department_id: yup.number().nullable().transform((value, originalValue) => {
     return originalValue === '' ? null : value;
   }),
-  class_id: yup.number().nullable().transform((value, originalValue) => {
-    return originalValue === '' ? null : value;
-  }),
+  // Note: class_id removed - students are now associated via StudentEnrollments
   is_active: yup.boolean().default(true),
 })
 
@@ -197,7 +195,7 @@ const UserManagement = () => {
     setValue('last_name', user.last_name)
     setValue('role', primaryRole)
     setValue('department_id', primaryDepartmentId)
-    setValue('class_id', user.class_id || null)
+    // Note: class_id removed - students now enrolled via StudentEnrollments
     setValue('is_active', user.is_active ?? true)
     setSelectedRole(primaryRole)
     setIsModalOpen(true)
@@ -619,7 +617,7 @@ const UserManagement = () => {
               ) : (
                 filteredUsers.map((user) => {
                   const department = departments.find(d => d.id === (user.department_ids?.[0] || (user as any).department_id))
-                  const userClass = classes.find(c => c.id === user.class_id)
+                  // Note: Class column now shows enrollment info (legacy class_id deprecated)
                   const RoleIcon = getRoleIcon(user.role)
                   const userRoles = user.roles || [user.role].filter(Boolean)
                   
@@ -670,8 +668,8 @@ const UserManagement = () => {
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm text-gray-900">
-                          {userClass?.name || '-'}
+                        <span className="text-sm text-gray-500">
+                          -
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -892,24 +890,12 @@ const UserManagement = () => {
                 </div>
               </div>
 
+              {/* Note: Class selection removed - students are now enrolled via StudentEnrollments after user creation */}
               {selectedRole === 'student' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Class
-                  </label>
-                  <select
-                    {...register('class_id', { 
-                      setValueAs: (value) => value === '' ? null : Number(value)
-                    })}
-                    className="input-field w-full"
-                  >
-                    <option value="">Select Class</option>
-                    {classes.map(cls => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> After creating a student, enroll them in semesters via the Enrollment Management page.
+                  </p>
                 </div>
               )}
 

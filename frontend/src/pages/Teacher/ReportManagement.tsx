@@ -187,6 +187,7 @@ const ReportManagement = () => {
       if (report.template.id.includes('student')) {
         blob = await reportsAPI.getStudentReport(report.studentId || report.filters?.student_id, report.subjectId, 'pdf')
       } else if (report.template.id.includes('class')) {
+        // Note: Legacy class_id usage - should migrate to semester/subject_assignment based reports
         blob = await reportsAPI.getClassReport(report.classId || report.filters?.class_id, report.subjectId, 'pdf')
       } else if (report.template.id.includes('co-po')) {
         blob = await reportsAPI.getCOPOReport(report.subjectId, 'pdf')

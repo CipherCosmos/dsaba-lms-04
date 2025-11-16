@@ -77,7 +77,7 @@ const HODTeacherAnalytics: React.FC = () => {
     teacher.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Calculate teacher performance data
+  // Calculate teacher performance data (department-based, no class_id)
   const teacherPerformanceData = filteredTeachers.map(teacher => {
     const teacherSubjects = departmentSubjects.filter(s => s.teacher_id === teacher.id)
     const teacherExams = departmentExams.filter(e => {
@@ -85,47 +85,23 @@ const HODTeacherAnalytics: React.FC = () => {
       return examSubject?.teacher_id === teacher.id
     })
 
-    // Calculate average performance for teacher's classes
-    const classPerformance = teacherSubjects.map(subject => {
-      // Subjects are linked to classes through subject_assignments
-      // Using department-based filtering for teacher's students
-      const subjectStudents = users.filter(u => {
-        if (u.role !== 'student') return false
-        if (u.department_ids && u.department_ids.length > 0) {
-          return u.department_ids[0] === subject.department_id
-        }
-        return (u as any).department_id === subject.department_id
-      })
-      
-      const subjectExams = departmentExams.filter(e => {
+    // Calculate average performance across all teacher's subjects
+    const subjectPerformances = teacherSubjects.map(subject => {
+      const subjectExams = teacherExams.filter(e => {
         const examSubject = getSubjectForExam(e)
         return examSubject?.id === subject.id
       })
       
-      const totalPercentage = subjectStudents.reduce((sum, _student) => {
-        const studentExams = subjectExams
-        const totalMarks = studentExams.reduce((s, exam) => s + (exam.total_marks || 0), 0)
-        return sum + (studentExams.length > 0 ? totalMarks / studentExams.length : 0)
-      }, 0)
-
-      return subjectStudents.length > 0 ? totalPercentage / subjectStudents.length : 0
+      const totalMarks = subjectExams.reduce((s, exam) => s + (exam.total_marks || 0), 0)
+      return subjectExams.length > 0 ? totalMarks / subjectExams.length : 0
     })
 
-    const averagePerformance = classPerformance.length > 0 
-      ? classPerformance.reduce((sum, perf) => sum + perf, 0) / classPerformance.length 
+    const averagePerformance = subjectPerformances.length > 0 
+      ? subjectPerformances.reduce((sum, perf) => sum + perf, 0) / subjectPerformances.length 
       : 0
 
-    const totalStudents = teacherSubjects.reduce((sum, subject) => {
-      // Get students count from department - class info available through subject assignments
-      const subjectStudents = users.filter(u => {
-        if (u.role !== 'student') return false
-        if (u.department_ids && u.department_ids.length > 0) {
-          return u.department_ids[0] === subject.department_id
-        }
-        return (u as any).department_id === subject.department_id
-      })
-      return sum + subjectStudents.length
-    }, 0)
+    // Count students via department (no class_id dependency)
+    const totalStudents = departmentUsers.filter(u => u.role === 'student').length
 
     return {
       name: `${teacher.first_name} ${teacher.last_name}`,
@@ -140,50 +116,31 @@ const HODTeacherAnalytics: React.FC = () => {
     }
   })
 
-  // Subject assignment data
+  // Subject assignment data (department-based)
   const subjectAssignmentData = departmentSubjects.map(subject => ({
     subject: subject.name,
     code: subject.code,
     teacher: subject.teacher_id ? 
       users.find(u => u.id === subject.teacher_id)?.first_name + ' ' + 
       users.find(u => u.id === subject.teacher_id)?.last_name : 'Unassigned',
-    // Subjects are linked to classes through subject_assignments
-    // Showing department-based student count
-    students: users.filter(u => {
-      if (u.role !== 'student') return false
-      if (u.department_ids && u.department_ids.length > 0) {
-        return u.department_ids[0] === subject.department_id
-      }
-      return (u as any).department_id === subject.department_id
-    }).length,
-    class: 'Multiple classes' // Subject can be assigned to multiple classes via subject_assignments
+    students: departmentUsers.filter(u => u.role === 'student').length,
+    class: 'Department Subject' // Subject assigned at department level
   }))
 
-  // Workload distribution
+  // Workload distribution (department-based)
   const workloadData = teachers.map(teacher => {
     const teacherSubjects = departmentSubjects.filter(s => s.teacher_id === teacher.id)
-    const totalStudents = teacherSubjects.reduce((sum, subject) => {
-      // Subjects are linked to classes through subject_assignments
-      // Using department-based filtering for student count
-      const subjectStudents = users.filter(u => {
-        if (u.role !== 'student') return false
-        if (u.department_ids && u.department_ids.length > 0) {
-          return u.department_ids[0] === subject.department_id
-        }
-        return (u as any).department_id === subject.department_id
-      })
-      return sum + subjectStudents.length
-    }, 0)
+    const departmentStudentCount = departmentUsers.filter(u => u.role === 'student').length
 
     return {
       teacher: `${teacher.first_name} ${teacher.last_name}`,
       subjects: teacherSubjects.length,
-      students: totalStudents,
-      workload: teacherSubjects.length * 2 + Math.floor(totalStudents / 10) // Workload score
+      students: departmentStudentCount,
+      workload: teacherSubjects.length * 2 + Math.floor(departmentStudentCount / 10) // Workload score
     }
   })
 
-  // Calculate performance trends from real data
+  // Calculate performance trends from department exam data
   const performanceTrends = React.useMemo(() => {
     const monthlyData: { [key: string]: { total: number, count: number } } = {}
     
@@ -196,13 +153,10 @@ const HODTeacherAnalytics: React.FC = () => {
         monthlyData[monthKey] = { total: 0, count: 0 }
       }
       
-      // Calculate average performance for this exam
-      const examStudents = users.filter(u => u.role === 'student' && u.class_id === (exam as any).class_id)
-      if (examStudents.length > 0) {
-        const avgPerformance = exam.total_marks ? (exam.total_marks / 100) * 100 : 0
-        monthlyData[monthKey].total += avgPerformance
-        monthlyData[monthKey].count += 1
-      }
+      // Calculate average performance for exam
+      const avgPerformance = exam.total_marks || 0
+      monthlyData[monthKey].total += avgPerformance
+      monthlyData[monthKey].count += 1
     })
     
     // Convert to array format
@@ -215,7 +169,7 @@ const HODTeacherAnalytics: React.FC = () => {
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         return months.indexOf(a.month) - months.indexOf(b.month)
       })
-  }, [departmentExams, users])
+  }, [departmentExams])
 
   // Removed unused COLORS
 

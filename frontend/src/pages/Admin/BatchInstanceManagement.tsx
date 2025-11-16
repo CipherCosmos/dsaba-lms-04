@@ -19,7 +19,7 @@ import {
 } from '../../core/hooks'
 import { useDepartments } from '../../core/hooks'
 import { useAcademicYears, useCurrentAcademicYear } from '../../core/hooks'
-import { classAPI } from '../../services/api'
+import { batchesAPI } from '../../services/api'
 import { LoadingFallback } from '../../modules/shared/components/LoadingFallback'
 import CreateClassWizard from '../../components/BatchInstance/CreateClassWizard'
 import BatchPromotionModal from '../../components/BatchInstance/BatchPromotionModal'
@@ -81,7 +81,7 @@ const BatchInstanceManagement: React.FC = () => {
     const fetchBatches = async () => {
       setLoadingBatches(true)
       try {
-        const response = await classAPI.getBatches(0, 200, true)
+        const response = await batchesAPI.getAll(0, 200, true)
         setBatches(response.items || [])
       } catch (error: unknown) {
         toast.error('Failed to fetch batches')

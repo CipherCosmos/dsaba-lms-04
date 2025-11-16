@@ -19,7 +19,7 @@ interface User {
   bio?: string
   created_at: string
   updated_at?: string
-  class_id?: number  // May come from student profile
+  // Note: class_id removed - students are associated via StudentEnrollments (semester-based)
 }
 
 interface UserState {

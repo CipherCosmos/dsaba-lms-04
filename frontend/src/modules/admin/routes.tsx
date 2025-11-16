@@ -5,14 +5,14 @@ import { UserRole, Permission } from '../../core/types/permissions'
 
 // Lazy load admin pages for code splitting
 const DepartmentManagement = lazy(() => import('../../pages/Admin/DepartmentManagement'))
-const ClassManagement = lazy(() => import('../../pages/Admin/ClassManagement'))
+// Note: ClassManagement.tsx removed - use BatchInstanceManagement instead
+const BatchInstanceManagement = lazy(() => import('../../pages/Admin/BatchInstanceManagement'))
 const SubjectManagement = lazy(() => import('../../pages/Admin/SubjectManagement'))
 const UserManagement = lazy(() => import('../../pages/Admin/UserManagement'))
 const COManagement = lazy(() => import('../../pages/Admin/COManagement'))
 const POManagement = lazy(() => import('../../pages/Admin/POManagement'))
 const COTargetsManagement = lazy(() => import('../../pages/Admin/COTargetsManagement'))
 const AcademicYearManagement = lazy(() => import('../../pages/Admin/AcademicYearManagement'))
-const BatchInstanceManagement = lazy(() => import('../../pages/Admin/BatchInstanceManagement'))
 const MarksFreeze = lazy(() => import('../../pages/Principal/MarksFreeze'))
 const AdminDashboard = lazy(() => import('../../components/Dashboard/AdminDashboard'))
 
@@ -52,7 +52,7 @@ export const AdminRoutes = () => {
           allowedRoles={[UserRole.ADMIN, UserRole.HOD]}
           requiredPermissions={[Permission.SUBJECT_READ]}
         >
-          <ClassManagement />
+          <BatchInstanceManagement />
         </RoleGuard>
       }
     />,

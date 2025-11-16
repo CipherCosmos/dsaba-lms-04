@@ -113,8 +113,9 @@ export const queryKeys = {
   academic: {
     all: ['academic'] as const,
     batches: () => [...queryKeys.academic.all, 'batches'] as const,
-    batchYears: (batchId: number) => [...queryKeys.academic.all, 'batches', batchId, 'batch-years'] as const,
-    semesters: (batchYearId: number) => [...queryKeys.academic.all, 'batch-years', batchYearId, 'semesters'] as const,
+    // Legacy batch-year keys removed; use semester keys directly
+    semestersByBatchInstance: (batchInstanceId: number) => [...queryKeys.academic.all, 'batch-instances', batchInstanceId, 'semesters'] as const,
+    semestersAll: (filters?: Record<string, any>) => [...queryKeys.academic.all, 'semesters', filters] as const,
   },
 
   // Dashboard
@@ -128,7 +129,7 @@ export const queryKeys = {
     all: ['reports'] as const,
     templates: () => [...queryKeys.reports.all, 'templates'] as const,
     byStudent: (studentId: number) => [...queryKeys.reports.all, 'student', studentId] as const,
-    byClass: (classId: number) => [...queryKeys.reports.all, 'class', classId] as const,
+    byBatchInstance: (batchInstanceId: number) => [...queryKeys.reports.all, 'batch-instance', batchInstanceId] as const,
     coPo: (subjectId: number) => [...queryKeys.reports.all, 'co-po', subjectId] as const,
   },
 

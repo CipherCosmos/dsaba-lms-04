@@ -155,18 +155,18 @@ const MultiDimensionalAnalytics: React.FC = () => {
           {dimension === 'semester' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Batch Year
+                Batch Instance
               </label>
               <input
                 type="number"
-                value={filters.batch_year_id || ''}
+                value={filters.batch_instance_id || ''}
                 onChange={(e) => {
                   setFilters({
                     ...filters,
-                    batch_year_id: e.target.value ? Number(e.target.value) : undefined
+                    batch_instance_id: e.target.value ? Number(e.target.value) : undefined
                   })
                 }}
-                placeholder="Batch Year ID"
+                placeholder="Batch Instance ID"
                 className="input-field"
               />
             </div>

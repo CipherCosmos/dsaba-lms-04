@@ -52,7 +52,7 @@ const StudentProgress = () => {
   const fetchSemesters = async () => {
     try {
       setLoadingSemesters(true)
-      // Use student-specific endpoint to get semesters for the current student's batch year
+      // Use student-specific endpoint to get enrolled semesters
       const response = await studentAPI.getSemesters(0, 1000)
       // Backend returns standardized list response with items array
       const semestersList = response.items || []

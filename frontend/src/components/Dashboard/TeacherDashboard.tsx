@@ -60,13 +60,8 @@ const TeacherDashboard = () => {
     return subject?.teacher_id === user?.id
   })
 
-  // Calculate total students
-  const totalStudents = teacherSubjects.reduce((total, subject) => {
-    const classStudents = users.filter(u => 
-      u.role === 'student' && u.class_id === subject.class_id
-    ).length
-    return total + classStudents
-  }, 0)
+  // Calculate total students (use backend stats when available)
+  const totalStudents = dashboardStats?.statistics?.total_students || 0
 
   const teacherStats = [
     {
@@ -74,7 +69,7 @@ const TeacherDashboard = () => {
       value: dashboardStats?.statistics?.subjects_assigned || teacherSubjects.length,
       icon: BookOpen,
       color: 'bg-blue-500',
-      detail: `Across ${new Set(teacherSubjects.map(s => s.class_id)).size} classes`,
+      detail: `Across ${new Set(teacherExams.map(e => getAssignmentForExam(e)?.semester_id).filter(Boolean)).size} semesters`,
       href: '/teacher/subjects'
     },
     {
@@ -152,47 +147,37 @@ const TeacherDashboard = () => {
   // Calculate class performance based on real exam data
   const classPerformance = React.useMemo(() => {
     return teacherSubjects.map(subject => {
-      const classStudents = users.filter(u => 
-        u.role === 'student' && u.class_id === subject.class_id
-      )
-      
-      // Get exams for this subject via subject assignments
       const subjectExams = teacherExams.filter(exam => {
         const examSubject = getSubjectForExam(exam)
         return examSubject?.id === subject.id
       })
-      
-      // Calculate average performance from actual exam data
+      // Calculate average performance proxy from available exam totals
       let averagePerformance = 0
       if (subjectExams.length > 0) {
-        const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-        const maxMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-        averagePerformance = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0
+        const totals = subjectExams.map(e => e.total_marks || 0)
+        const sum = totals.reduce((a, b) => a + b, 0)
+        averagePerformance = subjectExams.length > 0 ? Math.round(sum / subjectExams.length) : 0
       }
-      
       return {
-        class: `Class ${subject.class_id}`,
+        class: `Semester ${getAssignmentForExam(subjectExams[0] || {})?.semester_id ?? '-'}`,
         subject: subject.name,
         average: averagePerformance,
-        students: classStudents.length,
+        students: dashboardStats?.statistics?.total_students || 0,
         status: averagePerformance >= 85 ? 'excellent' : averagePerformance >= 75 ? 'good' : 'average'
       }
     })
-  }, [teacherSubjects, users, teacherExams])
+  }, [teacherSubjects, teacherExams, getAssignmentForExam, dashboardStats])
 
   // Calculate at-risk students based on real performance data
   const atRiskStudents = React.useMemo(() => {
     const atRisk: Array<{student: string, average: number, subjects: any[], riskLevel: string, name: string, percentage: number, class: string}> = []
     
-    // Get all students in teacher's classes
-    const allStudents = users.filter(u => 
-      u.role === 'student' && 
-      teacherSubjects.some(subject => subject.class_id === u.class_id)
-    )
+    // Get all students in department (proxy, since class linkage is deprecated)
+    const allStudents = users.filter(u => u.role === 'student')
     
     // For each student, calculate their average performance across teacher's subjects
     allStudents.forEach(student => {
-      const studentSubjects = teacherSubjects.filter(subject => subject.class_id === student.class_id)
+      const studentSubjects = teacherSubjects
       let totalPercentage = 0
       let subjectCount = 0
       const strugglingSubjects: Array<{name: string, performance: number}> = []
@@ -223,7 +208,7 @@ const TeacherDashboard = () => {
         atRisk.push({
           student: `${student.first_name} ${student.last_name}`,
           name: `${student.first_name} ${student.last_name}`,
-          class: `Class ${student.class_id}`,
+          class: `Semester ${getAssignmentForExam(teacherExams[0] || {})?.semester_id ?? '-'}`,
           average: Math.round(averagePercentage),
           percentage: Math.round(averagePercentage),
           subjects: strugglingSubjects,

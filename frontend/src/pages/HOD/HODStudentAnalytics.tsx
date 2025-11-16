@@ -40,9 +40,9 @@ const HODStudentAnalytics: React.FC = () => {
   const { classes } = useSelector((state: RootState) => state.classes)
   const { exams } = useSelector((state: RootState) => state.exams)
 
-  const [selectedClass, setSelectedClass] = useState<number | null>(null)
   const [selectedSubject, setSelectedSubject] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  // Note: selectedClass removed - analytics now based on department/semester/enrollment
 
   useEffect(() => {
     dispatch(fetchUsers())
@@ -59,21 +59,18 @@ const HODStudentAnalytics: React.FC = () => {
     }
     return (u as any).department_id === userDeptId
   })
-  const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
   // Subjects belong to departments directly
   const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
   // Get subject assignments for exams
-  const { getSubjectForExam, getClassIdForExam } = useExamSubjectAssignments(exams)
+  const { getSubjectForExam } = useExamSubjectAssignments(exams)
   
   const departmentExams = exams.filter(e => {
     const examSubject = getSubjectForExam(e)
     return examSubject?.department_id === user?.department_id
   })
 
-  // Get students from selected class or all department students
-  const students = selectedClass 
-    ? departmentUsers.filter(u => u.role === 'student' && u.class_id === selectedClass)
-    : departmentUsers.filter(u => u.role === 'student')
+  // Get all department students (no longer filtering by legacy class_id)
+  const students = departmentUsers.filter(u => u.role === 'student')
 
   // Filter students by search term
   const filteredStudents = students.filter(student =>
@@ -82,124 +79,68 @@ const HODStudentAnalytics: React.FC = () => {
     student.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // Cache exam to class_id mapping using subject assignments
-  const [examClassMap, setExamClassMap] = useState<Record<number, number>>({})
-  
-  useEffect(() => {
-    const buildExamClassMap = async () => {
-      const map: Record<number, number> = {}
-      const examIds = departmentExams.map(e => e.id)
-      
-      // Fetch subject assignments for all exams in parallel
-      const assignments = await Promise.allSettled(
-        examIds.map(examId => 
-          subjectAssignmentAPI.getByExam(examId).then(assignment => ({ examId, classId: assignment.class_id }))
-        )
-      )
-      
-      assignments.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          map[examIds[index]] = result.value.classId
-        }
-      })
-      
-      setExamClassMap(map)
-    }
-    
-    if (departmentExams.length > 0) {
-      buildExamClassMap()
-    }
-  }, [departmentExams])
+  // Note: Removed exam-class mapping - analytics now based on subject/department associations
 
-  // Calculate performance data with proper exam filtering by class_id
+  // Calculate performance data based on department exams
   const performanceData = useMemo(() => {
     return filteredStudents.map(student => {
-      // Filter exams that belong to the student's class through subject_assignment
-      const studentExams = departmentExams.filter(exam => {
-        const examClassId = examClassMap[exam.id]
-        return examClassId === student.class_id
-      })
+      // Get student's department exams
+      const studentExams = departmentExams
 
-      // Calculate average based on exam total marks (for now)
-      // Note: Actual percentage calculation would need marks data
+      // Calculate average based on exam total marks (placeholder - actual marks from MarkModel)
       const totalMarks = studentExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
       const averagePercentage = studentExams.length > 0 ? (totalMarks / studentExams.length) : 0
 
       return {
         name: `${student.first_name} ${student.last_name}`,
-        class: classes.find(c => c.id === student.class_id)?.name || 'Unknown',
+        class: 'Department Student', // Legacy class field deprecated
         percentage: Math.round(averagePercentage),
         exams: studentExams.length,
         status: averagePercentage >= 80 ? 'Excellent' : averagePercentage >= 60 ? 'Good' : 'Needs Improvement'
       }
     })
-  }, [filteredStudents, departmentExams, examClassMap, classes])
+  }, [filteredStudents, departmentExams])
 
-  // Class performance data - filter exams by subject_assignment -> class_id
+  // Subject-based performance data (replacing legacy class performance)
   const classPerformanceData = useMemo(() => {
-    return departmentClasses.map(cls => {
-      const classStudents = students.filter(s => s.class_id === cls.id)
-      // Filter exams by class_id from subject assignments
-      const classExams = departmentExams.filter(exam => {
-        const examClassId = examClassMap[exam.id]
-        return examClassId === cls.id
+    return departmentSubjects.slice(0, 5).map(subject => {
+      const subjectExams = departmentExams.filter(exam => {
+        const examSubject = getSubjectForExam(exam)
+        return examSubject?.id === subject.id
       })
 
-      const totalPercentage = classStudents.reduce((sum, _student) => {
-        const studentExams = classExams
-        const totalMarks = studentExams.reduce((s, exam) => s + (exam.total_marks || 0), 0)
-        return sum + (studentExams.length > 0 ? totalMarks / studentExams.length : 0)
-      }, 0)
-
-      const averagePercentage = classStudents.length > 0 ? totalPercentage / classStudents.length : 0
+      const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
+      const averagePercentage = subjectExams.length > 0 ? (totalMarks / subjectExams.length) : 0
 
       return {
-        class: cls.name,
-        students: classStudents.length,
+        class: subject.name, // Using subject name for chart labels
+        students: students.length,
         average: Math.round(averagePercentage),
-        semester: cls.semester
+        semester: 'N/A'
       }
     })
-  }, [departmentClasses, students, departmentExams, examClassMap, getSubjectForExam])
+  }, [departmentSubjects, students, departmentExams, getSubjectForExam])
 
-  // Subject performance data - filter students by subject assignments
+  // Subject performance data based on department
   const subjectPerformanceData = useMemo(() => {
     return departmentSubjects.map(subject => {
       const subjectExams = departmentExams.filter(exam => {
         const examSubject = getSubjectForExam(exam)
         return examSubject?.id === subject.id
       })
-      
-      // Get unique class_ids from subject exams via subject assignments
-      const subjectClassIds = new Set<number>()
-      subjectExams.forEach(exam => {
-        const classId = examClassMap[exam.id]
-        if (classId) subjectClassIds.add(classId)
-      })
-      
-      // Filter students that belong to any of these classes
-      const subjectStudents = students.filter(s => s.class_id !== undefined && subjectClassIds.has(s.class_id))
 
-      const totalPercentage = subjectStudents.reduce((sum, _student) => {
-        const studentExams = subjectExams.filter(exam => {
-          const examClassId = examClassMap[exam.id]
-          return examClassId === _student.class_id
-        })
-        const totalMarks = studentExams.reduce((s, exam) => s + (exam.total_marks || 0), 0)
-        return sum + (studentExams.length > 0 ? totalMarks / studentExams.length : 0)
-      }, 0)
-
-      const averagePercentage = subjectStudents.length > 0 ? totalPercentage / subjectStudents.length : 0
+      const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
+      const averagePercentage = subjectExams.length > 0 ? (totalMarks / subjectExams.length) : 0
 
       return {
         subject: subject.name,
         code: subject.code,
         average: Math.round(averagePercentage),
-        students: subjectStudents.length,
+        students: students.length, // All department students
         exams: subjectExams.length
       }
     })
-  }, [departmentSubjects, departmentExams, students, examClassMap, getSubjectForExam])
+  }, [departmentSubjects, departmentExams, students, getSubjectForExam])
 
   // Grade distribution
   const gradeDistribution = [
@@ -236,19 +177,6 @@ const HODStudentAnalytics: React.FC = () => {
             </div>
           </div>
           
-          <select
-            value={selectedClass || ''}
-            onChange={(e) => setSelectedClass(e.target.value ? Number(e.target.value) : null)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Classes</option>
-            {departmentClasses.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name} (Semester {cls.semester})
-              </option>
-            ))}
-          </select>
-
           <select
             value={selectedSubject || ''}
             onChange={(e) => setSelectedSubject(e.target.value ? Number(e.target.value) : null)}

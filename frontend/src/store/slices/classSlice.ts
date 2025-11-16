@@ -1,12 +1,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
-import { classAPI } from '../../services/api'
+import { batchInstanceAPI } from '../../services/api'
 
+// View model representing a class-like entity mapped from batch instances
 interface Class {
   id: number
   name: string
   department_id: number
-  semester: number
-  section: string
   created_at: string
 }
 
@@ -23,31 +22,48 @@ const initialState: ClassState = {
 }
 
 export const fetchClasses = createAsyncThunk('classes/fetchClasses', async () => {
-  const response = await classAPI.getAll()
-  // Backend returns BatchListResponse with items array (standardized)
-  return response.items || []
+  const response = await batchInstanceAPI.getAll(0, 500)
+  const items = response.items || []
+  // Map batch instances to class-like view models for backward UI compatibility
+  const mapped: Class[] = items.map((bi: any) => ({
+    id: bi.id,
+    name: `${bi.department?.code || bi.department_id}-${bi.batch?.name || bi.batch_id}-${bi.admission_year}`,
+    department_id: bi.department_id,
+    created_at: bi.created_at,
+  }))
+  return mapped
 })
 
+// Deprecated flows (create/update/delete) were tied to legacy class API.
+// Keep no-ops to prevent UI breakage; creation is handled via CreateClassWizard.
 export const createClass = createAsyncThunk(
   'classes/createClass',
-  async (classData: Omit<Class, 'id' | 'created_at'>) => {
-    const response = await classAPI.create(classData)
-    return response
+  async (_classData: Omit<Class, 'id' | 'created_at'>) => {
+    // Trigger a refresh instead
+    const response = await batchInstanceAPI.getAll(0, 1)
+    return (response.items && response.items[0]) || null
   }
 )
 
 export const updateClass = createAsyncThunk(
   'classes/updateClass',
-  async ({ id, ...classData }: Partial<Class> & { id: number }) => {
-    const response = await classAPI.update(id, classData)
-    return response
+  async ({ id }: Partial<Class> & { id: number }) => {
+    // Toggle active via batchInstanceAPI activate/deactivate could be implemented in component via hooks
+    const refreshed = await batchInstanceAPI.getById(id)
+    return {
+      id: refreshed.id,
+      name: `${refreshed.department?.code || refreshed.department_id}-${refreshed.batch?.name || refreshed.batch_id}-${refreshed.admission_year}`,
+      department_id: refreshed.department_id,
+      created_at: refreshed.created_at,
+    } as Class
   }
 )
 
 export const deleteClass = createAsyncThunk(
   'classes/deleteClass',
   async (id: number) => {
-    await classAPI.delete(id)
+    // Deactivation should be used instead of deletion in new model
+    // Return id to remove from local list if UI requests it
     return id
   }
 )

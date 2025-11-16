@@ -5,13 +5,13 @@ import { UserRole, Permission } from '../../core/types/permissions'
 
 // Lazy load teacher pages for code splitting
 const ExamConfiguration = lazy(() => import('../../pages/Teacher/ExamConfiguration'))
-const MarksEntry = lazy(() => import('../../pages/Teacher/MarksEntry'))
+// Note: MarksEntry.tsx deprecated - using InternalMarksEntry for all marks operations
+const InternalMarksEntry = lazy(() => import('../../pages/Teacher/InternalMarksEntry'))
 const TeacherAnalytics = lazy(() => import('../../pages/Teacher/TeacherAnalytics'))
 const AttainmentAnalytics = lazy(() => import('../../pages/Teacher/AttainmentAnalytics'))
 const ComprehensiveAnalytics = lazy(() => import('../../pages/Teacher/ComprehensiveAnalytics'))
 const ReportManagement = lazy(() => import('../../pages/Teacher/ReportManagement'))
 const BloomsAnalytics = lazy(() => import('../../pages/Teacher/BloomsAnalytics'))
-const InternalMarksEntry = lazy(() => import('../../pages/Teacher/InternalMarksEntry'))
 const TeacherDashboard = lazy(() => import('../../components/Dashboard/TeacherDashboard'))
 
 /**
@@ -50,7 +50,7 @@ export const TeacherRoutes = () => {
           allowedRoles={[UserRole.TEACHER]}
           requiredPermissions={[Permission.MARKS_CREATE]}
         >
-          <MarksEntry />
+          <InternalMarksEntry />
         </RoleGuard>
       }
     />,

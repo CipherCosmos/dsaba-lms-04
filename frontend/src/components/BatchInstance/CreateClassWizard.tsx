@@ -12,7 +12,7 @@ import {
 } from '../../core/hooks'
 import { useDepartments } from '../../core/hooks'
 import { useCreateBatchInstance } from '../../core/hooks'
-import { classAPI } from '../../services/api'
+import { batchesAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
 import {
   ChevronRight,
@@ -144,7 +144,7 @@ const CreateClassWizard: React.FC<CreateClassWizardProps> = ({
     const fetchBatches = async () => {
       setLoadingBatches(true)
       try {
-        const response = await classAPI.getBatches(0, 200, true)
+        const response = await batchesAPI.getAll(0, 200, true)
         setBatches(response.items || [])
       } catch (error: unknown) {
         logger.error('Error fetching batches:', error)

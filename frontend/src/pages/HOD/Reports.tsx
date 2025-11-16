@@ -199,10 +199,7 @@ const Reports = () => {
 
   // Filter data based on user's department
   const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
-  const departmentSubjects = subjects.filter(s => {
-    const subjectClass = departmentClasses.find(c => c.id === s.class_id)
-    return !!subjectClass
-  })
+  const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
   const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
   const departmentTeachers = users.filter(u => {
     if (u.role !== 'teacher') return false
@@ -261,7 +258,7 @@ const Reports = () => {
     setGenerating(true)
     try {
       // Get a default subject for the HOD's department
-      const hodSubjects = subjects.filter(s => s.class_id && classes.find(c => c.id === s.class_id)?.department_id === user?.department_id)
+      const hodSubjects = subjects.filter(s => s.department_id === user?.department_id)
       const defaultSubject = hodSubjects[0]
       
       if (!defaultSubject && (reportType.includes('co') || reportType.includes('po'))) {

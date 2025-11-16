@@ -41,11 +41,11 @@ const StudentDashboard = () => {
     dispatch(fetchExams())
   }, [dispatch, user])
 
-  // Get student's class subjects
-  const classSubjects = subjects.filter(s => s.class_id === user?.class_id)
+  // Subjects enrolled (class link deprecated) – approximate via subject list
+  const classSubjects = subjects
   
   // Get subject assignments for exams
-  const { getSubjectForExam, getClassIdForExam } = useExamSubjectAssignments(exams)
+  const { getSubjectForExam } = useExamSubjectAssignments(exams)
   
   // Get upcoming exams - use backend data if available, otherwise filter from exams
   const upcomingExams = dashboardStats?.statistics?.upcoming_exams_list?.length > 0
@@ -56,12 +56,8 @@ const StudentDashboard = () => {
         total_marks: exam.total_marks
       }))
     : exams.filter(exam => {
-        const examClassId = getClassIdForExam(exam)
         const examSubject = getSubjectForExam(exam)
-        return examClassId === user?.class_id && 
-               examSubject && 
-               exam.exam_date && 
-               new Date(exam.exam_date) > new Date()
+        return examSubject && exam.exam_date && new Date(exam.exam_date) > new Date()
       }).slice(0, 3)
 
   const getPerformanceColor = (percentage: number) => {

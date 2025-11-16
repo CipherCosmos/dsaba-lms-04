@@ -18,7 +18,7 @@ export interface Subject {
   teacher_id?: number | null  // Not in backend SubjectResponse, comes from subject assignments
   cos?: string[]  // Not in backend SubjectResponse, fetched separately
   pos?: string[]  // Not in backend SubjectResponse, fetched separately
-  class_id?: number | null  // Not in backend SubjectResponse, subjects don't have this directly
+  // Note: class_id removed - subjects are assigned to classes via SubjectAssignments
 }
 
 interface SubjectState {

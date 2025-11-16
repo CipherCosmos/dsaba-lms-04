@@ -324,16 +324,17 @@ async def get_multi_dimensional_analytics(
         
         # Get dimension-specific analytics
         if dim == "year":
-            # Group by academic year
-            from src.infrastructure.database.models import FinalMarkModel, SemesterModel, BatchYearModel
+            # Group by academic year (using AcademicYearModel via semester)
+            from src.infrastructure.database.models import FinalMarkModel, SemesterModel, AcademicYearModel
             query = db.query(
-                BatchYearModel.start_year,
+                AcademicYearModel.display_name,
+                AcademicYearModel.start_year,
                 func.avg(FinalMarkModel.total).label('avg_total'),
                 func.count(FinalMarkModel.id).label('count')
             ).join(
                 SemesterModel, FinalMarkModel.semester_id == SemesterModel.id
             ).join(
-                BatchYearModel, SemesterModel.batch_year_id == BatchYearModel.id
+                AcademicYearModel, SemesterModel.academic_year_id == AcademicYearModel.id
             )
             
             if filter_dict.get('department_id'):
@@ -344,17 +345,19 @@ async def get_multi_dimensional_analytics(
                     SubjectModel, SubjectAssignmentModel.subject_id == SubjectModel.id
                 ).filter(SubjectModel.department_id == filter_dict['department_id'])
             
-            results = query.group_by(BatchYearModel.start_year).all()
+            results = query.group_by(AcademicYearModel.id, AcademicYearModel.display_name, AcademicYearModel.start_year).all()
             
             return {
                 "dimension": "year",
                 "data": [
                     {
-                        "year": year,
+                        "year": display_name or f"{start_year}-{start_year+1}",
+                        "academic_year_name": display_name,
+                        "start_year": start_year,
                         "avg_total": float(avg_total) if avg_total else 0,
                         "count": count
                     }
-                    for year, avg_total, count in results
+                    for display_name, start_year, avg_total, count in results
                 ]
             }
         
@@ -369,8 +372,10 @@ async def get_multi_dimensional_analytics(
                 SemesterModel, FinalMarkModel.semester_id == SemesterModel.id
             )
             
-            if filter_dict.get('batch_year_id'):
-                query = query.filter(SemesterModel.batch_year_id == filter_dict['batch_year_id'])
+            if filter_dict.get('batch_instance_id'):
+                query = query.filter(SemesterModel.batch_instance_id == filter_dict['batch_instance_id'])
+            elif filter_dict.get('academic_year_id'):
+                query = query.filter(SemesterModel.academic_year_id == filter_dict['academic_year_id'])
             
             results = query.group_by(SemesterModel.semester_no).all()
             
@@ -419,34 +424,56 @@ async def get_multi_dimensional_analytics(
             }
         
         elif dim == "class":
-            # Group by class
-            from src.infrastructure.database.models import FinalMarkModel, SubjectAssignmentModel, ClassModel
+            # Group by batch instance (class)
+            from src.infrastructure.database.models import (
+                FinalMarkModel, SemesterModel, BatchInstanceModel,
+                BatchModel, DepartmentModel, AcademicYearModel
+            )
             query = db.query(
-                ClassModel.name,
-                ClassModel.id,
+                BatchInstanceModel.id,
+                DepartmentModel.code,
+                BatchModel.name,
+                BatchInstanceModel.admission_year,
+                AcademicYearModel.display_name,
                 func.avg(FinalMarkModel.total).label('avg_total'),
                 func.count(FinalMarkModel.id).label('count')
             ).join(
-                SubjectAssignmentModel, FinalMarkModel.subject_assignment_id == SubjectAssignmentModel.id
+                SemesterModel, FinalMarkModel.semester_id == SemesterModel.id
             ).join(
-                ClassModel, SubjectAssignmentModel.class_id == ClassModel.id
+                BatchInstanceModel, SemesterModel.batch_instance_id == BatchInstanceModel.id
+            ).join(
+                DepartmentModel, BatchInstanceModel.department_id == DepartmentModel.id
+            ).join(
+                BatchModel, BatchInstanceModel.batch_id == BatchModel.id
+            ).join(
+                AcademicYearModel, BatchInstanceModel.academic_year_id == AcademicYearModel.id
             )
             
             if filter_dict.get('department_id'):
-                query = query.filter(ClassModel.department_id == filter_dict['department_id'])
+                query = query.filter(BatchInstanceModel.department_id == filter_dict['department_id'])
             
-            results = query.group_by(ClassModel.id, ClassModel.name).all()
+            if filter_dict.get('academic_year_id'):
+                query = query.filter(BatchInstanceModel.academic_year_id == filter_dict['academic_year_id'])
+            
+            results = query.group_by(
+                BatchInstanceModel.id,
+                DepartmentModel.code,
+                BatchModel.name,
+                BatchInstanceModel.admission_year,
+                AcademicYearModel.display_name
+            ).all()
             
             return {
                 "dimension": "class",
                 "data": [
                     {
-                        "class_id": class_id,
-                        "class_name": class_name,
+                        "class_id": batch_instance_id,
+                        "class_name": f"{dept_code}-{batch_name}-{admission_year}",
+                        "academic_year": ay_display,
                         "avg_total": float(avg_total) if avg_total else 0,
                         "count": count
                     }
-                    for class_name, class_id, avg_total, count in results
+                    for batch_instance_id, dept_code, batch_name, admission_year, ay_display, avg_total, count in results
                 ]
             }
         

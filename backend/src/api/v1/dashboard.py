@@ -12,7 +12,7 @@ from src.api.dependencies import get_db, get_current_user
 from src.domain.entities.user import User
 from src.domain.enums.user_role import UserRole
 from src.infrastructure.database.models import (
-    UserModel, DepartmentModel, ClassModel, SubjectModel, 
+    UserModel, DepartmentModel, BatchInstanceModel, SubjectModel, 
     ExamModel, MarkModel, FinalMarkModel, UserRoleModel, RoleModel,
     SubjectAssignmentModel, StudentModel, TeacherModel, InternalMarkModel
 )
@@ -115,7 +115,7 @@ async def _get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
     """Get admin dashboard statistics"""
     total_departments = db.query(DepartmentModel).count()
     total_users = db.query(UserModel).count()
-    total_classes = db.query(ClassModel).count()
+    total_classes = db.query(BatchInstanceModel).count()
     total_subjects = db.query(SubjectModel).count()
     active_users = db.query(UserModel).filter(UserModel.is_active == True).count()
     total_exams = db.query(ExamModel).count()
@@ -222,7 +222,7 @@ async def _get_hod_dashboard_stats(db: Session, department_id: int) -> Dict[str,
         )
     ).count() if teacher_role else 0
     
-    dept_classes = db.query(ClassModel).filter(ClassModel.department_id == department_id).count()
+    dept_classes = db.query(BatchInstanceModel).filter(BatchInstanceModel.department_id == department_id).count()
     
     # Get subjects through subject assignments
     dept_subjects = db.query(SubjectModel).filter(
@@ -347,14 +347,16 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
         )
     ).count()
     
-    # Get students in classes where teacher teaches
-    class_ids_subq = db.query(SubjectAssignmentModel.class_id).filter(
+    # Get students through semester assignments where teacher teaches
+    semester_ids_subq = db.query(SubjectAssignmentModel.semester_id).filter(
         SubjectAssignmentModel.teacher_id == teacher.id
     ).distinct().subquery()
     
-    total_students = db.query(StudentModel).filter(
-        StudentModel.class_id.in_(select([class_ids_subq.c.class_id]))
-    ).count()
+    # Count unique students via enrollments
+    from src.infrastructure.database.models import StudentEnrollmentModel
+    total_students = db.query(StudentModel.id).join(StudentEnrollmentModel).filter(
+        StudentEnrollmentModel.semester_id.in_(select([semester_ids_subq.c.semester_id]))
+    ).distinct().count()
     
     # Get pending marks (exams without marks entered)
     pending_marks_count = db.query(ExamModel).join(SubjectAssignmentModel).filter(
@@ -411,23 +413,25 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
         MarkModel.student_id == student_id
     ).scalar() or 0
     
-    # Get class subjects
-    class_subjects = db.query(SubjectAssignmentModel).filter(
-        SubjectAssignmentModel.class_id == student.class_id
-    ).count() if student.class_id else 0
+    # Get semester subjects through current enrollment
+    semester_subjects = 0
+    if student.current_semester_id:
+        semester_subjects = db.query(SubjectAssignmentModel).filter(
+            SubjectAssignmentModel.semester_id == student.current_semester_id
+        ).count()
     
-    # Get upcoming exams (exams in student's class that haven't been taken yet)
+    # Get upcoming exams (exams in student's current semester that haven't been taken yet)
     upcoming_exams = 0
     upcoming_exams_list = []
-    if student.class_id:
-        class_exam_ids_subq = db.query(ExamModel.id).join(SubjectAssignmentModel).filter(
-            SubjectAssignmentModel.class_id == student.class_id
+    if student.current_semester_id:
+        semester_exam_ids_subq = db.query(ExamModel.id).join(SubjectAssignmentModel).filter(
+            SubjectAssignmentModel.semester_id == student.current_semester_id
         ).subquery()
         taken_exam_ids_subq = db.query(MarkModel.exam_id).filter(
             MarkModel.student_id == student_id
         ).distinct().subquery()
         upcoming_exams_query = db.query(ExamModel).filter(
-            ExamModel.id.in_(select([class_exam_ids_subq.c.id])),
+            ExamModel.id.in_(select([semester_exam_ids_subq.c.id])),
             ~ExamModel.id.in_(select([taken_exam_ids_subq.c.exam_id])),
             ExamModel.exam_date >= datetime.utcnow().date()
         ).order_by(ExamModel.exam_date).limit(5)
@@ -486,11 +490,12 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
             "total_exams_taken": total_exams,
             "upcoming_exams": upcoming_exams,
             "upcoming_exams_list": upcoming_exams_list,
-            "total_subjects": class_subjects,
+            "total_subjects": semester_subjects,
             "final_marks_available": final_marks_count,
             "average_performance": round(avg_performance, 2),
             "recent_results": recent_results,
-            "class_id": student.class_id
+            "current_semester_id": student.current_semester_id,
+            "batch_instance_id": student.batch_instance_id
         }
     }
 

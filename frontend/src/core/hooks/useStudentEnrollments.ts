@@ -83,12 +83,32 @@ export function usePromoteStudent() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ enrollmentId, nextSemesterId }: { enrollmentId: number; nextSemesterId: number }) =>
-      studentEnrollmentAPI.promote(enrollmentId, nextSemesterId),
-    onSuccess: (_, variables) => {
+    mutationFn: ({ 
+      enrollmentId, 
+      nextSemesterId,
+      roll_no,
+      promotion_type,
+      notes
+    }: { 
+      enrollmentId: number
+      nextSemesterId: number
+      roll_no?: string
+      promotion_type?: 'regular' | 'lateral' | 'failed' | 'retained'
+      notes?: string
+    }) =>
+      studentEnrollmentAPI.promote(enrollmentId, nextSemesterId, {
+        roll_no,
+        promotion_type,
+        notes
+      }),
+    onSuccess: (newEnrollment, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.studentEnrollments.detail(variables.enrollmentId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.studentEnrollments.all })
-      toast.success('Student promoted successfully')
+      // Invalidate the new enrollment as well
+      if (newEnrollment?.id) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentEnrollments.detail(newEnrollment.id) })
+      }
+      toast.success('Student promoted successfully. New enrollment created in next semester.')
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to promote student')

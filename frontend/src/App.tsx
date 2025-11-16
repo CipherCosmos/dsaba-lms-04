@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from './store/store'
 import { fetchCurrentUser, initializeAuth } from './store/slices/authSlice'
 import { SidebarProvider } from './contexts/SidebarContext'
+import { AcademicYearProvider } from './contexts/AcademicYearContext'
 import PWAInstallPrompt from './components/PWA/PWAInstallPrompt'
 import PWAStatus from './components/PWA/PWAStatus'
 import { LoadingFallback } from './modules/shared/components/LoadingFallback'
@@ -12,6 +13,7 @@ import { AdminRoutes } from './modules/admin/routes'
 import { TeacherRoutes } from './modules/teacher/routes'
 import { StudentRoutes } from './modules/student/routes'
 import { HODRoutes } from './modules/hod/routes'
+import { PrincipalRoutes } from './modules/principal/routes'
 import Layout from './components/Layout/Layout'
 
 // Lazy load auth and dashboard pages
@@ -66,6 +68,7 @@ function App() {
   return (
     <ErrorBoundary>
       <SidebarProvider>
+        <AcademicYearProvider>
         <Layout>
           <PWAInstallPrompt />
           <PWAStatus />
@@ -79,12 +82,14 @@ function App() {
               {...TeacherRoutes()}
               {...StudentRoutes()}
               {...HODRoutes()}
+                {...PrincipalRoutes()}
               
               {/* Catch all route */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </Layout>
+        </AcademicYearProvider>
       </SidebarProvider>
     </ErrorBoundary>
   )

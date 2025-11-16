@@ -28,7 +28,7 @@ from src.domain.exceptions import (
 from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
 from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models import (
-    ExamModel, SubjectAssignmentModel, ClassModel, StudentModel, UserModel
+    ExamModel, SubjectAssignmentModel, StudentModel, UserModel, StudentEnrollmentModel, SemesterModel
 )
 from sqlalchemy.orm import Session
 from fastapi.responses import Response
@@ -285,22 +285,25 @@ async def get_exam_students(
                 detail=f"Subject assignment for exam {exam_id} not found"
             )
         
-        # Get class
-        class_model = db.query(ClassModel).filter(
-            ClassModel.id == assignment.class_id
-        ).first()
-        
-        if not class_model:
+        # Get semester from assignment
+        semester_id = assignment.semester_id
+        if not semester_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Class for exam {exam_id} not found"
+                detail=f"Semester not found for exam {exam_id}"
             )
         
-        # Get students in the class
-        students = db.query(StudentModel).join(UserModel).filter(
-            StudentModel.class_id == assignment.class_id,
+        # Get students enrolled in this semester
+        # Join StudentEnrollmentModel to get students, then join UserModel
+        students = db.query(StudentModel).join(
+            StudentEnrollmentModel, StudentModel.id == StudentEnrollmentModel.student_id
+        ).join(
+            UserModel, StudentModel.user_id == UserModel.id
+        ).filter(
+            StudentEnrollmentModel.semester_id == semester_id,
+            StudentEnrollmentModel.is_active == True,
             UserModel.is_active == True
-        ).all()
+        ).distinct().all()
         
         # Format response
         student_list = []
@@ -310,8 +313,9 @@ async def get_exam_students(
                 student_list.append({
                     "id": student.id,
                     "user_id": student.user_id,
-                    "student_id": student.student_id,
-                    "class_id": student.class_id,
+                    "roll_no": student.roll_no,
+                    "batch_instance_id": student.batch_instance_id,
+                    "semester_id": semester_id,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
                     "email": user.email,

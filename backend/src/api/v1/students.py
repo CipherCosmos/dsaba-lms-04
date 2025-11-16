@@ -123,11 +123,12 @@ async def get_student_semesters(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get semesters for the current student (based on their batch_year)
+    Get semesters for the current student (based on their batch_instance)
     
-    Returns all semesters for the student's batch year
+    Returns all semesters for the student's batch instance
     """
     from src.infrastructure.database.models import StudentModel
+    from src.infrastructure.database.repositories.academic_structure_repository_impl import BatchInstanceRepository, SemesterRepository
     
     # Get student profile for current user
     student = db.query(StudentModel).filter(
@@ -140,8 +141,29 @@ async def get_student_semesters(
             detail="Student profile not found for current user"
         )
     
-    if not student.batch_year_id:
-        # Return empty list if student has no batch_year
+    # Use new structure: batch_instance_id (preferred) or fallback to batch_year_id (legacy)
+    batch_instance_id = None
+    if student.batch_instance_id:
+        batch_instance_id = student.batch_instance_id
+    elif student.batch_year_id:
+        # Legacy support: try to find batch instance from batch_year
+        # This handles old data that hasn't been migrated yet
+        # Note: New students should always use batch_instance_id
+        batch_repo = BatchRepository(db)
+        batch_year_repo = BatchYearRepository(db)
+        semester_repo = SemesterRepository(db)
+        service = AcademicStructureService(batch_repo, batch_year_repo, semester_repo)
+        semesters = await service.get_semesters_by_batch_year(student.batch_year_id)
+        items = [SemesterResponse(**s.to_dict()) for s in semesters]
+        return SemesterListResponse(
+            items=items,
+            total=len(items),
+            skip=skip,
+            limit=limit
+        )
+    
+    if not batch_instance_id:
+        # Return empty list if student has no batch_instance
         return SemesterListResponse(
             items=[],
             total=0,
@@ -149,14 +171,10 @@ async def get_student_semesters(
             limit=limit
         )
     
-    # Get academic structure service
-    batch_repo = BatchRepository(db)
-    batch_year_repo = BatchYearRepository(db)
+    # Get semesters for student's batch instance
+    batch_instance_repo = BatchInstanceRepository(db)
     semester_repo = SemesterRepository(db)
-    service = AcademicStructureService(batch_repo, batch_year_repo, semester_repo)
-    
-    # Get semesters for student's batch year
-    semesters = await service.get_semesters_by_batch_year(student.batch_year_id)
+    semesters = await semester_repo.get_by_batch_instance(batch_instance_id)
     
     items = [SemesterResponse(**s.to_dict()) for s in semesters]
     

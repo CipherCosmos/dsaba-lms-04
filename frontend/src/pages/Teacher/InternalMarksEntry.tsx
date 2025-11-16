@@ -60,7 +60,7 @@ const InternalMarksEntry: React.FC = () => {
   const [selectedAssignmentDetails, setSelectedAssignmentDetails] = useState<SubjectAssignment | null>(null)
   const [selectedComponent, setSelectedComponent] = useState<string>('ia1')
   const [marks, setMarks] = useState<Record<number, { marks: number; max_marks: number; notes?: string }>>({})
-  const [students, setStudents] = useState<any[]>([])
+  const [students, setStudents] = useState<Array<{ id: number; roll_no?: string }>>([])
 
   // React Query hooks
   const { data: currentAcademicYear } = useCurrentAcademicYear()
@@ -106,7 +106,7 @@ const InternalMarksEntry: React.FC = () => {
   useEffect(() => {
     if (selectedAssignmentDetails && enrollmentsData?.items) {
       // Get student IDs from enrollments
-      const studentIds = enrollmentsData.items.map((e: any) => e.student_id)
+      const studentIds = enrollmentsData.items.map((e: { student_id: number }) => e.student_id)
       // Initialize marks for students
       const initialMarks: Record<number, { marks: number; max_marks: number; notes?: string }> = {}
       studentIds.forEach((studentId: number) => {
@@ -117,7 +117,7 @@ const InternalMarksEntry: React.FC = () => {
         }
       })
       setMarks(initialMarks)
-      setStudents(enrollmentsData.items.map((e: any) => ({ id: e.student_id, roll_no: e.roll_no })))
+      setStudents(enrollmentsData.items.map((e: { student_id: number; roll_no?: string }) => ({ id: e.student_id, roll_no: e.roll_no })))
     }
   }, [selectedAssignmentDetails, enrollmentsData])
 

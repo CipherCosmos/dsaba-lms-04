@@ -15,6 +15,7 @@ import type { Subject } from '../../store/slices/subjectSlice'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { subjectAPI, academicStructureAPI } from '../../services/api'
 import { useAcademicYears } from '../../core/hooks'
+import { AcademicYearSelector } from '../../components/shared/AcademicYearSelector'
 import { logger } from '../../core/utils/logger'
 import { Plus, Edit2, Trash2, BookOpen, Search, X, Power, PowerOff, Settings, Award } from 'lucide-react'
 
@@ -600,22 +601,13 @@ const SubjectManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Academic Year (Optional)
-                  </label>
-                  <select
-                    {...register('academic_year_id', { 
-                      setValueAs: (value) => value === '' ? null : Number(value)
-                    })}
-                    className="input-field w-full"
-                  >
-                    <option value="">Select Academic Year</option>
-                    {academicYears.map((ay: any) => (
-                      <option key={ay.id} value={ay.id}>
-                        {ay.display_name} {ay.is_current && '(Current)'}
-                      </option>
-                    ))}
-                  </select>
+                  <AcademicYearSelector
+                    value={watch('academic_year_id') || null}
+                    onChange={(value) => setValue('academic_year_id', value || null)}
+                    required={false}
+                    label="Academic Year (Optional)"
+                    showCurrentBadge={true}
+                  />
                 </div>
               </div>
 

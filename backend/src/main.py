@@ -16,7 +16,7 @@ from src.infrastructure.database.session import verify_database_connection, crea
 # Import database module to ensure relationships are configured
 from src.infrastructure.database import models as _  # noqa: F401
 from src.infrastructure.database.role_initializer import ensure_roles_exist
-from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks
+from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks, batch_instances
 from src.api.middleware.error_handler import setup_error_handlers
 from src.api.middleware.security_headers import add_security_headers
 from src.api.middleware.logging import setup_logging
@@ -248,6 +248,10 @@ app.include_router(
 )
 app.include_router(
     internal_marks.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    batch_instances.router,
     prefix=settings.api_prefix,
 )
 

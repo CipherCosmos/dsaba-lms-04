@@ -48,7 +48,8 @@ router = APIRouter(
 async def create_internal_mark(
     request: InternalMarkCreateRequest,
     service: InternalMarksService = Depends(get_internal_marks_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Create or update an internal mark
@@ -60,6 +61,29 @@ async def create_internal_mark(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only Teachers, HOD, Principal, and Admin can create marks"
+        )
+    
+    # For teachers, verify they own the subject assignment
+    if current_user.role.value == 'teacher':
+        from src.infrastructure.database.models import SubjectAssignmentModel, TeacherModel
+        teacher = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+        if not teacher:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Teacher profile not found"
+            )
+        assignment = db.query(SubjectAssignmentModel).filter(
+            SubjectAssignmentModel.id == request.subject_assignment_id
+        ).first()
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subject assignment {request.subject_assignment_id} not found"
+            )
+        if assignment.teacher_id != teacher.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only create marks for your assigned subjects"
         )
     
     try:
@@ -131,6 +155,51 @@ async def list_internal_marks(
     HOD can see marks for their department.
     Principal can see all marks.
     """
+    # Apply role-based filtering
+    from src.infrastructure.database.models import SubjectAssignmentModel, TeacherModel, DepartmentModel
+    
+    # For teachers, filter by their subject assignments
+    if current_user.role.value == 'teacher':
+        teacher = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+        if teacher:
+            # Get teacher's subject assignment IDs
+            teacher_assignments = db.query(SubjectAssignmentModel.id).filter(
+                SubjectAssignmentModel.teacher_id == teacher.id
+            ).all()
+            teacher_assignment_ids = [a[0] for a in teacher_assignments]
+            
+            # If filtering by subject_assignment_id, verify teacher owns it
+            if subject_assignment_id:
+                if subject_assignment_id not in teacher_assignment_ids:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You can only view marks for your assigned subjects"
+                    )
+            # If no subject_assignment_id specified, we'll filter in the query below
+        else:
+            # Teacher profile not found, return empty
+            return InternalMarkListResponse(items=[], total=0, skip=skip, limit=limit)
+    
+    # For HOD, filter by department
+    elif current_user.role.value == 'hod':
+        hod_department_id = getattr(current_user, 'department_id', None) or (getattr(current_user, 'department_ids', [None])[0] if getattr(current_user, 'department_ids', None) else None)
+        if hod_department_id:
+            # Get department's subject assignment IDs
+            dept_assignments = db.query(SubjectAssignmentModel.id).join(
+                SubjectModel
+            ).filter(
+                SubjectModel.department_id == hod_department_id
+            ).all()
+            dept_assignment_ids = [a[0] for a in dept_assignments]
+            
+            # If filtering by subject_assignment_id, verify it belongs to department
+            if subject_assignment_id:
+                if subject_assignment_id not in dept_assignment_ids:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You can only view marks from your department"
+                    )
+    
     if student_id:
         marks = await service.get_student_marks(
             student_id=student_id,
@@ -143,6 +212,21 @@ async def list_internal_marks(
         workflow_state_enum = None
         if workflow_state:
             workflow_state_enum = MarksWorkflowState(workflow_state)
+        
+        # Additional role-based filtering for teachers
+        if current_user.role.value == 'teacher':
+            teacher = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+            if teacher:
+                teacher_assignments = db.query(SubjectAssignmentModel.id).filter(
+                    SubjectAssignmentModel.teacher_id == teacher.id
+                ).all()
+                teacher_assignment_ids = [a[0] for a in teacher_assignments]
+                if subject_assignment_id not in teacher_assignment_ids:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="You can only view marks for your assigned subjects"
+                    )
+        
         marks = await service.get_subject_marks(
             subject_assignment_id=subject_assignment_id,
             workflow_state=workflow_state_enum,
@@ -303,7 +387,8 @@ async def bulk_submit_marks(
 async def approve_mark(
     mark_id: int,
     service: InternalMarksService = Depends(get_internal_marks_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Approve mark (HOD)
@@ -314,6 +399,27 @@ async def approve_mark(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only HOD, Principal, and Admin can approve marks"
+        )
+    
+    # For HOD, verify the mark belongs to their department
+    if current_user.role.value == 'hod':
+        from src.infrastructure.database.models import InternalMarkModel, SubjectAssignmentModel, SubjectModel
+        mark_model = db.query(InternalMarkModel).filter(InternalMarkModel.id == mark_id).first()
+        if not mark_model:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Mark {mark_id} not found"
+            )
+        assignment = db.query(SubjectAssignmentModel).filter(
+            SubjectAssignmentModel.id == mark_model.subject_assignment_id
+        ).first()
+        if assignment:
+            subject = db.query(SubjectModel).filter(SubjectModel.id == assignment.subject_id).first()
+            hod_department_id = getattr(current_user, 'department_id', None) or (getattr(current_user, 'department_ids', [None])[0] if getattr(current_user, 'department_ids', None) else None)
+            if subject and subject.department_id != hod_department_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only approve marks from your department"
         )
     
     try:

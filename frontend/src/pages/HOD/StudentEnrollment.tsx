@@ -12,6 +12,7 @@ import {
 } from '../../core/hooks'
 import { academicStructureAPI, studentEnrollmentAPI } from '../../services/api'
 import { LoadingFallback } from '../../modules/shared/components/LoadingFallback'
+import { AcademicYearSelector } from '../../components/shared/AcademicYearSelector'
 import { logger } from '../../core/utils/logger'
 import { Plus, Search, X, Users, GraduationCap, ArrowRight, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -59,6 +60,9 @@ const StudentEnrollment: React.FC = () => {
     enrollment_date: new Date().toISOString().split('T')[0]
   })
   const [nextSemesterId, setNextSemesterId] = useState<number | null>(null)
+  const [promotionType, setPromotionType] = useState<'regular' | 'lateral' | 'failed' | 'retained'>('regular')
+  const [promotionNotes, setPromotionNotes] = useState('')
+  const [nextRollNo, setNextRollNo] = useState('')
 
   // React Query hooks
   const { data: academicYearsData } = useAcademicYears(0, 100)
@@ -173,13 +177,23 @@ const StudentEnrollment: React.FC = () => {
 
   const handlePromote = (enrollment: Enrollment) => {
     setSelectedEnrollment(enrollment)
-    // Find next semester
+    setNextRollNo(enrollment.roll_no) // Default to current roll number
+    setPromotionType('regular')
+    setPromotionNotes('')
+    // Find next semester - check both same academic year and next academic year
     const currentSemester = semesters.find(s => s.id === enrollment.semester_id)
     if (currentSemester) {
-      const nextSemester = semesters.find(s => 
+      // First try same academic year
+      let nextSemester = semesters.find(s => 
         s.semester_no === currentSemester.semester_no + 1 && 
         s.academic_year_id === enrollment.academic_year_id
       )
+      // If not found, try any semester with next semester number (might be in next academic year)
+      if (!nextSemester) {
+        nextSemester = semesters.find(s => 
+          s.semester_no === currentSemester.semester_no + 1
+        )
+      }
       if (nextSemester) {
         setNextSemesterId(nextSemester.id)
       }
@@ -194,12 +208,26 @@ const StudentEnrollment: React.FC = () => {
     }
     promoteMutation.mutate({
       enrollmentId: selectedEnrollment.id,
-      nextSemesterId: nextSemesterId
+      nextSemesterId: nextSemesterId,
+      roll_no: nextRollNo || undefined,
+      promotion_type: promotionType,
+      notes: promotionNotes || undefined
     }, {
-      onSuccess: () => {
+      onSuccess: (newEnrollment) => {
         setShowPromoteModal(false)
         setSelectedEnrollment(null)
         setNextSemesterId(null)
+        setNextRollNo('')
+        setPromotionType('regular')
+        setPromotionNotes('')
+        // Show success message with new enrollment details
+        if (newEnrollment) {
+          const nextSem = semesters.find((s: Semester) => s.id === newEnrollment.semester_id)
+          toast.success(
+            `Student promoted to Semester ${nextSem?.semester_no || newEnrollment.semester_id}. New enrollment ID: ${newEnrollment.id}`,
+            { duration: 5000 }
+          )
+        }
       }
     })
   }
@@ -560,22 +588,12 @@ const StudentEnrollment: React.FC = () => {
             <h2 className="text-xl font-bold mb-4">Enroll Student</h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Academic Year *
-                </label>
-                <select
-                  value={selectedAcademicYear || ''}
-                  onChange={(e) => setSelectedAcademicYear(parseInt(e.target.value) || null)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                <AcademicYearSelector
+                  value={selectedAcademicYear}
+                  onChange={setSelectedAcademicYear}
                   required
-                >
-                  <option value="">Select Academic Year</option>
-                  {academicYears.map((ay: AcademicYear) => (
-                    <option key={ay.id} value={ay.id}>
-                      {ay.display_name}
-                    </option>
-                  ))}
-                </select>
+                  label="Academic Year"
+                />
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -683,16 +701,73 @@ const StudentEnrollment: React.FC = () => {
               >
                 <option value="">Select Next Semester</option>
                 {semesters
-                  .filter((s: Semester) => 
-                    s.academic_year_id === selectedEnrollment.academic_year_id &&
-                    s.semester_no > (semesters.find((ss: Semester) => ss.id === selectedEnrollment.semester_id)?.semester_no || 0)
-                  )
-                  .map((sem) => (
+                  .filter((s: Semester) => {
+                    const currentSem = semesters.find((ss: Semester) => ss.id === selectedEnrollment.semester_id)
+                    return currentSem && s.semester_no > currentSem.semester_no
+                  })
+                  .map((sem) => {
+                    const semAY = academicYears.find((ay: AcademicYear) => ay.id === sem.academic_year_id)
+                    const isDifferentAY = sem.academic_year_id !== selectedEnrollment.academic_year_id
+                    return (
                     <option key={sem.id} value={sem.id}>
-                      Semester {sem.semester_no}
+                        Semester {sem.semester_no} {isDifferentAY && `(${semAY?.display_name || 'Different AY'})`}
                     </option>
-                  ))}
+                    )
+                  })}
               </select>
+              {nextSemesterId && (() => {
+                const nextSem = semesters.find((s: Semester) => s.id === nextSemesterId)
+                const isDifferentAY = nextSem && nextSem.academic_year_id !== selectedEnrollment.academic_year_id
+                return isDifferentAY ? (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Note: Next semester is in a different academic year. Student will be enrolled in the new academic year.
+                  </p>
+                ) : null
+              })()}
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Roll Number for Next Semester
+              </label>
+              <input
+                type="text"
+                value={nextRollNo}
+                onChange={(e) => setNextRollNo(e.target.value)}
+                placeholder={selectedEnrollment.roll_no}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                maxLength={20}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Leave empty to use current roll number: {selectedEnrollment.roll_no}
+              </p>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Promotion Type *
+              </label>
+              <select
+                value={promotionType}
+                onChange={(e) => setPromotionType(e.target.value as 'regular' | 'lateral' | 'failed' | 'retained')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+              >
+                <option value="regular">Regular Promotion</option>
+                <option value="lateral">Lateral Entry</option>
+                <option value="retained">Retained (Repeating Semester)</option>
+                <option value="failed">Failed (Repeating Semester)</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notes (Optional)
+              </label>
+              <textarea
+                value={promotionNotes}
+                onChange={(e) => setPromotionNotes(e.target.value)}
+                placeholder="Add any notes about this promotion..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows={3}
+              />
             </div>
             <div className="flex justify-end space-x-2">
               <button
@@ -701,6 +776,9 @@ const StudentEnrollment: React.FC = () => {
                   setShowPromoteModal(false)
                   setSelectedEnrollment(null)
                   setNextSemesterId(null)
+                  setNextRollNo('')
+                  setPromotionType('regular')
+                  setPromotionNotes('')
                 }}
                 className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
               >

@@ -4,7 +4,7 @@ import { RootState, AppDispatch } from '../../store/store'
 import { fetchUsers, createUser, updateUser, deleteUser } from '../../store/slices/userSlice'
 import { userAPI } from '../../services/api'
 // Removed unused import
-import { fetchClasses } from '../../store/slices/classSlice'
+// Note: fetchClasses removed - students are enrolled via BatchInstance/StudentEnrollment
 import { Edit, Trash2, Search, UserPlus, Users, BookOpen, GraduationCap, Key, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -25,7 +25,6 @@ const HODUsers: React.FC = () => {
     first_name: '',
     last_name: '',
     role: 'student',
-    class_id: null as number | null,
     password: '',
     is_active: true
   })
@@ -34,7 +33,7 @@ const HODUsers: React.FC = () => {
 
   useEffect(() => {
     dispatch(fetchUsers())
-    dispatch(fetchClasses())
+    // Note: fetchClasses removed - students are enrolled via BatchInstance/StudentEnrollment, not assigned class_id directly
   }, [dispatch])
 
   // Generate secure password
@@ -48,14 +47,14 @@ const HODUsers: React.FC = () => {
   }
 
   // Filter users to only show those from HOD's department
-  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  const userDeptId = user?.department_ids?.[0] || (user as { department_id?: number })?.department_id
   const departmentUsers = users.filter(u => {
     if (u.department_ids && u.department_ids.length > 0) {
       return u.department_ids[0] === userDeptId
     }
     return (u as any).department_id === userDeptId
   })
-  const departmentClasses = classes.filter(c => c.department_id === userDeptId)
+  // Note: departmentClasses removed - students are enrolled via BatchInstance/StudentEnrollment
 
   // Filter users based on search and role
   const filteredUsers = departmentUsers.filter(user => {
@@ -78,7 +77,7 @@ const HODUsers: React.FC = () => {
         department_ids: user?.department_ids && user.department_ids.length > 0 ? user.department_ids : (user?.department_id ? [user.department_id] : []),
         password: formData.password || generatePassword(),
         role: formData.role as 'student' | 'teacher',
-        class_id: formData.class_id || undefined,
+        // Note: class_id removed - students should be enrolled via StudentEnrollment after user creation
         email_verified: false,
         roles: [formData.role],
         full_name: `${formData.first_name} ${formData.last_name}`
@@ -93,7 +92,6 @@ const HODUsers: React.FC = () => {
         first_name: '',
         last_name: '',
         role: 'student',
-        class_id: null,
         password: '',
         is_active: true
       })
@@ -114,7 +112,6 @@ const HODUsers: React.FC = () => {
       first_name: userToEdit.first_name,
       last_name: userToEdit.last_name,
       role: primaryRole,
-      class_id: userToEdit.class_id || null,
       password: '', // Don't show existing password
       is_active: userToEdit.is_active ?? true
     })
@@ -148,7 +145,6 @@ const HODUsers: React.FC = () => {
         first_name: '',
         last_name: '',
         role: 'student',
-        class_id: null,
         password: '',
         is_active: true
       })
@@ -178,11 +174,8 @@ const HODUsers: React.FC = () => {
     }
   }
 
-  const getClassInfo = (classId: number | null) => {
-    if (!classId) return 'No class assigned'
-    const classInfo = departmentClasses.find(c => c.id === classId)
-    return classInfo ? `${classInfo.name} (${classInfo.semester}${classInfo.section})` : 'Unknown class'
-  }
+  // Note: getClassInfo removed - students are enrolled via BatchInstance/StudentEnrollment
+  // Class/batch instance info should be fetched from enrollment data if needed
 
   const handleGeneratePassword = () => {
     const newPassword = generatePassword()
@@ -350,7 +343,7 @@ const HODUsers: React.FC = () => {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Class
+                  Enrollment
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -384,7 +377,10 @@ const HODUsers: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {getClassInfo(user.class_id || null)}
+                    {/* Note: Enrollment info should be fetched from StudentEnrollment API */}
+                    <span className="text-gray-400 text-sm">
+                      {user.role === 'student' ? 'Enroll via Student Enrollment' : 'N/A'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -553,24 +549,16 @@ const HODUsers: React.FC = () => {
                       <option value="teacher">Teacher</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Class
-                    </label>
-                    <select
-                      value={formData.class_id || ''}
-                      onChange={(e) => setFormData({ ...formData, class_id: e.target.value ? Number(e.target.value) : null })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Class</option>
-                      {departmentClasses.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.semester}{cls.section})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Note: Class assignment removed - students should be enrolled via StudentEnrollment after user creation */}
                 </div>
+                
+                {formData.role === 'student' && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-800">
+                      <strong>Note:</strong> After creating the student user, enroll them in a batch instance via the Student Enrollment page.
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex items-center mb-6">
                   <input

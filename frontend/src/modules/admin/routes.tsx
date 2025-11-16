@@ -12,6 +12,7 @@ const COManagement = lazy(() => import('../../pages/Admin/COManagement'))
 const POManagement = lazy(() => import('../../pages/Admin/POManagement'))
 const COTargetsManagement = lazy(() => import('../../pages/Admin/COTargetsManagement'))
 const AcademicYearManagement = lazy(() => import('../../pages/Admin/AcademicYearManagement'))
+const BatchInstanceManagement = lazy(() => import('../../pages/Admin/BatchInstanceManagement'))
 const MarksFreeze = lazy(() => import('../../pages/Principal/MarksFreeze'))
 const AdminDashboard = lazy(() => import('../../components/Dashboard/AdminDashboard'))
 
@@ -124,6 +125,18 @@ export const AdminRoutes = () => {
           requiredPermissions={[Permission.ACADEMIC_STRUCTURE_WRITE]}
         >
           <AcademicYearManagement />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="admin-batch-instances"
+      path="/admin/batch-instances"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.ADMIN, UserRole.PRINCIPAL, UserRole.HOD]}
+          requiredPermissions={[Permission.ACADEMIC_STRUCTURE_WRITE]}
+        >
+          <BatchInstanceManagement />
         </RoleGuard>
       }
     />,

@@ -14,6 +14,7 @@ import {
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { userAPI } from '../../services/api'
+import { logger } from '../../core/utils/logger'
 import { Plus, Edit2, Trash2, User, Mail, Shield, Search, Filter, Key, UserPlus, Users as UsersIcon, X, CheckCircle2, AlertCircle, Upload, Download, FileSpreadsheet } from 'lucide-react'
 
 const schema = yup.object({
@@ -394,7 +395,7 @@ const UserManagement = () => {
       
       if (response.failed > 0 && response.errors && response.errors.length > 0) {
         const errorMessages = response.errors.slice(0, 10).map((e: any) => `${e.username}: ${e.error}`).join('\n')
-        console.error('Bulk upload errors:', response.errors)
+        logger.error('Bulk upload errors:', response.errors)
         toast.error(`${response.failed} users failed. Check console for details.`)
       }
 
@@ -408,7 +409,7 @@ const UserManagement = () => {
       // Reload users
       loadUsers()
     } catch (error: any) {
-      console.error('Bulk upload error:', error)
+      logger.error('Bulk upload error:', error)
       
       // Handle different error types
       if (error.response) {

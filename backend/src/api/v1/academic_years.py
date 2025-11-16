@@ -15,7 +15,7 @@ from src.application.dto.academic_year_dto import (
 )
 from src.api.dependencies import get_current_user
 from src.domain.entities.user import User
-from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError, BusinessRuleViolationError
+from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError, BusinessRuleViolationError, ValidationError
 from src.infrastructure.database.repositories.academic_year_repository_impl import AcademicYearRepository
 from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models import AcademicYearStatus

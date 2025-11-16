@@ -50,16 +50,27 @@ const TeacherAnalytics = () => {
     )
   }
 
+  // Check if class_performance exists
+  if (!teacherAnalytics.class_performance) {
+    return (
+      <div className="text-center py-12">
+        <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500">Class performance data not available</p>
+        <p className="text-sm text-gray-400">Enter marks and configure exams to see performance analytics</p>
+      </div>
+    )
+  }
+
   const performanceData = {
     labels: ['Average Performance', 'Pass Rate', 'Top Performers', 'At Risk'],
     datasets: [
       {
         label: 'Class Statistics',
         data: [
-          teacherAnalytics.class_performance.average_percentage,
-          teacherAnalytics.class_performance.pass_rate,
-          teacherAnalytics.class_performance.top_performers,
-          teacherAnalytics.class_performance.at_risk_students
+          teacherAnalytics.class_performance.average_percentage || 0,
+          teacherAnalytics.class_performance.pass_rate || 0,
+          teacherAnalytics.class_performance.top_performers || 0,
+          teacherAnalytics.class_performance.at_risk_students || 0
         ],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
@@ -79,10 +90,10 @@ const TeacherAnalytics = () => {
   }
 
   const coAttainmentData = {
-    labels: Object.keys(teacherAnalytics.co_po_attainment.co_attainment),
+    labels: teacherAnalytics.co_po_attainment?.co_attainment ? Object.keys(teacherAnalytics.co_po_attainment.co_attainment) : [],
     datasets: [
       {
-        data: Object.values(teacherAnalytics.co_po_attainment.co_attainment),
+        data: teacherAnalytics.co_po_attainment?.co_attainment ? Object.values(teacherAnalytics.co_po_attainment.co_attainment) : [],
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(34, 197, 94, 0.8)',
@@ -142,7 +153,9 @@ const TeacherAnalytics = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Average Performance</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {teacherAnalytics.class_performance.average_percentage.toFixed(1)}%
+                {teacherAnalytics.class_performance.average_percentage != null 
+                  ? `${teacherAnalytics.class_performance.average_percentage.toFixed(1)}%`
+                  : 'N/A'}
               </p>
             </div>
           </div>
@@ -156,7 +169,9 @@ const TeacherAnalytics = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Pass Rate</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {teacherAnalytics.class_performance.pass_rate.toFixed(1)}%
+                {teacherAnalytics.class_performance.pass_rate != null
+                  ? `${teacherAnalytics.class_performance.pass_rate.toFixed(1)}%`
+                  : 'N/A'}
               </p>
             </div>
           </div>
@@ -170,7 +185,9 @@ const TeacherAnalytics = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Top Performers</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {teacherAnalytics.class_performance.top_performers}
+                {teacherAnalytics.class_performance.top_performers != null
+                  ? teacherAnalytics.class_performance.top_performers
+                  : 0}
               </p>
             </div>
           </div>
@@ -184,7 +201,9 @@ const TeacherAnalytics = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">At Risk Students</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {teacherAnalytics.class_performance.at_risk_students}
+                {teacherAnalytics.class_performance.at_risk_students != null
+                  ? teacherAnalytics.class_performance.at_risk_students
+                  : 0}
               </p>
             </div>
           </div>
@@ -200,7 +219,7 @@ const TeacherAnalytics = () => {
           </div>
         </div>
 
-        {Object.keys(teacherAnalytics.co_po_attainment.co_attainment).length > 0 && (
+        {teacherAnalytics.co_po_attainment?.co_attainment && Object.keys(teacherAnalytics.co_po_attainment.co_attainment).length > 0 && (
           <div className="card">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">CO Attainment</h3>
             <div className="h-64">
@@ -211,7 +230,7 @@ const TeacherAnalytics = () => {
       </div>
 
       {/* Question Analysis */}
-      {teacherAnalytics.question_analysis.length > 0 && (
+      {teacherAnalytics.question_analysis && teacherAnalytics.question_analysis.length > 0 && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Question-wise Analysis</h3>
           <div className="overflow-x-auto">
@@ -321,28 +340,28 @@ const TeacherAnalytics = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Insights</h3>
           <div className="space-y-3">
-            {teacherAnalytics.class_performance.average_percentage >= 75 && (
+            {teacherAnalytics.class_performance.average_percentage != null && teacherAnalytics.class_performance.average_percentage >= 75 && (
               <div className="flex items-center space-x-2 text-green-600">
                 <CheckCircle size={16} />
                 <span className="text-sm">Strong overall class performance</span>
               </div>
             )}
             
-            {teacherAnalytics.class_performance.pass_rate >= 85 && (
+            {teacherAnalytics.class_performance.pass_rate != null && teacherAnalytics.class_performance.pass_rate >= 85 && (
               <div className="flex items-center space-x-2 text-green-600">
                 <CheckCircle size={16} />
                 <span className="text-sm">Excellent pass rate achieved</span>
               </div>
             )}
             
-            {teacherAnalytics.class_performance.top_performers >= 5 && (
+            {teacherAnalytics.class_performance.top_performers != null && teacherAnalytics.class_performance.top_performers >= 5 && (
               <div className="flex items-center space-x-2 text-blue-600">
                 <Award size={16} />
                 <span className="text-sm">Good number of top performers</span>
               </div>
             )}
             
-            {teacherAnalytics.class_performance.at_risk_students > 0 && (
+            {teacherAnalytics.class_performance.at_risk_students != null && teacherAnalytics.class_performance.at_risk_students > 0 && (
               <div className="flex items-center space-x-2 text-amber-600">
                 <AlertTriangle size={16} />
                 <span className="text-sm">{teacherAnalytics.class_performance.at_risk_students} students need attention</span>
@@ -354,14 +373,14 @@ const TeacherAnalytics = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Action Items</h3>
           <div className="space-y-3">
-            {teacherAnalytics.class_performance.at_risk_students > 0 && (
+            {teacherAnalytics.class_performance.at_risk_students != null && teacherAnalytics.class_performance.at_risk_students > 0 && (
               <div className="p-3 bg-red-50 border-l-4 border-red-400 rounded">
                 <p className="text-sm font-medium text-red-800">Schedule remedial sessions</p>
                 <p className="text-xs text-red-600">Focus on students below 50% performance</p>
               </div>
             )}
             
-            {teacherAnalytics.question_analysis.some(q => q.success_rate < 50) && (
+            {teacherAnalytics.question_analysis && teacherAnalytics.question_analysis.some(q => q.success_rate < 50) && (
               <div className="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
                 <p className="text-sm font-medium text-yellow-800">Review difficult questions</p>
                 <p className="text-xs text-yellow-600">Consider additional practice materials</p>

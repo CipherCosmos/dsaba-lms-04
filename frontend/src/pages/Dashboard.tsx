@@ -4,6 +4,7 @@ import AdminDashboard from '../components/Dashboard/AdminDashboard'
 import HODDashboard from '../components/Dashboard/HODDashboard'
 import TeacherDashboard from '../components/Dashboard/TeacherDashboard'
 import StudentDashboard from '../components/Dashboard/StudentDashboard'
+import PrincipalDashboard from '../components/Dashboard/PrincipalDashboard'
 
 const Dashboard = () => {
   const { user, loading } = useSelector((state: RootState) => state.auth)
@@ -32,6 +33,8 @@ const Dashboard = () => {
   switch (userRole) {
     case 'admin':
       return <AdminDashboard />
+    case 'principal':
+      return <PrincipalDashboard />
     case 'hod':
       return <HODDashboard />
     case 'teacher':

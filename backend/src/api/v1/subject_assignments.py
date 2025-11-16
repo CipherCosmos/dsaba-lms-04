@@ -79,6 +79,7 @@ async def list_subject_assignments(
     subject_id: Optional[int] = Query(None, gt=0),
     class_id: Optional[int] = Query(None, gt=0),
     semester_id: Optional[int] = Query(None, gt=0),
+    academic_year_id: Optional[int] = Query(None, gt=0),  # Filter by academic year
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -91,6 +92,7 @@ async def list_subject_assignments(
     - **subject_id**: Filter by subject
     - **class_id**: Filter by class
     - **semester_id**: Filter by semester
+    - **academic_year_id**: Filter by academic year
     """
     try:
         query = db.query(SubjectAssignmentModel)
@@ -113,6 +115,8 @@ async def list_subject_assignments(
             filters.append(SubjectAssignmentModel.class_id == class_id)
         if semester_id:
             filters.append(SubjectAssignmentModel.semester_id == semester_id)
+        if academic_year_id:
+            filters.append(SubjectAssignmentModel.academic_year_id == academic_year_id)
         
         if filters:
             query = query.filter(and_(*filters))
@@ -162,22 +166,65 @@ async def create_subject_assignment(
     - **semester_id**: Semester ID
     - **academic_year**: Academic year
     """
-    # Get academic year ID if provided
+    # Get semester to derive academic year if not provided
+    from src.infrastructure.database.models import SemesterModel, AcademicYearModel
+    semester = db.query(SemesterModel).filter(SemesterModel.id == request.semester_id).first()
+    if not semester:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Semester with ID {request.semester_id} not found"
+        )
+    
+    # Get academic year ID - prefer from request, fallback to semester's academic year
     academic_year_id = None
+    academic_year_value = request.academic_year if request.academic_year else None
+    
     if request.academic_year:
-        from src.infrastructure.database.models import AcademicYearModel
+        # Try to find academic year by start_year
         academic_year = db.query(AcademicYearModel).filter(
             AcademicYearModel.start_year == request.academic_year
         ).first()
         if academic_year:
             academic_year_id = academic_year.id
+            academic_year_value = request.academic_year
+        else:
+            # If not found by year, try to get current academic year
+            current_ay = db.query(AcademicYearModel).filter(
+                AcademicYearModel.is_current == True
+            ).first()
+            if current_ay:
+                academic_year_id = current_ay.id
+                academic_year_value = current_ay.start_year
     
-    # Check if assignment already exists (unique constraint)
+    # If still no academic year ID, try to get from semester
+    if not academic_year_id and semester.academic_year_id:
+        academic_year_id = semester.academic_year_id
+        academic_year_obj = db.query(AcademicYearModel).filter(
+            AcademicYearModel.id == academic_year_id
+        ).first()
+        if academic_year_obj:
+            academic_year_value = academic_year_obj.start_year
+    
+    # If still no academic year, try to get current academic year
+    if not academic_year_id:
+        current_ay = db.query(AcademicYearModel).filter(
+            AcademicYearModel.is_current == True
+        ).first()
+        if current_ay:
+            academic_year_id = current_ay.id
+            academic_year_value = current_ay.start_year
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Academic year is required. Please create an academic year first or ensure semester has an academic year assigned."
+            )
+    
+    # Check if assignment already exists (unique constraint: subject + semester + teacher)
+    # Note: class_id is optional, so we don't include it in the uniqueness check
     existing = db.query(SubjectAssignmentModel).filter(
         and_(
             SubjectAssignmentModel.subject_id == request.subject_id,
             SubjectAssignmentModel.teacher_id == request.teacher_id,
-            SubjectAssignmentModel.class_id == request.class_id,
             SubjectAssignmentModel.semester_id == request.semester_id
         )
     ).first()
@@ -185,14 +232,12 @@ async def create_subject_assignment(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Subject assignment already exists for this subject, teacher, class, and semester"
+            detail="Subject assignment already exists for this subject, teacher, and semester"
         )
     
     # Validate teacher is not over-assigned (check for conflicts)
-    # Get semester to check academic year
-    from src.infrastructure.database.models import SemesterModel
-    semester = db.query(SemesterModel).filter(SemesterModel.id == request.semester_id).first()
-    if semester and semester.academic_year_id:
+    # Use the academic_year_id we determined above
+    if academic_year_id:
         # Check if teacher already has assignments in same academic year + semester
         conflicting_count = db.query(SubjectAssignmentModel).filter(
             and_(
@@ -217,13 +262,14 @@ async def create_subject_assignment(
         )
     
     # Create assignment
+    # Note: class_id is optional (deprecated). If not provided, it can be derived from semester.batch_instance_id if needed
     try:
         assignment = SubjectAssignmentModel(
             subject_id=request.subject_id,
             teacher_id=request.teacher_id,
-            class_id=request.class_id,
+            class_id=request.class_id,  # Optional - can be None
             semester_id=request.semester_id,
-            academic_year=request.academic_year,
+            academic_year=academic_year_value,
             academic_year_id=academic_year_id
         )
         

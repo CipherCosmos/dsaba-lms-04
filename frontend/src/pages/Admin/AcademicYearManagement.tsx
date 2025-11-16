@@ -41,7 +41,7 @@ const AcademicYearManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   // React Query hooks
-  const { data: academicYearsData, isLoading: loading } = useAcademicYears(0, 1000, statusFilter !== 'all' ? { status: statusFilter } : undefined)
+  const { data: academicYearsData, isLoading: loading } = useAcademicYears(0, 200, statusFilter !== 'all' ? { status: statusFilter } : undefined)
   const createMutation = useCreateAcademicYear()
   const updateMutation = useUpdateAcademicYear()
   const activateMutation = useActivateAcademicYear()
@@ -104,8 +104,9 @@ const AcademicYearManagement: React.FC = () => {
           toast.success('Academic year updated successfully!')
           setShowModal(false)
         },
-        onError: (error: any) => {
-          toast.error(error.response?.data?.detail || 'Failed to update academic year')
+        onError: (error: unknown) => {
+          const err = error as { response?: { data?: { detail?: string } } }
+          toast.error(err.response?.data?.detail || 'Failed to update academic year')
         }
       })
     } else {
@@ -119,8 +120,9 @@ const AcademicYearManagement: React.FC = () => {
           toast.success('Academic year created successfully!')
           setShowModal(false)
         },
-        onError: (error: any) => {
-          toast.error(error.response?.data?.detail || 'Failed to create academic year')
+        onError: (error: unknown) => {
+          const err = error as { response?: { data?: { detail?: string } } }
+          toast.error(err.response?.data?.detail || 'Failed to create academic year')
         }
       })
     }
@@ -134,8 +136,9 @@ const AcademicYearManagement: React.FC = () => {
       onSuccess: () => {
         toast.success('Academic year activated successfully!')
       },
-      onError: (error: any) => {
-        toast.error(error.response?.data?.detail || 'Failed to activate academic year')
+      onError: (error: unknown) => {
+        const err = error as { response?: { data?: { detail?: string } } }
+        toast.error(err.response?.data?.detail || 'Failed to activate academic year')
       }
     })
   }
@@ -148,8 +151,9 @@ const AcademicYearManagement: React.FC = () => {
       onSuccess: () => {
         toast.success('Academic year archived successfully!')
       },
-      onError: (error: any) => {
-        toast.error(error.response?.data?.detail || 'Failed to archive academic year')
+      onError: (error: unknown) => {
+        const err = error as { response?: { data?: { detail?: string } } }
+        toast.error(err.response?.data?.detail || 'Failed to archive academic year')
       }
     })
   }

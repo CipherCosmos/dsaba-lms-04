@@ -171,10 +171,11 @@ class DepartmentModel(Base):
     subjects = relationship("SubjectModel", back_populates="department")
     program_outcomes = relationship("ProgramOutcomeModel", back_populates="department")
     semesters = relationship("SemesterModel", back_populates="department")
+    batch_instances = relationship("BatchInstanceModel", back_populates="department")
 
 
 class BatchModel(Base):
-    """Batch database model (B.Tech, MBA, etc.)"""
+    """Batch database model (B.Tech, MBA, etc.) - Program type"""
     __tablename__ = "batches"
     __table_args__ = (
         CheckConstraint('duration_years BETWEEN 1 AND 6', name='check_duration_years'),
@@ -187,11 +188,12 @@ class BatchModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    batch_years = relationship("BatchYearModel", back_populates="batch", cascade="all, delete-orphan")
+    batch_years = relationship("BatchYearModel", back_populates="batch", cascade="all, delete-orphan")  # Legacy
+    batch_instances = relationship("BatchInstanceModel", back_populates="batch", cascade="all, delete-orphan")
 
 
 class BatchYearModel(Base):
-    """Batch Year database model (2023-2027, etc.)"""
+    """Batch Year database model (2023-2027, etc.) - DEPRECATED, use BatchInstanceModel"""
     __tablename__ = "batch_years"
     __table_args__ = (
         UniqueConstraint('batch_id', 'start_year', name='unique_batch_year'),
@@ -210,6 +212,60 @@ class BatchYearModel(Base):
     batch = relationship("BatchModel", back_populates="batch_years")
     semesters = relationship("SemesterModel", back_populates="batch_year", cascade="all, delete-orphan")
     students = relationship("StudentModel", back_populates="batch_year")
+
+
+class BatchInstanceModel(Base):
+    """Batch Instance - Represents students admitted in an Academic Year for a Department and Program"""
+    __tablename__ = "batch_instances"
+    __table_args__ = (
+        UniqueConstraint('academic_year_id', 'department_id', 'batch_id', name='unique_batch_instance'),
+        CheckConstraint('current_semester BETWEEN 1 AND 12', name='check_batch_semester_range'),
+        CheckConstraint('admission_year >= 2000', name='check_admission_year'),
+        Index('idx_batch_instances_ay', 'academic_year_id'),
+        Index('idx_batch_instances_dept', 'department_id'),
+        Index('idx_batch_instances_batch', 'batch_id'),
+        Index('idx_batch_instances_active', 'is_active'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=False)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
+    batch_id = Column(Integer, ForeignKey("batches.id", ondelete="CASCADE"), nullable=False)  # Program type (B.Tech, MBA)
+    admission_year = Column(Integer, nullable=False)
+    current_semester = Column(Integer, nullable=False, default=1)  # Tracks batch progress (1-8)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    academic_year = relationship("AcademicYearModel", back_populates="batch_instances")
+    department = relationship("DepartmentModel", back_populates="batch_instances")
+    batch = relationship("BatchModel", back_populates="batch_instances")
+    sections = relationship("SectionModel", back_populates="batch_instance", cascade="all, delete-orphan")
+    semesters = relationship("SemesterModel", back_populates="batch_instance", cascade="all, delete-orphan")
+    students = relationship("StudentModel", back_populates="batch_instance")
+
+
+class SectionModel(Base):
+    """Section - Subdivision of a batch (A, B, C, etc.)"""
+    __tablename__ = "sections"
+    __table_args__ = (
+        UniqueConstraint('batch_instance_id', 'section_name', name='unique_section_per_batch'),
+        Index('idx_sections_batch', 'batch_instance_id'),
+        Index('idx_sections_active', 'is_active'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    batch_instance_id = Column(Integer, ForeignKey("batch_instances.id", ondelete="CASCADE"), nullable=False)
+    section_name = Column(String(10), nullable=False)  # A, B, C, etc.
+    capacity = Column(Integer, nullable=True)  # Optional capacity limit
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    batch_instance = relationship("BatchInstanceModel", back_populates="sections")
+    students = relationship("StudentModel", back_populates="section")
 
 
 # ============================================
@@ -275,26 +331,29 @@ class AcademicYearModel(Base):
     student_enrollments = relationship("StudentEnrollmentModel", back_populates="academic_year")
     subject_assignments = relationship("SubjectAssignmentModel", back_populates="academic_year_obj")
     internal_marks = relationship("InternalMarkModel", back_populates="academic_year")
+    batch_instances = relationship("BatchInstanceModel", back_populates="academic_year", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<AcademicYearModel(id={self.id}, {self.display_name})>"
 
 
 class SemesterModel(Base):
-    """Enhanced Semester database model - linked to Academic Year and Department"""
+    """Enhanced Semester database model - linked to Batch Instance (primary) and Academic Year/Department (denormalized)"""
     __tablename__ = "semesters"
     __table_args__ = (
-        UniqueConstraint('academic_year_id', 'department_id', 'semester_no', name='unique_semester_dept_ay'),
+        UniqueConstraint('batch_instance_id', 'semester_no', name='unique_semester_batch_instance'),
         CheckConstraint('semester_no BETWEEN 1 AND 12', name='check_semester_no'),
         CheckConstraint('end_date > start_date', name='check_semester_dates'),
         Index('idx_semesters_current', 'is_current'),
         Index('idx_semesters_dept', 'department_id'),
         Index('idx_semesters_ay', 'academic_year_id'),
+        Index('idx_semesters_batch_instance', 'batch_instance_id'),
     )
     
     id = Column(Integer, primary_key=True, index=True)
-    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # Made nullable for migration
-    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)  # Made nullable for migration
+    batch_instance_id = Column(Integer, ForeignKey("batch_instances.id", ondelete="CASCADE"), nullable=True)  # Primary link
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # Denormalized for queries
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)  # Denormalized for queries
     semester_no = Column(Integer, nullable=False)
     is_current = Column(Boolean, default=False, nullable=False)
     start_date = Column(Date, nullable=True)
@@ -307,6 +366,7 @@ class SemesterModel(Base):
     batch_year_id = Column(Integer, ForeignKey("batch_years.id", ondelete="SET NULL"), nullable=True)
     
     # Relationships
+    batch_instance = relationship("BatchInstanceModel", back_populates="semesters")
     academic_year = relationship("AcademicYearModel", back_populates="semesters")
     department = relationship("DepartmentModel", back_populates="semesters")
     batch_year = relationship("BatchYearModel", back_populates="semesters")
@@ -408,27 +468,46 @@ class ClassModel(Base):
 # ============================================
 
 class StudentModel(Base):
-    """Student profile database model"""
+    """Student profile database model - linked to Batch Instance + Section"""
     __tablename__ = "students"
     __table_args__ = (
         Index('idx_students_dept', 'department_id'),
-        Index('idx_students_batch_year', 'batch_year_id'),
+        Index('idx_students_batch_year', 'batch_year_id'),  # Keep for backward compatibility
+        Index('idx_students_batch_instance', 'batch_instance_id'),
+        Index('idx_students_section', 'section_id'),
+        Index('idx_students_current_semester', 'current_semester_id'),
+        Index('idx_students_ay', 'academic_year_id'),
         Index('idx_students_class', 'class_id'),
     )
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     roll_no = Column(String(20), unique=True, nullable=False, index=True)
+    
+    # New structure: Batch Instance + Section
+    batch_instance_id = Column(Integer, ForeignKey("batch_instances.id", ondelete="SET NULL"), nullable=True)
+    section_id = Column(Integer, ForeignKey("sections.id", ondelete="SET NULL"), nullable=True)
+    current_semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="SET NULL"), nullable=True)
+    
+    # Denormalized fields for performance
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"))
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"))
+    
+    # Legacy fields (keep for backward compatibility)
     batch_year_id = Column(Integer, ForeignKey("batch_years.id", ondelete="SET NULL"))
     class_id = Column(Integer, ForeignKey("classes.id", ondelete="SET NULL"))
+    
     admission_date = Column(Date)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
     user = relationship("UserModel", back_populates="student_profile")
-    batch_year = relationship("BatchYearModel", back_populates="students")
-    class_obj = relationship("ClassModel", back_populates="students")
+    batch_instance = relationship("BatchInstanceModel", back_populates="students")
+    section = relationship("SectionModel", back_populates="students")
+    current_semester = relationship("SemesterModel", foreign_keys=[current_semester_id])
+    batch_year = relationship("BatchYearModel", back_populates="students")  # Legacy
+    class_obj = relationship("ClassModel", back_populates="students")  # Legacy
     marks = relationship("MarkModel", back_populates="student")
     final_marks = relationship("FinalMarkModel", back_populates="student")
     enrollments = relationship("StudentEnrollmentModel", back_populates="student")
@@ -490,13 +569,19 @@ class SubjectModel(Base):
 
 
 class SubjectAssignmentModel(Base):
-    """Subject assignment to teacher and class"""
+    """Subject assignment to teacher and class/semester
+    
+    NOTE: class_id is now optional (deprecated). In new architecture, 
+    class/batch instance is derived from semester.batch_instance_id.
+    Kept for backward compatibility with existing data.
+    """
     __tablename__ = "subject_assignments"
     __table_args__ = (
-        UniqueConstraint('subject_id', 'class_id', 'semester_id', 'teacher_id', name='unique_assignment'),
+        # Updated unique constraint: class_id is optional, so we use semester + subject + teacher
+        UniqueConstraint('subject_id', 'semester_id', 'teacher_id', name='unique_assignment'),
         Index('idx_assignments_subject', 'subject_id'),
         Index('idx_assignments_teacher', 'teacher_id'),
-        Index('idx_assignments_class', 'class_id'),
+        Index('idx_assignments_class', 'class_id'),  # Keep for backward compatibility
         Index('idx_assignments_semester', 'semester_id'),
         Index('idx_assignments_ay', 'academic_year_id'),
         Index('idx_assignments_composite', 'teacher_id', 'semester_id', 'academic_year_id'),
@@ -505,7 +590,7 @@ class SubjectAssignmentModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete="CASCADE"), nullable=False)
-    class_id = Column(Integer, ForeignKey("classes.id", ondelete="CASCADE"), nullable=False)
+    class_id = Column(Integer, ForeignKey("classes.id", ondelete="CASCADE"), nullable=True)  # DEPRECATED: Optional for backward compatibility
     semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
     academic_year = Column(Integer, nullable=False)  # Keep for backward compatibility
     academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # New FK

@@ -26,6 +26,8 @@ export function useCurrentAcademicYear() {
     queryKey: queryKeys.academicYears.current(),
     queryFn: () => academicYearAPI.getCurrent(),
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: false, // Don't retry on 404 (no current year exists)
+    throwOnError: false, // Don't throw error, return undefined instead
   })
 }
 
@@ -54,8 +56,9 @@ export function useCreateAcademicYear() {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all })
       toast.success('Academic year created successfully')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to create academic year')
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } }
+      toast.error(err.response?.data?.detail || 'Failed to create academic year')
     },
   })
 }
@@ -74,8 +77,9 @@ export function useUpdateAcademicYear() {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all })
       toast.success('Academic year updated successfully')
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to update academic year')
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { detail?: string } } }
+      toast.error(err.response?.data?.detail || 'Failed to update academic year')
     },
   })
 }

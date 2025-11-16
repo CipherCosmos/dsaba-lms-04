@@ -8,6 +8,7 @@ import { fetchUsers } from '../../store/slices/userSlice'
 import { dashboardAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
 import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
+import { useAcademicYearContext } from '../../contexts/AcademicYearContext'
 import { ClipboardList, Users, BarChart3, AlertTriangle, CheckCircle, Clock, BookOpen, FileCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -18,6 +19,7 @@ const TeacherDashboard = () => {
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { exams } = useSelector((state: RootState) => state.exams)
   const { users } = useSelector((state: RootState) => state.users)
+  const { currentAcademicYear, academicYearId } = useAcademicYearContext()
   
   const [dashboardStats, setDashboardStats] = useState<any>(null)
   const [loadingStats, setLoadingStats] = useState(false)
@@ -243,6 +245,26 @@ const TeacherDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Academic Year Banner */}
+      {currentAcademicYear && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Clock className="h-5 w-5 text-blue-600" />
+            <div>
+              <p className="text-sm font-medium text-blue-900">Current Academic Year</p>
+              <p className="text-lg font-semibold text-blue-700">{currentAcademicYear.display_name}</p>
+            </div>
+          </div>
+          <div className="text-sm text-blue-600">
+            {currentAcademicYear.start_date && currentAcademicYear.end_date && (
+              <span>
+                {new Date(currentAcademicYear.start_date).toLocaleDateString()} - {new Date(currentAcademicYear.end_date).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      
       {/* Teacher Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {teacherStats.map((stat) => {
@@ -323,7 +345,7 @@ const TeacherDashboard = () => {
       </div>
 
       {/* At-Risk Students */}
-      {teacherAnalytics?.class_performance.at_risk_students && teacherAnalytics.class_performance.at_risk_students > 0 && (
+      {atRiskStudents && atRiskStudents.length > 0 && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Students Needing Attention</h3>
@@ -338,9 +360,9 @@ const TeacherDashboard = () => {
                 </div>
                 <p className="text-xs text-gray-600 mb-2">{student.class}</p>
                 <div className="space-y-1">
-                  {student.subjects.map((subject, idx) => (
+                  {student.subjects && student.subjects.length > 0 && student.subjects.map((subject: any, idx: number) => (
                     <span key={idx} className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded mr-1">
-                      {subject}
+                      {typeof subject === 'string' ? subject : subject.name || 'Unknown'}
                     </span>
                   ))}
                 </div>
@@ -377,26 +399,26 @@ const TeacherDashboard = () => {
       </div>
 
       {/* Teaching Insights */}
-      {teacherAnalytics && (
+      {teacherAnalytics?.class_performance && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Teaching Insights</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Achievements</h4>
               <div className="space-y-2">
-                {teacherAnalytics.class_performance.average_percentage >= 75 && (
+                {teacherAnalytics.class_performance.average_percentage != null && teacherAnalytics.class_performance.average_percentage >= 75 && (
                   <div className="flex items-center space-x-2 text-green-600">
                     <CheckCircle size={16} />
                     <span className="text-sm">Strong class performance</span>
                   </div>
                 )}
-                {teacherAnalytics.class_performance.pass_rate >= 85 && (
+                {teacherAnalytics.class_performance.pass_rate != null && teacherAnalytics.class_performance.pass_rate >= 85 && (
                   <div className="flex items-center space-x-2 text-green-600">
                     <CheckCircle size={16} />
                     <span className="text-sm">High pass rate achieved</span>
                   </div>
                 )}
-                {teacherAnalytics.class_performance.top_performers > 0 && (
+                {teacherAnalytics.class_performance.top_performers != null && teacherAnalytics.class_performance.top_performers > 0 && (
                   <div className="flex items-center space-x-2 text-green-600">
                     <CheckCircle size={16} />
                     <span className="text-sm">{teacherAnalytics.class_performance.top_performers} top performers</span>
@@ -408,13 +430,13 @@ const TeacherDashboard = () => {
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Focus Areas</h4>
               <div className="space-y-2">
-                {teacherAnalytics.class_performance.at_risk_students > 0 && (
+                {teacherAnalytics.class_performance.at_risk_students != null && teacherAnalytics.class_performance.at_risk_students > 0 && (
                   <div className="flex items-center space-x-2 text-amber-600">
                     <AlertTriangle size={16} />
                     <span className="text-sm">Monitor at-risk students</span>
                   </div>
                 )}
-                {teacherAnalytics.class_performance.average_percentage < 70 && (
+                {teacherAnalytics.class_performance.average_percentage != null && teacherAnalytics.class_performance.average_percentage < 70 && (
                   <div className="flex items-center space-x-2 text-amber-600">
                     <AlertTriangle size={16} />
                     <span className="text-sm">Improve overall class average</span>

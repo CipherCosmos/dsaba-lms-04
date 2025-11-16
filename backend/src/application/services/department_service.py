@@ -249,7 +249,7 @@ class DepartmentService:
         """
         # Check for dependencies before deletion
         from src.infrastructure.database.models import (
-            SubjectModel, ClassModel, UserModel, StudentModel, TeacherModel
+            SubjectModel, BatchInstanceModel, UserModel, StudentModel, TeacherModel
         )
         
         # Check if department has subjects
@@ -263,14 +263,14 @@ class DepartmentService:
                 field="department_id"
             )
         
-        # Check if department has classes
-        class_count = self.db.query(ClassModel).filter(
-            ClassModel.department_id == department_id
+        # Check if department has batch instances (classes)
+        batch_instance_count = self.db.query(BatchInstanceModel).filter(
+            BatchInstanceModel.department_id == department_id
         ).count()
         
-        if class_count > 0:
+        if batch_instance_count > 0:
             raise ValidationError(
-                f"Cannot delete department: {class_count} class(es) belong to this department",
+                f"Cannot delete department: {batch_instance_count} batch instance(s) belong to this department",
                 field="department_id"
             )
         

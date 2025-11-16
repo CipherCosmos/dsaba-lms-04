@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../store/store'
 import { fetchSubjects, createSubject, updateSubject, deleteSubject } from '../../store/slices/subjectSlice'
 import type { Subject } from '../../store/slices/subjectSlice'
-import { fetchClasses } from '../../store/slices/classSlice'
+// Note: fetchClasses removed - classes are now managed via BatchInstanceManagement
 import { fetchUsers } from '../../store/slices/userSlice'
 import { Plus, Edit, Trash2, Search, BookOpen, Users, GraduationCap, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -13,32 +13,28 @@ const HODSubjects: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { user } = useSelector((state: RootState) => state.auth)
   const { subjects, loading } = useSelector((state: RootState) => state.subjects)
-  const { classes } = useSelector((state: RootState) => state.classes)
   const { users } = useSelector((state: RootState) => state.users)
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [classFilter, setClassFilter] = useState('all')
+  // Note: Class filter removed - subjects are linked to semesters via SubjectAssignment, not directly to classes
   const [showModal, setShowModal] = useState(false)
   const [editingSubject, setEditingSubject] = useState<any>(null)
   const [formData, setFormData] = useState({
     code: '',
     name: '',
     credits: '',
-    class_id: null as number | null,
-    teacher_id: null as number | null,
     is_active: true
   })
 
   useEffect(() => {
     dispatch(fetchSubjects())
-    dispatch(fetchClasses())
     dispatch(fetchUsers())
+    // Note: fetchClasses removed - classes are now managed via BatchInstanceManagement
   }, [dispatch])
 
   // Filter subjects to only show those from HOD's department
-  const departmentClasses = classes.filter(c => c.department_id === user?.department_id)
-  // Subjects belong to departments directly
-  const userDeptId = user?.department_ids?.[0] || (user as any)?.department_id
+  // Note: Subjects belong to departments directly, not to classes
+  const userDeptId = user?.department_ids?.[0] || (user as { department_id?: number })?.department_id
   const departmentSubjects = subjects.filter(s => s.department_id === userDeptId)
   const departmentTeachers = users.filter(u => {
     if (u.role !== 'teacher') return false
@@ -48,17 +44,13 @@ const HODSubjects: React.FC = () => {
     return (u as any).department_id === userDeptId
   })
 
-  // Filter subjects based on search and class
+  // Filter subjects based on search
   const filteredSubjects = departmentSubjects.filter(subject => {
     const matchesSearch = 
       subject.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       subject.name.toLowerCase().includes(searchTerm.toLowerCase())
     
-    // Note: Subjects don't have direct class_id, they're linked through SubjectAssignment
-    // Class filtering can be implemented by fetching subject_assignments per subject if needed
-    const matchesClass = classFilter === 'all' || true // Class filtering available via subject_assignments API
-    
-    return matchesSearch && matchesClass
+    return matchesSearch
   })
 
   const handleCreateSubject = async (e: React.FormEvent) => {
@@ -75,8 +67,7 @@ const HODSubjects: React.FC = () => {
         max_external: DEFAULT_EXTERNAL_MAX, // Use constant instead of hardcoded value
         total_marks: DEFAULT_TOTAL_MARKS,
         updated_at: new Date().toISOString(),
-        // Remove fields that don't belong to Subject entity
-        // class_id, teacher_id, cos, pos are not part of Subject
+        // Subjects don't have class_id or teacher_id - those are in SubjectAssignment
       }
       
       await dispatch(createSubject(subjectData)).unwrap()
@@ -86,8 +77,6 @@ const HODSubjects: React.FC = () => {
         code: '',
         name: '',
         credits: '',
-        class_id: null,
-        teacher_id: null,
         is_active: true
       })
     } catch (error: any) {
@@ -101,8 +90,6 @@ const HODSubjects: React.FC = () => {
       code: subjectToEdit.code,
       name: subjectToEdit.name,
       credits: subjectToEdit.credits?.toString() || '',
-      class_id: subjectToEdit.class_id,
-      teacher_id: subjectToEdit.teacher_id,
       is_active: subjectToEdit.is_active
     })
     setShowModal(true)
@@ -114,12 +101,11 @@ const HODSubjects: React.FC = () => {
     
     try {
       const subjectData = {
-        ...formData,
+        code: formData.code,
+        name: formData.name,
         credits: Number(formData.credits),
-        class_id: formData.class_id || 0,
-        teacher_id: formData.teacher_id || 0,
-        cos: [],
-        pos: []
+        is_active: formData.is_active,
+        // Subjects don't have class_id or teacher_id - those are in SubjectAssignment
       }
       
       await dispatch(updateSubject({ id: editingSubject.id, ...subjectData })).unwrap()
@@ -130,8 +116,6 @@ const HODSubjects: React.FC = () => {
         code: '',
         name: '',
         credits: '',
-        class_id: null,
-        teacher_id: null,
         is_active: true
       })
     } catch (error: any) {
@@ -150,11 +134,7 @@ const HODSubjects: React.FC = () => {
     }
   }
 
-  const getClassInfo = (classId: number | null) => {
-    if (!classId) return 'No class assigned'
-    const classInfo = departmentClasses.find(c => c.id === classId)
-    return classInfo ? `${classInfo.name} (Sem ${classInfo.semester}${classInfo.section})` : 'Unknown class'
-  }
+  // Note: getClassInfo removed - subjects are linked to semesters via SubjectAssignment, not directly to classes
 
   const getTeacherInfo = (teacherId: number | null) => {
     if (!teacherId) return 'No teacher assigned'
@@ -203,8 +183,8 @@ const HODSubjects: React.FC = () => {
           <div className="flex items-center">
             <GraduationCap className="h-8 w-8 text-purple-500" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Classes</p>
-              <p className="text-2xl font-semibold text-gray-900">{departmentClasses.length}</p>
+              <p className="text-sm font-medium text-gray-600">Teachers</p>
+              <p className="text-2xl font-semibold text-gray-900">{departmentTeachers.length}</p>
             </div>
           </div>
         </div>
@@ -241,19 +221,6 @@ const HODSubjects: React.FC = () => {
           </div>
           
           <div className="flex gap-4">
-            <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Classes</option>
-              {departmentClasses.map(cls => (
-                <option key={cls.id} value={cls.id}>
-                  {cls.name} (Sem {cls.semester}{cls.section})
-                </option>
-              ))}
-            </select>
-            
             <button
               onClick={() => setShowModal(true)}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
@@ -308,8 +275,8 @@ const HODSubjects: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {/* Class information available through subject assignments - not displayed here */}
-                    <span className="text-gray-400">Multiple classes</span>
+                    {/* Subject assignments link subjects to semesters/batch instances - view via Subject Assignment management */}
+                    <span className="text-gray-400">Via assignments</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {getTeacherInfo(subject.teacher_id || null)}
@@ -405,43 +372,7 @@ const HODSubjects: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Class
-                    </label>
-                    <select
-                      value={formData.class_id || ''}
-                      onChange={(e) => setFormData({ ...formData, class_id: e.target.value ? Number(e.target.value) : null })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Select Class</option>
-                      {departmentClasses.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name} (Sem {cls.semester}{cls.section})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Teacher
-                    </label>
-                    <select
-                      value={formData.teacher_id || ''}
-                      onChange={(e) => setFormData({ ...formData, teacher_id: e.target.value ? Number(e.target.value) : null })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Teacher</option>
-                      {departmentTeachers.map((teacher) => (
-                        <option key={teacher.id} value={teacher.id}>
-                          {teacher.first_name} {teacher.last_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                {/* Note: Class and Teacher assignment is done via Subject Assignment management, not in subject creation */}
 
                 <div className="flex items-center mb-6">
                   <input
@@ -466,8 +397,6 @@ const HODSubjects: React.FC = () => {
                         code: '',
                         name: '',
                         credits: '',
-                        class_id: null,
-                        teacher_id: null,
                         is_active: true
                       })
                     }}

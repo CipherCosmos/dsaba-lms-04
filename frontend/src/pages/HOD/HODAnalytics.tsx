@@ -81,7 +81,7 @@ const HODAnalytics = () => {
         <p className="text-sm text-gray-400">Department data will appear once exams are conducted</p>
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-2">Debug Info:</h3>
+            <h3 className="font-medium text-gray-900 mb-2">Analytics Information:</h3>
             <pre className="text-xs text-gray-600 overflow-auto">
               {JSON.stringify({ hodAnalytics, loading, user, department }, null, 2)}
             </pre>

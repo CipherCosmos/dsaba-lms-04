@@ -54,8 +54,8 @@ const MarksFreeze: React.FC = () => {
   const academicYearId = currentAcademicYear?.id
 
   // Fetch departments and subjects for filters
-  const { data: departmentsData } = useDepartments(0, 1000)
-  const { data: subjectsData } = useSubjects(0, 1000, selectedDepartment ? { department_id: selectedDepartment } : undefined)
+  const { data: departmentsData } = useDepartments(0, 200)
+  const { data: subjectsData } = useSubjects(0, 200, selectedDepartment ? { department_id: selectedDepartment } : undefined)
 
   const departments = departmentsData?.items || []
   const subjects = subjectsData?.items || []
@@ -69,7 +69,7 @@ const MarksFreeze: React.FC = () => {
             academic_year_id: academicYearId,
           })
           const semestersList = response.items || []
-          setSemesters(semestersList.map((s: any) => ({
+          setSemesters(semestersList.map((s: { id: number; semester_no: number }) => ({
             id: s.id,
             semester_no: s.semester_no,
             display_name: `Semester ${s.semester_no}`,
@@ -188,7 +188,7 @@ const MarksFreeze: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
             >
               <option value="">All Departments</option>
-              {departments.map((dept: any) => (
+              {departments.map((dept: { id: number; name: string }) => (
                 <option key={dept.id} value={dept.id}>
                   {dept.name}
                 </option>
@@ -204,7 +204,7 @@ const MarksFreeze: React.FC = () => {
               disabled={!selectedDepartment}
             >
               <option value="">All Subjects</option>
-              {subjects.map((subject: any) => (
+              {subjects.map((subject: { id: number; name: string; code: string }) => (
                 <option key={subject.id} value={subject.id}>
                   {subject.code} - {subject.name}
                 </option>

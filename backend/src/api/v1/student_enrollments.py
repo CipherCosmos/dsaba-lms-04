@@ -15,7 +15,7 @@ from src.application.dto.student_enrollment_dto import (
 )
 from src.api.dependencies import get_current_user
 from src.domain.entities.user import User
-from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError
+from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError, BusinessRuleViolationError
 from src.infrastructure.database.repositories.student_enrollment_repository_impl import StudentEnrollmentRepository
 from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
@@ -223,13 +223,25 @@ async def get_enrollment(
 async def promote_student(
     enrollment_id: int,
     next_semester_id: int = Query(..., gt=0),
+    roll_no: Optional[str] = Query(None),
+    promotion_type: str = Query('regular', pattern="^(regular|lateral|failed|retained)$"),
+    notes: Optional[str] = Query(None),
     service: StudentEnrollmentService = Depends(get_student_enrollment_service),
     current_user: User = Depends(get_current_user)
 ):
     """
     Promote student to next semester
     
+    Creates a new enrollment in the next semester and marks current enrollment as promoted.
+    Handles academic year transitions automatically.
+    Creates promotion history record.
+    
     Only HOD, Principal, and Admin can promote students.
+    
+    - **next_semester_id**: ID of the next semester
+    - **roll_no**: Optional roll number for next semester (uses current if not provided)
+    - **promotion_type**: Type of promotion (regular, lateral, failed, retained)
+    - **notes**: Optional notes about the promotion
     """
     if current_user.role.value not in ['hod', 'principal', 'admin']:
         raise HTTPException(
@@ -238,11 +250,28 @@ async def promote_student(
         )
     
     try:
-        enrollment = await service.promote_student(enrollment_id, next_semester_id)
+        enrollment = await service.promote_student(
+            enrollment_id=enrollment_id,
+            next_semester_id=next_semester_id,
+            promoted_by=current_user.id,
+            roll_no=roll_no,
+            promotion_type=promotion_type,
+            notes=notes
+        )
         return StudentEnrollmentResponse(**enrollment.to_dict())
     except EntityNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except EntityAlreadyExistsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except BusinessRuleViolationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
 

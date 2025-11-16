@@ -38,7 +38,10 @@ const StudentAnalytics = () => {
     dispatch(fetchExams())
   }, [dispatch, user])
 
-  const classSubjects = subjects?.filter(s => s && s.class_id === user?.class_id) || []
+  // Note: In new architecture, subjects are linked via enrollments and subject assignments
+  // For now, show all department subjects (can be enhanced to filter by enrollment)
+  const userDeptId = user?.department_ids?.[0] || (user as { department_id?: number })?.department_id
+  const classSubjects = subjects?.filter(s => s && s.department_id === userDeptId) || []
 
   // Analytics data loaded from Redux store
 
@@ -56,14 +59,6 @@ const StudentAnalytics = () => {
         <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-3" />
         <p className="text-gray-500">No analytics data available</p>
         <p className="text-sm text-gray-400">Complete some exams to see your analytics</p>
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-            <h3 className="font-medium text-gray-900 mb-2">Debug Info:</h3>
-            <pre className="text-xs text-gray-600 overflow-auto">
-              {JSON.stringify({ studentAnalytics, loading, user, subjects }, null, 2)}
-            </pre>
-          </div>
-        )}
       </div>
     )
   }

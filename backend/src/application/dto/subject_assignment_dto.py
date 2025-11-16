@@ -9,12 +9,16 @@ from datetime import datetime
 
 
 class SubjectAssignmentCreateRequest(BaseModel):
-    """Create subject assignment request DTO"""
+    """Create subject assignment request DTO
+    
+    NOTE: class_id is now optional (deprecated). In new architecture,
+    class/batch instance is derived from semester.batch_instance_id.
+    """
     subject_id: int = Field(..., gt=0)
     teacher_id: int = Field(..., gt=0)
-    class_id: int = Field(..., gt=0)
+    class_id: Optional[int] = Field(None, gt=0, description="DEPRECATED: Optional for backward compatibility. Class is derived from semester.")
     semester_id: int = Field(..., gt=0)
-    academic_year: int = Field(..., ge=2000, le=3000)
+    academic_year: Optional[int] = Field(None, ge=2000, le=3000, description="Optional: Will be derived from semester if not provided")
     
     class Config:
         json_schema_extra = {
@@ -33,7 +37,7 @@ class SubjectAssignmentResponse(BaseModel):
     id: int
     subject_id: int
     teacher_id: int
-    class_id: int
+    class_id: Optional[int] = None  # DEPRECATED: Optional for backward compatibility
     semester_id: int
     academic_year: int
     created_at: datetime

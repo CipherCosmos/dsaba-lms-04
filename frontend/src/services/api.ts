@@ -156,59 +156,14 @@ export const departmentAPI = {
   },
 }
 
-export const classAPI = {
-  getAll: async () => {
-    // Note: Backend uses academic structure - batches, semesters, etc.
-    // This endpoint might need to be refactored to use proper academic structure
-    const response = await apiClient.get('/academic/batches')
-    return response.data
-  },
-  getBatches: async (skip: number = 0, limit: number = 100, isActive?: boolean) => {
-    const params: any = { skip, limit }
-    if (isActive !== undefined) params.is_active = isActive
-    const response = await apiClient.get('/academic/batches', { params })
-    return response.data
-  },
-  getBatchYears: async (batchId: number) => {
-    const response = await apiClient.get(`/academic/batches/${batchId}/batch-years`)
-    return response.data
-  },
-  getSemesters: async (batchYearId: number) => {
-    const response = await apiClient.get(`/academic/batch-years/${batchYearId}/semesters`)
-    return response.data
-  },
-  // Compatibility methods for old slices
-  create: async (classData: any) => {
-    // For compatibility, this creates a batch
-    const response = await apiClient.post('/academic/batches', classData)
-    return response.data
-  },
-  update: async (id: number, classData: any) => {
-    // For compatibility, this updates a batch
-    const response = await apiClient.put(`/academic/batches/${id}`, classData)
-    return response.data
-  },
-  delete: async (id: number) => {
-    // For compatibility, this deletes a batch
-    await apiClient.delete(`/academic/batches/${id}`)
-  },
-  createBatch: async (batchData: any) => {
-    const response = await apiClient.post('/academic/batches', batchData)
-    return response.data
-  },
-  createBatchYear: async (batchYearData: any) => {
-    const response = await apiClient.post('/academic/batch-years', batchYearData)
-    return response.data
-  },
-  createSemester: async (semesterData: any) => {
-    const response = await apiClient.post('/academic/semesters', semesterData)
-    return response.data
-  },
-  updateSemester: async (id: number, semesterData: any) => {
-    const response = await apiClient.put(`/academic/semesters/${id}/dates`, semesterData)
-    return response.data
-  },
-}
+// ❌ DEPRECATED: classAPI removed - use batchInstanceAPI and academicStructureAPI instead
+// classAPI was using legacy endpoints that don't match the production backend
+// Migration guide:
+//   classAPI.getAll() → batchInstanceAPI.getAll()
+//   classAPI.getBatchYears() → Use semester management via academicStructureAPI
+//   classAPI.getSemesters() → academicStructureAPI.getAllSemesters()
+//   classAPI.create() → batchInstanceAPI.create()
+//   classAPI.delete() → batchInstanceAPI.deactivate()
 
 export const subjectAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { department_id?: number; is_active?: boolean }) => {
@@ -1094,12 +1049,14 @@ export const subjectAssignmentAPI = {
     subject_id?: number
     class_id?: number
     semester_id?: number
+    academic_year_id?: number
   }) => {
     const params: any = { skip, limit }
     if (filters?.teacher_id) params.teacher_id = filters.teacher_id
     if (filters?.subject_id) params.subject_id = filters.subject_id
     if (filters?.class_id) params.class_id = filters.class_id
     if (filters?.semester_id) params.semester_id = filters.semester_id
+    if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
     const response = await apiClient.get('/subject-assignments', { params })
     return response.data
   },
@@ -1316,10 +1273,16 @@ export const studentEnrollmentAPI = {
     const response = await apiClient.post('/student-enrollments/bulk', data)
     return response.data
   },
-  promote: async (enrollmentId: number, nextSemesterId: number) => {
-    const response = await apiClient.post(`/student-enrollments/${enrollmentId}/promote`, null, {
-      params: { next_semester_id: nextSemesterId }
-    })
+  promote: async (enrollmentId: number, nextSemesterId: number, options?: {
+    roll_no?: string
+    promotion_type?: 'regular' | 'lateral' | 'failed' | 'retained'
+    notes?: string
+  }) => {
+    const params: any = { next_semester_id: nextSemesterId }
+    if (options?.roll_no) params.roll_no = options.roll_no
+    if (options?.promotion_type) params.promotion_type = options.promotion_type
+    if (options?.notes) params.notes = options.notes
+    const response = await apiClient.post(`/student-enrollments/${enrollmentId}/promote`, null, { params })
     return response.data
   },
 }
@@ -1417,6 +1380,445 @@ export const auditAPI = {
     if (filters?.resource) params.resource = filters.resource
     const response = await apiClient.get('/audit/system', { params })
     return response.data
+  },
+}
+
+// Batch Instance API
+export const batchInstanceAPI = {
+  getAll: async (skip: number = 0, limit: number = 100, filters?: {
+    academic_year_id?: number
+    department_id?: number
+    batch_id?: number
+    is_active?: boolean
+  }) => {
+    const params: any = { skip, limit }
+    if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
+    if (filters?.department_id) params.department_id = filters.department_id
+    if (filters?.batch_id) params.batch_id = filters.batch_id
+    if (filters?.is_active !== undefined) params.is_active = filters.is_active
+    const response = await apiClient.get('/batch-instances', { params })
+    return response.data
+  },
+  getById: async (batchInstanceId: number) => {
+    const response = await apiClient.get(`/batch-instances/${batchInstanceId}`)
+    return response.data
+  },
+  create: async (data: {
+    academic_year_id: number
+    department_id: number
+    batch_id: number
+    admission_year: number
+    sections?: string[]
+  }) => {
+    const response = await apiClient.post('/batch-instances', data)
+    return response.data
+  },
+  activate: async (batchInstanceId: number) => {
+    const response = await apiClient.put(`/batch-instances/${batchInstanceId}/activate`)
+    return response.data
+  },
+  deactivate: async (batchInstanceId: number) => {
+    const response = await apiClient.put(`/batch-instances/${batchInstanceId}/deactivate`)
+    return response.data
+  },
+  // Section endpoints
+  getSections: async (batchInstanceId: number) => {
+    const response = await apiClient.get(`/batch-instances/${batchInstanceId}/sections`)
+    return response.data
+  },
+  getSection: async (sectionId: number) => {
+    const response = await apiClient.get(`/batch-instances/sections/${sectionId}`)
+    return response.data
+  },
+  createSection: async (batchInstanceId: number, data: {
+    section_name: string
+    capacity?: number
+  }) => {
+    const response = await apiClient.post(`/batch-instances/${batchInstanceId}/sections`, {
+      batch_instance_id: batchInstanceId,
+      ...data
+    })
+    return response.data
+  },
+  updateSection: async (sectionId: number, data: {
+    section_name?: string
+    capacity?: number
+    is_active?: boolean
+  }) => {
+    const response = await apiClient.put(`/batch-instances/sections/${sectionId}`, data)
+    return response.data
+  },
+  // Batch promotion
+  promote: async (batchInstanceId: number, notes?: string) => {
+    const response = await apiClient.post(`/batch-instances/${batchInstanceId}/promote`, {
+      batch_instance_id: batchInstanceId,
+      notes
+    })
+    return response.data
+  },
+}
+
+// ========================================
+// NEW APIS - Smart Marks, CO-PO Attainment, Enhanced Analytics
+// ========================================
+
+/**
+ * Smart Marks API
+ * Handles best-of-two internal marks calculation, SGPA/CGPA calculation,
+ * grade calculation, and marks recalculation.
+ * Backend: /api/v1/smart-marks/*
+ */
+export const smartMarksAPI = {
+  /**
+   * Calculate best-of-two internal marks for a student
+   * Takes the higher score between IA1 and IA2
+   */
+  calculateBestOfTwo: async (params: {
+    student_id: number
+    subject_assignment_id: number
+    ia1_marks?: number
+    ia2_marks?: number
+  }) => {
+    const response = await apiClient.post('/smart-marks/calculate-final-marks', {
+      student_id: params.student_id,
+      subject_assignment_id: params.subject_assignment_id,
+      internal_1: params.ia1_marks,
+      internal_2: params.ia2_marks
+    })
+    return response.data
+  },
+
+  /**
+   * Get final calculated marks for a student in a subject
+   */
+  getFinalMarks: async (studentId: number, subjectAssignmentId: number) => {
+    const response = await apiClient.get('/smart-marks/final-marks', {
+      params: {
+        student_id: studentId,
+        subject_assignment_id: subjectAssignmentId
+      }
+    })
+    return response.data
+  },
+
+  /**
+   * Save final marks (internal + external) for a student
+   */
+  saveFinalMarks: async (data: {
+    student_id: number
+    subject_assignment_id: number
+    semester_id: number
+    best_internal: number
+    external_marks?: number
+    grade?: string
+    total_marks?: number
+  }) => {
+    const response = await apiClient.post('/smart-marks/save-final-marks', data)
+    return response.data
+  },
+
+  /**
+   * Calculate SGPA for a student for a specific semester
+   */
+  calculateSGPA: async (studentId: number, semesterId: number) => {
+    const response = await apiClient.get('/smart-marks/sgpa', {
+      params: {
+        student_id: studentId,
+        semester_id: semesterId
+      }
+    })
+    return response.data
+  },
+
+  /**
+   * Calculate CGPA for a student (all semesters or up to a specific semester)
+   */
+  calculateCGPA: async (studentId: number, upToSemesterId?: number) => {
+    const response = await apiClient.get('/smart-marks/cgpa', {
+      params: {
+        student_id: studentId,
+        up_to_semester_id: upToSemesterId
+      }
+    })
+    return response.data
+  },
+
+  /**
+   * Recalculate all final marks for a semester or subject
+   * Useful after marks updates or formula changes
+   */
+  recalculateAll: async (params: {
+    semester_id?: number
+    subject_assignment_id?: number
+    batch_instance_id?: number
+  }) => {
+    const response = await apiClient.post('/smart-marks/recalculate', params)
+    return response.data
+  },
+
+  /**
+   * Get the grading scale used for grade calculation
+   */
+  getGradingScale: async () => {
+    const response = await apiClient.get('/smart-marks/grading-scale')
+    return response.data
+  },
+
+  /**
+   * Calculate grade based on percentage
+   */
+  calculateGrade: async (percentage: number, maxMarks: number) => {
+    const response = await apiClient.post('/smart-marks/calculate-grade', {
+      percentage,
+      max_marks: maxMarks
+    })
+    return response.data
+  },
+}
+
+/**
+ * CO-PO Attainment API
+ * Handles Course Outcome and Program Outcome attainment calculations
+ * Backend: /api/v1/co-po-attainment/*
+ */
+export const coPOAttainmentAPI = {
+  /**
+   * Calculate CO attainment for a specific subject
+   * Returns attainment levels (L1, L2, L3) and overall attainment
+   */
+  calculateCOAttainment: async (subjectId: number, params?: {
+    semester_id?: number
+    exam_type?: 'internal1' | 'internal2' | 'external'
+    threshold?: number
+  }) => {
+    const response = await apiClient.get(`/co-po-attainment/co/${subjectId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Calculate PO attainment for a department
+   * Aggregates CO attainments weighted by CO-PO mapping strength
+   */
+  calculatePOAttainment: async (departmentId: number, params?: {
+    academic_year_id?: number
+    semester_id?: number
+    batch_id?: number
+  }) => {
+    const response = await apiClient.get(`/co-po-attainment/po/${departmentId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get comprehensive CO-PO attainment summary for a department
+   * Includes CO attainment, PO attainment, trends, and NBA compliance data
+   */
+  getAttainmentSummary: async (departmentId: number, params?: {
+    academic_year_id?: number
+    include_trends?: boolean
+  }) => {
+    const response = await apiClient.get(`/co-po-attainment/summary/${departmentId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get CO attainment trends over multiple semesters
+   */
+  getCOAttainmentTrends: async (subjectId: number, params?: {
+    start_semester_id?: number
+    end_semester_id?: number
+  }) => {
+    const response = await apiClient.get(`/co-po-attainment/co/${subjectId}/trends`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get PO attainment trends over multiple academic years
+   */
+  getPOAttainmentTrends: async (departmentId: number, params?: {
+    start_year?: number
+    end_year?: number
+  }) => {
+    const response = await apiClient.get(`/co-po-attainment/po/${departmentId}/trends`, {
+      params
+    })
+    return response.data
+  },
+}
+
+/**
+ * Enhanced Analytics API
+ * Provides advanced analytics including Bloom's Taxonomy, performance trends,
+ * department comparisons, and comprehensive student/teacher analytics
+ * Backend: /api/v1/enhanced-analytics/*
+ */
+export const enhancedAnalyticsAPI = {
+  /**
+   * Get Bloom's Taxonomy analysis for questions and performance
+   * Analyzes distribution across 6 cognitive levels (L1-L6)
+   */
+  getBloomsTaxonomyAnalysis: async (params: {
+    exam_id?: number
+    subject_id?: number
+    semester_id?: number
+    department_id?: number
+  }) => {
+    const response = await apiClient.get('/enhanced-analytics/blooms-taxonomy', {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get performance trends over time
+   * Shows marks trends, pass rates, and attainment trends
+   */
+  getPerformanceTrends: async (params: {
+    subject_id?: number
+    department_id?: number
+    batch_instance_id?: number
+    start_date?: string
+    end_date?: string
+    group_by?: 'semester' | 'month' | 'year'
+  }) => {
+    const response = await apiClient.get('/enhanced-analytics/performance-trends', {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Compare performance across departments
+   * Useful for HOD/Principal dashboards
+   */
+  getDepartmentComparison: async (params?: {
+    academic_year_id?: number
+    semester_id?: number
+    metrics?: string[] // ['avg_marks', 'pass_rate', 'co_attainment', 'po_attainment']
+  }) => {
+    const response = await apiClient.get('/enhanced-analytics/department-comparison', {
+      params: {
+        ...params,
+        metrics: params?.metrics?.join(',')
+      }
+    })
+    return response.data
+  },
+
+  /**
+   * Get comprehensive student performance analytics
+   * Includes marks, attainment, strengths, weaknesses, trends
+   */
+  getStudentPerformanceAnalytics: async (studentId: number, params?: {
+    semester_id?: number
+    subject_id?: number
+    include_co_attainment?: boolean
+    include_trends?: boolean
+  }) => {
+    const response = await apiClient.get(`/enhanced-analytics/student/${studentId}/performance`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get comprehensive teacher performance analytics
+   * Includes class performance, teaching effectiveness, CO attainment
+   */
+  getTeacherPerformanceAnalytics: async (teacherId: number, params?: {
+    semester_id?: number
+    subject_id?: number
+    include_class_comparison?: boolean
+  }) => {
+    const response = await apiClient.get(`/enhanced-analytics/teacher/${teacherId}/performance`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get class/batch instance performance analytics
+   */
+  getClassPerformanceAnalytics: async (batchInstanceId: number, params?: {
+    semester_id?: number
+    subject_id?: number
+  }) => {
+    const response = await apiClient.get(`/enhanced-analytics/class/${batchInstanceId}/performance`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get subject-level analytics
+   * Includes performance distribution, CO attainment, question analysis
+   */
+  getSubjectAnalytics: async (subjectId: number, params?: {
+    semester_id?: number
+    batch_instance_id?: number
+    include_bloom_analysis?: boolean
+  }) => {
+    const response = await apiClient.get(`/enhanced-analytics/subject/${subjectId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get department-level analytics
+   * Includes overall performance, PO attainment, teacher comparison
+   */
+  getDepartmentAnalytics: async (departmentId: number, params?: {
+    academic_year_id?: number
+    include_po_attainment?: boolean
+    include_trends?: boolean
+  }) => {
+    const response = await apiClient.get(`/enhanced-analytics/department/${departmentId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get NBA accreditation report data
+   * Formatted specifically for NBA requirements
+   */
+  getNBAAccreditationData: async (departmentId: number, params: {
+    academic_year_id: number
+    include_indirect_attainment?: boolean
+  }) => {
+    const response = await apiClient.get(`/enhanced-analytics/nba/${departmentId}`, {
+      params
+    })
+    return response.data
+  },
+}
+
+// Export utility for backward compatibility
+// Components using classAPI should be updated to use batchInstanceAPI
+export const classAPI = {
+  getAll: () => {
+    console.warn('classAPI.getAll() is deprecated. Use batchInstanceAPI.getAll() instead.')
+    return batchInstanceAPI.getAll()
+  },
+  getBatches: (skip?: number, limit?: number, isActive?: boolean) => {
+    console.warn('classAPI.getBatches() is deprecated. Use batchInstanceAPI.getAll() instead.')
+    return batchInstanceAPI.getAll(skip, limit, { is_active: isActive })
+  },
+  create: (data: any) => {
+    console.warn('classAPI.create() is deprecated. Use batchInstanceAPI.create() instead.')
+    return batchInstanceAPI.create(data)
+  },
+  delete: (id: number) => {
+    console.warn('classAPI.delete() is deprecated. Use batchInstanceAPI.deactivate() instead.')
+    return batchInstanceAPI.deactivate(id)
   },
 }
 

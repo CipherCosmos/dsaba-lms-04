@@ -124,3 +124,17 @@ export {
   useStrategicDashboard,
 } from './useAnalytics'
 
+// Batch Instance hooks
+export {
+  useBatchInstances,
+  useBatchInstance,
+  useCreateBatchInstance,
+  useActivateBatchInstance,
+  useDeactivateBatchInstance,
+  useSections,
+  useSection,
+  useCreateSection,
+  useUpdateSection,
+  usePromoteBatch,
+} from './useBatchInstances'
+

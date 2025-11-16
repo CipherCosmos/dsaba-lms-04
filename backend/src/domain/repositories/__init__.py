@@ -5,7 +5,7 @@ from .user_repository import IUserRepository
 from .department_repository import IDepartmentRepository
 from .exam_repository import IExamRepository
 from .mark_repository import IMarkRepository
-from .academic_structure_repository import IBatchRepository, IBatchYearRepository, ISemesterRepository
+from .academic_structure_repository import IBatchRepository, IBatchYearRepository, ISemesterRepository, IBatchInstanceRepository, ISectionRepository
 from .subject_repository import ISubjectRepository
 from .course_outcome_repository import ICourseOutcomeRepository
 from .program_outcome_repository import IProgramOutcomeRepository
@@ -25,6 +25,8 @@ __all__ = [
     "IBatchRepository",
     "IBatchYearRepository",
     "ISemesterRepository",
+    "IBatchInstanceRepository",
+    "ISectionRepository",
     "ISubjectRepository",
     "ICourseOutcomeRepository",
     "IProgramOutcomeRepository",

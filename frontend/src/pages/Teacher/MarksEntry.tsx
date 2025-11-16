@@ -1149,15 +1149,6 @@ const MarksEntry = () => {
             </table>
           </div>
 
-          {/* Debug Info */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-2">Debug Info:</h3>
-              <div className="text-xs text-gray-600 space-y-1">
-              </div>
-            </div>
-          )}
-
           {/* Action Buttons */}
           <div className="flex items-center justify-between mt-6 pt-4 border-t">
             <div className="flex items-center space-x-4">

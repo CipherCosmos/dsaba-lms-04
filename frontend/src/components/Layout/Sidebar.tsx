@@ -7,7 +7,7 @@ import {
   ClipboardList, BarChart3, FileText, Settings,
   TrendingUp, Award, PieChart, Target, Layers, Gauge, Brain,
   UserCheck, BookMarked, BarChart2, FileBarChart, 
-  Activity, Calendar, Shield, Eye,
+  Activity, Calendar, Shield, Eye, Lock,
   ChevronLeft, ChevronRight, Menu, X
 } from 'lucide-react'
 
@@ -35,6 +35,8 @@ const Sidebar = () => {
           { name: 'Subjects', href: '/admin/subjects', icon: BookOpen, section: 'system' },
           { name: 'Users', href: '/admin/users', icon: GraduationCap, section: 'system' },
           // Academic Management
+          { name: 'Academic Years', href: '/admin/academic-years', icon: Calendar, section: 'academic' },
+          { name: 'Batch Instances', href: '/admin/batch-instances', icon: Users, section: 'academic' },
           { name: 'CO Management', href: '/admin/co-management', icon: Target, section: 'academic' },
           { name: 'PO Management', href: '/admin/po-management', icon: Layers, section: 'academic' },
           { name: 'CO Targets', href: '/admin/co-targets', icon: Gauge, section: 'academic' },
@@ -51,6 +53,7 @@ const Sidebar = () => {
           { name: 'Department Classes', href: '/hod/classes', icon: Users, section: 'department' },
           { name: 'Department Subjects', href: '/hod/subjects', icon: BookMarked, section: 'department' },
           // Academic Management
+          { name: 'Batch Instances', href: '/admin/batch-instances', icon: Users, section: 'academic' },
           { name: 'CO Management', href: '/admin/co-management', icon: Target, section: 'academic' },
           { name: 'PO Management', href: '/admin/po-management', icon: Layers, section: 'academic' },
           { name: 'CO Targets', href: '/admin/co-targets', icon: Gauge, section: 'academic' },
@@ -81,6 +84,21 @@ const Sidebar = () => {
           { name: 'Report Management', href: '/teacher/reports', icon: FileText, section: 'reports' },
         ]
       
+      case 'principal':
+        return [
+          ...baseItems,
+          // Institution Management
+          { name: 'Departments', href: '/principal/departments', icon: Building, section: 'institution' },
+          { name: 'Academic Years', href: '/principal/academic-years', icon: Calendar, section: 'institution' },
+          { name: 'Batch Instances', href: '/admin/batch-instances', icon: Users, section: 'institution' },
+          { name: 'Users', href: '/principal/users', icon: Users, section: 'institution' },
+          // Marks Management
+          { name: 'Freeze Marks', href: '/principal/marks-freeze', icon: Lock, section: 'marks' },
+          // Analytics & Reports
+          { name: 'Reports', href: '/principal/reports', icon: FileText, section: 'analytics' },
+          { name: 'Audit Trail', href: '/principal/audit-trail', icon: Shield, section: 'analytics' },
+        ]
+      
       case 'student':
         return [
           ...baseItems,
@@ -98,9 +116,11 @@ const Sidebar = () => {
     const sectionTitles: Record<string, string> = {
       main: 'Main',
       system: 'System Management',
+      institution: 'Institution Management',
       department: 'Department Management',
       academic: 'Academic Management',
       teaching: 'Teaching Tools',
+      marks: 'Marks Management',
       analytics: 'Analytics & Insights',
       reports: 'Reports & Documentation',
       student: 'Student Tools'

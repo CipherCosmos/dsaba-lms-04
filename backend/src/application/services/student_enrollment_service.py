@@ -92,12 +92,125 @@ class StudentEnrollmentService:
     async def promote_student(
         self,
         enrollment_id: int,
-        next_semester_id: int
+        next_semester_id: int,
+        promoted_by: int,
+        roll_no: Optional[str] = None,
+        promotion_type: str = 'regular',
+        notes: Optional[str] = None
     ) -> StudentEnrollment:
-        """Promote student to next semester"""
-        enrollment = await self.get_enrollment(enrollment_id)
-        enrollment.promote(next_semester_id)
-        return await self.repository.update(enrollment)
+        """
+        Promote student to next semester
+        
+        This method:
+        1. Marks current enrollment as promoted and inactive
+        2. Creates new enrollment in next semester
+        3. Handles academic year transitions if needed
+        4. Creates promotion history record
+        
+        Args:
+            enrollment_id: Current enrollment ID
+            next_semester_id: Next semester ID
+            promoted_by: User ID who is promoting
+            roll_no: Roll number for next semester (optional, uses current if not provided)
+            promotion_type: Type of promotion (regular, lateral, failed, retained)
+            notes: Optional notes about the promotion
+        
+        Returns:
+            The new enrollment in the next semester
+        """
+        from datetime import date
+        from src.infrastructure.database.models import (
+            SemesterModel, AcademicYearModel, PromotionHistoryModel
+        )
+        from src.domain.exceptions import BusinessRuleViolationError
+        
+        # Get current enrollment
+        current_enrollment = await self.get_enrollment(enrollment_id)
+        
+        # Validate current enrollment can be promoted
+        if current_enrollment.promotion_status != 'pending':
+            raise BusinessRuleViolationError(
+                f"Cannot promote student: enrollment status is {current_enrollment.promotion_status}, expected 'pending'"
+            )
+        
+        if not current_enrollment.is_active:
+            raise BusinessRuleViolationError("Cannot promote inactive enrollment")
+        
+        # Get next semester details
+        db = self.repository.db
+        next_semester = db.query(SemesterModel).filter(
+            SemesterModel.id == next_semester_id
+        ).first()
+        
+        if not next_semester:
+            raise EntityNotFoundError("Semester", next_semester_id)
+        
+        # Determine academic year for next semester
+        # If next semester has academic_year_id, use it; otherwise use current enrollment's academic year
+        next_academic_year_id = next_semester.academic_year_id or current_enrollment.academic_year_id
+        
+        if not next_academic_year_id:
+            # Try to get current academic year as fallback
+            current_ay = db.query(AcademicYearModel).filter(
+                AcademicYearModel.is_current == True
+            ).first()
+            if current_ay:
+                next_academic_year_id = current_ay.id
+            else:
+                raise BusinessRuleViolationError(
+                    "Cannot determine academic year for next semester. Please ensure semester has an academic year assigned."
+                )
+        
+        # Check if student already enrolled in next semester
+        existing_next = await self.repository.get_by_student_semester(
+            student_id=current_enrollment.student_id,
+            semester_id=next_semester_id,
+            academic_year_id=next_academic_year_id
+        )
+        
+        if existing_next:
+            raise EntityAlreadyExistsError(
+                "StudentEnrollment",
+                f"student_id={current_enrollment.student_id}, semester_id={next_semester_id}, academic_year_id={next_academic_year_id}"
+            )
+        
+        # Use provided roll_no or keep current one
+        next_roll_no = roll_no or current_enrollment.roll_no
+        
+        # Mark current enrollment as promoted
+        current_enrollment.promote(next_semester_id)
+        await self.repository.update(current_enrollment)
+        
+        # Create new enrollment in next semester
+        new_enrollment = StudentEnrollment(
+            id=None,
+            student_id=current_enrollment.student_id,
+            semester_id=next_semester_id,
+            academic_year_id=next_academic_year_id,
+            roll_no=next_roll_no,
+            enrollment_date=date.today(),
+            is_active=True,
+            promotion_status='pending'
+        )
+        
+        created_enrollment = await self.repository.create(new_enrollment)
+        
+        # Create promotion history record
+        promotion_history = PromotionHistoryModel(
+            student_id=current_enrollment.student_id,
+            from_semester_id=current_enrollment.semester_id,
+            to_semester_id=next_semester_id,
+            from_academic_year_id=current_enrollment.academic_year_id,
+            to_academic_year_id=next_academic_year_id,
+            promotion_date=date.today(),
+            promotion_type=promotion_type,
+            promoted_by=promoted_by,
+            notes=notes
+        )
+        db.add(promotion_history)
+        db.commit()
+        
+        return created_enrollment
     
     async def bulk_enroll_students(
         self,

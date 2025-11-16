@@ -1,12 +1,14 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchTeacherAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
+import { dashboardAPI } from '../../services/api'
+import { logger } from '../../core/utils/logger'
 import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
-import { ClipboardList, Users, BarChart3, AlertTriangle, CheckCircle, Clock, BookOpen } from 'lucide-react'
+import { ClipboardList, Users, BarChart3, AlertTriangle, CheckCircle, Clock, BookOpen, FileCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const TeacherDashboard = () => {
@@ -16,10 +18,26 @@ const TeacherDashboard = () => {
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { exams } = useSelector((state: RootState) => state.exams)
   const { users } = useSelector((state: RootState) => state.users)
+  
+  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  const fetchDashboardStats = async () => {
+    try {
+      setLoadingStats(true)
+      const response = await dashboardAPI.getStats()
+      setDashboardStats(response)
+    } catch (error) {
+      logger.error('Error fetching teacher dashboard stats:', error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }
 
   useEffect(() => {
     if (user?.id) {
       dispatch(fetchTeacherAnalytics(user.id))
+      fetchDashboardStats()
     }
     dispatch(fetchSubjects())
     dispatch(fetchExams())
@@ -51,7 +69,7 @@ const TeacherDashboard = () => {
   const teacherStats = [
     {
       name: 'Subjects Assigned',
-      value: teacherSubjects.length,
+      value: dashboardStats?.statistics?.subjects_assigned || teacherSubjects.length,
       icon: BookOpen,
       color: 'bg-blue-500',
       detail: `Across ${new Set(teacherSubjects.map(s => s.class_id)).size} classes`,
@@ -59,29 +77,27 @@ const TeacherDashboard = () => {
     },
     {
       name: 'Total Students',
-      value: totalStudents,
+      value: dashboardStats?.statistics?.total_students || totalStudents,
       icon: Users,
       color: 'bg-green-500',
       detail: 'Under your guidance',
       href: '/teacher/students'
     },
     {
-      name: 'Exams Configured',
-      value: teacherExams.length,
+      name: 'Pending Marks',
+      value: dashboardStats?.statistics?.pending_marks_entry || dashboardStats?.statistics?.pending_internal_marks || 0,
       icon: ClipboardList,
-      color: 'bg-orange-500',
-      detail: `${teacherExams.filter(e => e.exam_date && new Date(e.exam_date) > new Date()).length} upcoming`,
-      href: '/teacher/exam-config'
+      color: 'bg-red-500',
+      detail: `${dashboardStats?.statistics?.submitted_marks_awaiting_approval || 0} submitted`,
+      href: '/teacher/marks-entry'
     },
     {
-      name: 'Average Performance',
-      value: teacherAnalytics?.class_performance.average_percentage ? 
-        `${teacherAnalytics.class_performance.average_percentage.toFixed(1)}%` : 'N/A',
-      icon: BarChart3,
-      color: 'bg-purple-500',
-      detail: teacherAnalytics?.class_performance.pass_rate ? 
-        `${teacherAnalytics.class_performance.pass_rate.toFixed(1)}% pass rate` : 'No data',
-      href: '/teacher/analytics'
+      name: 'Upcoming Exams',
+      value: dashboardStats?.statistics?.upcoming_exams_7d || teacherExams.filter(e => e.exam_date && new Date(e.exam_date) > new Date()).length,
+      icon: Clock,
+      color: 'bg-orange-500',
+      detail: 'Next 7 days',
+      href: '/teacher/exam-config'
     },
   ]
 

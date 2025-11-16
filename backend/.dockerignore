@@ -1,31 +1,50 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
-*.egg
-*.egg-info
-dist
-build
-.pytest_cache
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Testing
+.pytest_cache/
 .coverage
-htmlcov
-*.db
-*.sqlite
-*.sqlite3
-.env
-.env.local
-.git
-.gitignore
+htmlcov/
+.tox/
+*.cover
+
+# IDE
 .vscode
 .idea
 *.swp
 *.swo
-*~
-.DS_Store
-OLD_MONOLITHIC_BACKUP
-tests
-htmlcov
-coverage.xml
 
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Alembic
+alembic/versions/*.pyc

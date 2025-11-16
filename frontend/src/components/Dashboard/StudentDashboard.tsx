@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchExams } from '../../store/slices/examSlice'
+import { dashboardAPI } from '../../services/api'
+import { logger } from '../../core/utils/logger'
 import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
-import { TrendingUp, Award, Target, BookOpen, Star, Trophy, Brain, Calendar } from 'lucide-react'
+import { TrendingUp, Award, Target, BookOpen, Star, Trophy, Brain, Calendar, CheckCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const StudentDashboard = () => {
@@ -14,10 +16,26 @@ const StudentDashboard = () => {
   const { user } = useSelector((state: RootState) => state.auth)
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { exams } = useSelector((state: RootState) => state.exams)
+  
+  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  const fetchDashboardStats = async () => {
+    try {
+      setLoadingStats(true)
+      const response = await dashboardAPI.getStats()
+      setDashboardStats(response)
+    } catch (error) {
+      logger.error('Error fetching student dashboard stats:', error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }
 
   useEffect(() => {
     if (user?.id) {
       dispatch(fetchStudentAnalytics(user.id))
+      fetchDashboardStats()
     }
     dispatch(fetchSubjects())
     dispatch(fetchExams())
@@ -29,15 +47,22 @@ const StudentDashboard = () => {
   // Get subject assignments for exams
   const { getSubjectForExam, getClassIdForExam } = useExamSubjectAssignments(exams)
   
-  // Get upcoming exams - filter by class_id from subject assignments
-  const upcomingExams = exams.filter(exam => {
-    const examClassId = getClassIdForExam(exam)
-    const examSubject = getSubjectForExam(exam)
-    return examClassId === user?.class_id && 
-           examSubject && 
-           exam.exam_date && 
-           new Date(exam.exam_date) > new Date()
-  }).slice(0, 3)
+  // Get upcoming exams - use backend data if available, otherwise filter from exams
+  const upcomingExams = dashboardStats?.statistics?.upcoming_exams_list?.length > 0
+    ? dashboardStats.statistics.upcoming_exams_list.slice(0, 3).map((exam: any) => ({
+        id: exam.id,
+        name: exam.name,
+        exam_date: exam.exam_date,
+        total_marks: exam.total_marks
+      }))
+    : exams.filter(exam => {
+        const examClassId = getClassIdForExam(exam)
+        const examSubject = getSubjectForExam(exam)
+        return examClassId === user?.class_id && 
+               examSubject && 
+               exam.exam_date && 
+               new Date(exam.exam_date) > new Date()
+      }).slice(0, 3)
 
   const getPerformanceColor = (percentage: number) => {
     if (percentage >= 85) return 'text-green-600'
@@ -65,19 +90,25 @@ const StudentDashboard = () => {
   const studentStats = [
     {
       name: 'Overall Percentage',
-      value: studentAnalytics?.percentage ? `${studentAnalytics.percentage.toFixed(1)}%` : 'N/A',
+      value: dashboardStats?.statistics?.average_performance 
+        ? `${dashboardStats.statistics.average_performance.toFixed(1)}%` 
+        : studentAnalytics?.percentage 
+        ? `${studentAnalytics.percentage.toFixed(1)}%` 
+        : 'N/A',
       icon: TrendingUp,
-      color: studentAnalytics ? getPerformanceBg(studentAnalytics.percentage) : 'bg-gray-100',
+      color: dashboardStats?.statistics?.average_performance 
+        ? getPerformanceBg(dashboardStats.statistics.average_performance) 
+        : studentAnalytics ? getPerformanceBg(studentAnalytics.percentage) : 'bg-gray-100',
       trend: 'Current semester',
       href: '/student/analytics'
     },
     {
-      name: 'Current Grade',
-      value: studentAnalytics ? getGradeFromPercentage(studentAnalytics.percentage) : 'N/A',
-      icon: Award,
-      color: 'bg-purple-100',
-      trend: 'Based on performance',
-      href: '/student/analytics'
+      name: 'Exams Taken',
+      value: dashboardStats?.statistics?.total_exams_taken || 0,
+      icon: CheckCircle,
+      color: 'bg-green-100',
+      trend: `${dashboardStats?.statistics?.upcoming_exams || 0} upcoming`,
+      href: '/student/exams'
     },
     {
       name: 'Class Rank',
@@ -89,10 +120,10 @@ const StudentDashboard = () => {
     },
     {
       name: 'Subjects Enrolled',
-      value: classSubjects.length,
+      value: dashboardStats?.statistics?.total_subjects || classSubjects.length,
       icon: BookOpen,
       color: 'bg-blue-100',
-      trend: `${classSubjects.length} enrolled`,
+      trend: `${dashboardStats?.statistics?.total_subjects || classSubjects.length} enrolled`,
       href: '/student/subjects'
     },
   ]
@@ -237,29 +268,41 @@ const StudentDashboard = () => {
         {/* Performance Trend */}
         <div className="lg:col-span-2 card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Performance</h3>
-          {recentPerformance.length > 0 ? (
+          {(dashboardStats?.statistics?.recent_results?.length > 0 || recentPerformance.length > 0) ? (
             <div className="space-y-3">
-              {recentPerformance.map((performance, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{performance.exam}</p>
-                    <div className="w-48 bg-gray-200 rounded-full h-2 mt-1">
-                      <div
-                        className={`h-2 rounded-full ${
-                          performance.percentage >= 80 ? 'bg-green-500' :
-                          performance.percentage >= 70 ? 'bg-blue-500' :
-                          performance.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`}
-                        style={{ width: `${Math.min(performance.percentage, 100)}%` }}
-                      />
+              {(dashboardStats?.statistics?.recent_results || recentPerformance).map((performance: any, index: number) => {
+                const percentage = performance.percentage || (performance.marks_obtained && performance.total_marks 
+                  ? (performance.marks_obtained / performance.total_marks * 100) 
+                  : 0)
+                const examName = performance.exam_name || performance.exam
+                return (
+                  <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">{examName}</p>
+                      {performance.exam_date && (
+                        <p className="text-xs text-gray-500">{new Date(performance.exam_date).toLocaleDateString()}</p>
+                      )}
+                      <div className="w-full max-w-xs bg-gray-200 rounded-full h-2 mt-1">
+                        <div
+                          className={`h-2 rounded-full ${
+                            percentage >= 80 ? 'bg-green-500' :
+                            percentage >= 70 ? 'bg-blue-500' :
+                            percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className="text-lg font-semibold">{percentage.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-500">{getGradeFromPercentage(percentage)}</p>
+                      {performance.marks_obtained && performance.total_marks && (
+                        <p className="text-xs text-gray-400">{performance.marks_obtained}/{performance.total_marks}</p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold">{performance.percentage.toFixed(1)}%</p>
-                    <p className="text-xs text-gray-500">{getGradeFromPercentage(performance.percentage)}</p>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
@@ -275,8 +318,8 @@ const StudentDashboard = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Exams</h3>
           {upcomingExams.length > 0 ? (
             <div className="space-y-3">
-              {upcomingExams.map((exam, index) => {
-                const subject = getSubjectForExam(exam)
+              {upcomingExams.map((exam: any, index: number) => {
+                const subject = exam.id ? getSubjectForExam(exams.find((e: any) => e.id === exam.id) || exam) : getSubjectForExam(exam)
                 return (
                   <div key={index} className="p-3 bg-blue-50 rounded-lg">
                     <p className="font-medium text-gray-900">{exam.name}</p>
@@ -284,6 +327,9 @@ const StudentDashboard = () => {
                     <p className="text-xs text-blue-600">
                       {exam.exam_date ? new Date(exam.exam_date).toLocaleDateString() : 'TBD'}
                     </p>
+                    {exam.total_marks && (
+                      <p className="text-xs text-gray-500 mt-1">Total Marks: {exam.total_marks}</p>
+                    )}
                   </div>
                 )
               })}

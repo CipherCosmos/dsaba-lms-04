@@ -333,4 +333,116 @@ class UserService:
     async def count_users(self, filters: Optional[Dict[str, Any]] = None) -> int:
         """Count users with optional filters"""
         return await self.user_repository.count(filters=filters)
+    
+    async def bulk_create_users(
+        self,
+        users_data: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Bulk create users with optimized batch processing
+        
+        Args:
+            users_data: List of user data dictionaries with:
+                - username: str
+                - email: str
+                - first_name: str
+                - last_name: str
+                - password: str
+                - roles: List[str]
+                - department_ids: Optional[List[int]]
+        
+        Returns:
+            Dictionary with:
+                - created: Number of successfully created users
+                - failed: Number of failed creations
+                - errors: List of error messages
+                - users: List of created User entities
+        """
+        import secrets
+        import string
+        
+        created_users = []
+        errors = []
+        
+        # Generate default password if not provided
+        def generate_password(length: int = 16) -> str:
+            """Generate a secure random password"""
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            return ''.join(secrets.choice(alphabet) for _ in range(length))
+        
+        # Process each user
+        for idx, user_data in enumerate(users_data):
+            try:
+                # Extract data
+                username = user_data.get('username')
+                email = user_data.get('email')
+                first_name = user_data.get('first_name')
+                last_name = user_data.get('last_name')
+                password = user_data.get('password') or generate_password()
+                roles_str = user_data.get('roles', [])
+                department_ids = user_data.get('department_ids', [])
+                
+                # Validate required fields
+                if not username or not email or not first_name or not last_name:
+                    errors.append({
+                        "index": idx,
+                        "username": username or "N/A",
+                        "error": "Missing required fields: username, email, first_name, or last_name"
+                    })
+                    continue
+                
+                # Convert role strings to enums
+                try:
+                    roles = [UserRole(role) for role in roles_str]
+                except ValueError as e:
+                    errors.append({
+                        "index": idx,
+                        "username": username,
+                        "error": f"Invalid role: {str(e)}"
+                    })
+                    continue
+                
+                # Check for duplicates before creating
+                if await self.user_repository.username_exists(username):
+                    errors.append({
+                        "index": idx,
+                        "username": username,
+                        "error": f"Username '{username}' already exists"
+                    })
+                    continue
+                
+                if await self.user_repository.email_exists(email):
+                    errors.append({
+                        "index": idx,
+                        "username": username,
+                        "error": f"Email '{email}' already exists"
+                    })
+                    continue
+                
+                # Create user
+                user = await self.create_user(
+                    username=username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    password=password,
+                    roles=roles,
+                    department_ids=department_ids if department_ids else None
+                )
+                
+                created_users.append(user)
+                
+            except Exception as e:
+                errors.append({
+                    "index": idx,
+                    "username": user_data.get('username', 'N/A'),
+                    "error": str(e)
+                })
+        
+        return {
+            "created": len(created_users),
+            "failed": len(errors),
+            "errors": errors,
+            "users": created_users
+        }
 

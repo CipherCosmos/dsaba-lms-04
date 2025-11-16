@@ -15,7 +15,9 @@ from src.application.dto.user_dto import (
     ChangePasswordRequest,
     ResetPasswordRequest,
     AssignRoleRequest,
-    RemoveRoleRequest
+    RemoveRoleRequest,
+    BulkUserCreateRequest,
+    BulkUserCreateResponse
 )
 from src.api.dependencies import (
     get_user_repository,
@@ -70,8 +72,21 @@ async def create_user(
             detail="Only administrators can create users"
         )
     try:
+        # Validate roles
+        if not request.roles or len(request.roles) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="At least one role is required"
+            )
+        
         # Convert role strings to enums
-        roles = [UserRole(role) for role in request.roles]
+        try:
+            roles = [UserRole(role) for role in request.roles]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid role: {str(e)}"
+            )
         
         user = await user_service.create_user(
             username=request.username,
@@ -98,6 +113,15 @@ async def create_user(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
+        )
+    except Exception as e:
+        # Log unexpected errors
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected error creating user: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while creating the user: {str(e)}"
         )
 
 
@@ -362,5 +386,99 @@ async def remove_role(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Invalid role: {request.role}"
+        )
+
+
+@router.post("/bulk", response_model=BulkUserCreateResponse, status_code=status.HTTP_201_CREATED)
+async def bulk_create_users(
+    request: BulkUserCreateRequest,
+    user_service: UserService = Depends(get_user_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Bulk create users from a list
+    
+    Requires admin permissions.
+    Maximum 1000 users per request.
+    
+    - **users**: List of user creation requests
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Check if user has admin role
+    if UserRole.ADMIN not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can bulk create users"
+        )
+    
+    # Validate request size
+    if len(request.users) > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum 1000 users per bulk request"
+        )
+    
+    if len(request.users) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one user is required"
+        )
+    
+    try:
+        # Convert request to list of dicts
+        users_data = []
+        for user_req in request.users:
+            users_data.append({
+                'username': user_req.username,
+                'email': user_req.email,
+                'first_name': user_req.first_name,
+                'last_name': user_req.last_name,
+                'password': user_req.password,
+                'roles': user_req.roles,
+                'department_ids': user_req.department_ids
+            })
+        
+        # Bulk create
+        result = await user_service.bulk_create_users(users_data)
+        
+        # Convert created users to response format
+        user_responses = []
+        for user in result['users']:
+            try:
+                user_dict = user.to_dict()
+                # Add role field for backward compatibility
+                if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+                    user_dict["role"] = user_dict["roles"][0]
+                user_responses.append(UserResponse(**user_dict))
+            except Exception as e:
+                logger.warning(f"Error converting user to response format: {str(e)}")
+                # Continue with other users even if one fails to convert
+        
+        return BulkUserCreateResponse(
+            created=result['created'],
+            failed=result['failed'],
+            errors=result['errors'],
+            users=user_responses
+        )
+        
+    except ValidationError as e:
+        logger.error(f"Validation error in bulk create: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
+    except EntityAlreadyExistsError as e:
+        logger.error(f"Entity already exists in bulk create: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in bulk create: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while bulk creating users: {str(e)}"
         )
 

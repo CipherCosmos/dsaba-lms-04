@@ -12,8 +12,16 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,
     host: true,
+    watch: {
+      usePolling: true, // Enable polling for Docker volume mounts
+      interval: 1000
+    },
+    hmr: {
+      host: 'localhost',
+      port: 5173
+    },
     proxy: {
       '/api': {
         target: process.env.VITE_API_BASE_URL || 'http://localhost:8000',

@@ -12,9 +12,10 @@ import logging
 import datetime
 
 from src.config import settings
-from src.infrastructure.database.session import verify_database_connection, create_tables
+from src.infrastructure.database.session import verify_database_connection, create_tables, SessionLocal
 # Import database module to ensure relationships are configured
 from src.infrastructure.database import models as _  # noqa: F401
+from src.infrastructure.database.role_initializer import ensure_roles_exist
 from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks
 from src.api.middleware.error_handler import setup_error_handlers
 from src.api.middleware.security_headers import add_security_headers
@@ -48,6 +49,17 @@ async def lifespan(app: FastAPI):
     if settings.is_development:
         create_tables()
         logger.info("✅ Database tables created/verified")
+    
+    # Ensure all required roles exist
+    try:
+        db = SessionLocal()
+        try:
+            ensure_roles_exist(db)
+            logger.info("✅ All required roles verified")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to ensure roles exist: {e}")
     
     # Verify configuration
     logger.info(f"✅ JWT expiry: {settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES} minutes")

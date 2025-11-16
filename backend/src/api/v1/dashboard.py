@@ -14,8 +14,9 @@ from src.domain.enums.user_role import UserRole
 from src.infrastructure.database.models import (
     UserModel, DepartmentModel, ClassModel, SubjectModel, 
     ExamModel, MarkModel, FinalMarkModel, UserRoleModel, RoleModel,
-    SubjectAssignmentModel, StudentModel, TeacherModel
+    SubjectAssignmentModel, StudentModel, TeacherModel, InternalMarkModel
 )
+from src.infrastructure.database.models import MarksWorkflowState
 from sqlalchemy import func, and_, desc, select
 from datetime import datetime, timedelta
 
@@ -141,6 +142,40 @@ async def _get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
         ExamModel.created_at >= datetime.utcnow() - timedelta(days=30)
     ).count()
     
+    # Get pending internal marks approvals
+    pending_approvals = db.query(InternalMarkModel).filter(
+        InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED
+    ).count()
+    
+    # Get active exams (exams scheduled for today or future)
+    active_exams = db.query(ExamModel).filter(
+        ExamModel.exam_date >= datetime.utcnow().date()
+    ).count()
+    
+    # Get department breakdown
+    department_breakdown = []
+    departments = db.query(DepartmentModel).all()
+    for dept in departments[:5]:  # Top 5 departments
+        dept_students = db.query(UserRoleModel).join(RoleModel).filter(
+            and_(
+                UserRoleModel.department_id == dept.id,
+                RoleModel.name == UserRole.STUDENT.value
+            )
+        ).count() if student_role else 0
+        dept_teachers = db.query(UserRoleModel).join(RoleModel).filter(
+            and_(
+                UserRoleModel.department_id == dept.id,
+                RoleModel.name == UserRole.TEACHER.value
+            )
+        ).count() if teacher_role else 0
+        department_breakdown.append({
+            "id": dept.id,
+            "name": dept.name,
+            "code": dept.code,
+            "students": dept_students,
+            "teachers": dept_teachers
+        })
+    
     # Get recent activity
     recent_activity = _get_recent_activity(db)
     
@@ -154,12 +189,15 @@ async def _get_admin_dashboard_stats(db: Session) -> Dict[str, Any]:
             "total_subjects": total_subjects,
             "total_exams": total_exams,
             "active_users": active_users,
+            "active_exams": active_exams,
+            "pending_approvals": pending_approvals,
             "recent_exams_30d": recent_exams_count,
             "by_role": {
                 "students": student_count,
                 "teachers": teacher_count,
                 "hods": hod_count
-            }
+            },
+            "department_breakdown": department_breakdown
         },
         "recent_activity": recent_activity
     }
@@ -204,6 +242,48 @@ async def _get_hod_dashboard_stats(db: Session, department_id: int) -> Dict[str,
         )
     ).distinct().count()
     
+    # Get pending internal marks approvals for department
+    dept_subject_ids = db.query(SubjectModel.id).filter(
+        SubjectModel.department_id == department_id
+    ).subquery()
+    dept_subject_assignment_ids = db.query(SubjectAssignmentModel.id).filter(
+        SubjectAssignmentModel.subject_id.in_(select([dept_subject_ids.c.id]))
+    ).subquery()
+    
+    pending_approvals = db.query(InternalMarkModel).filter(
+        and_(
+            InternalMarkModel.subject_assignment_id.in_(select([dept_subject_assignment_ids.c.id])),
+            InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED
+        )
+    ).count()
+    
+    # Get active exams (upcoming)
+    active_exams = db.query(ExamModel).join(SubjectAssignmentModel).join(SubjectModel).filter(
+        and_(
+            SubjectModel.department_id == department_id,
+            ExamModel.exam_date >= datetime.utcnow().date()
+        )
+    ).distinct().count()
+    
+    # Get recent submissions (last 7 days)
+    recent_submissions = db.query(InternalMarkModel).filter(
+        and_(
+            InternalMarkModel.subject_assignment_id.in_(select([dept_subject_assignment_ids.c.id])),
+            InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED,
+            InternalMarkModel.updated_at >= datetime.utcnow() - timedelta(days=7)
+        )
+    ).count()
+    
+    # Get unassigned subjects
+    unassigned_subjects = db.query(SubjectModel).filter(
+        and_(
+            SubjectModel.department_id == department_id,
+            ~SubjectModel.id.in_(
+                select([SubjectAssignmentModel.subject_id]).distinct()
+            )
+        )
+    ).count()
+    
     return {
         "timestamp": datetime.utcnow().isoformat(),
         "role": "hod",
@@ -214,6 +294,10 @@ async def _get_hod_dashboard_stats(db: Session, department_id: int) -> Dict[str,
             "total_classes": dept_classes,
             "total_subjects": dept_subjects,
             "total_exams": dept_exams,
+            "active_exams": active_exams,
+            "pending_approvals": pending_approvals,
+            "recent_submissions_7d": recent_submissions,
+            "unassigned_subjects": unassigned_subjects,
             "recent_exams_30d": recent_exams
         }
     }
@@ -236,6 +320,11 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
         SubjectAssignmentModel.teacher_id == teacher.id
     ).count()
     
+    # Get subject assignment IDs for teacher
+    teacher_assignment_ids = db.query(SubjectAssignmentModel.id).filter(
+        SubjectAssignmentModel.teacher_id == teacher.id
+    ).subquery()
+    
     # Get exams for teacher's subjects
     teacher_exams = db.query(ExamModel).join(SubjectAssignmentModel).filter(
         SubjectAssignmentModel.teacher_id == teacher.id
@@ -246,6 +335,15 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
         and_(
             SubjectAssignmentModel.teacher_id == teacher.id,
             ExamModel.created_at >= datetime.utcnow() - timedelta(days=30)
+        )
+    ).count()
+    
+    # Get upcoming exams (next 7 days)
+    upcoming_exams = db.query(ExamModel).join(SubjectAssignmentModel).filter(
+        and_(
+            SubjectAssignmentModel.teacher_id == teacher.id,
+            ExamModel.exam_date >= datetime.utcnow().date(),
+            ExamModel.exam_date <= (datetime.utcnow() + timedelta(days=7)).date()
         )
     ).count()
     
@@ -263,6 +361,22 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
         SubjectAssignmentModel.teacher_id == teacher.id
     ).outerjoin(MarkModel).filter(MarkModel.id.is_(None)).count()
     
+    # Get pending internal marks (draft state)
+    pending_internal_marks = db.query(InternalMarkModel).filter(
+        and_(
+            InternalMarkModel.subject_assignment_id.in_(select([teacher_assignment_ids.c.id])),
+            InternalMarkModel.workflow_state == MarksWorkflowState.DRAFT
+        )
+    ).count()
+    
+    # Get submitted internal marks awaiting approval
+    submitted_marks = db.query(InternalMarkModel).filter(
+        and_(
+            InternalMarkModel.subject_assignment_id.in_(select([teacher_assignment_ids.c.id])),
+            InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED
+        )
+    ).count()
+    
     return {
         "timestamp": datetime.utcnow().isoformat(),
         "role": "teacher",
@@ -270,9 +384,12 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
         "statistics": {
             "subjects_assigned": teacher_subjects,
             "exams_configured": teacher_exams,
+            "upcoming_exams_7d": upcoming_exams,
             "recent_exams_30d": recent_exams,
             "total_students": total_students,
-            "pending_marks_entry": pending_marks_count
+            "pending_marks_entry": pending_marks_count,
+            "pending_internal_marks": pending_internal_marks,
+            "submitted_marks_awaiting_approval": submitted_marks
         }
     }
 
@@ -300,6 +417,8 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
     ).count() if student.class_id else 0
     
     # Get upcoming exams (exams in student's class that haven't been taken yet)
+    upcoming_exams = 0
+    upcoming_exams_list = []
     if student.class_id:
         class_exam_ids_subq = db.query(ExamModel.id).join(SubjectAssignmentModel).filter(
             SubjectAssignmentModel.class_id == student.class_id
@@ -307,17 +426,57 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
         taken_exam_ids_subq = db.query(MarkModel.exam_id).filter(
             MarkModel.student_id == student_id
         ).distinct().subquery()
-        upcoming_exams = db.query(ExamModel).filter(
+        upcoming_exams_query = db.query(ExamModel).filter(
             ExamModel.id.in_(select([class_exam_ids_subq.c.id])),
-            ~ExamModel.id.in_(select([taken_exam_ids_subq.c.exam_id]))
-        ).count()
-    else:
-        upcoming_exams = 0
+            ~ExamModel.id.in_(select([taken_exam_ids_subq.c.exam_id])),
+            ExamModel.exam_date >= datetime.utcnow().date()
+        ).order_by(ExamModel.exam_date).limit(5)
+        upcoming_exams = upcoming_exams_query.count()
+        for exam in upcoming_exams_query.all():
+            upcoming_exams_list.append({
+                "id": exam.id,
+                "name": exam.name,
+                "exam_date": exam.exam_date.isoformat() if exam.exam_date else None,
+                "total_marks": exam.total_marks
+            })
+    
+    # Get recent exam results (last 5)
+    recent_exams = db.query(ExamModel).join(MarkModel).filter(
+        MarkModel.student_id == student_id
+    ).order_by(desc(ExamModel.exam_date)).limit(5).all()
+    
+    recent_results = []
+    for exam in recent_exams:
+        mark = db.query(MarkModel).filter(
+            and_(
+                MarkModel.exam_id == exam.id,
+                MarkModel.student_id == student_id
+            )
+        ).first()
+        if mark:
+            recent_results.append({
+                "exam_id": exam.id,
+                "exam_name": exam.name,
+                "marks_obtained": float(mark.marks_obtained) if mark.marks_obtained else 0,
+                "total_marks": exam.total_marks or 0,
+                "percentage": (float(mark.marks_obtained) / exam.total_marks * 100) if (mark.marks_obtained and exam.total_marks) else 0,
+                "exam_date": exam.exam_date.isoformat() if exam.exam_date else None
+            })
     
     # Get final marks count
     final_marks_count = db.query(FinalMarkModel).filter(
         FinalMarkModel.student_id == student_id
     ).count()
+    
+    # Get average performance (if marks exist)
+    avg_performance = 0
+    if total_exams > 0:
+        total_percentage = db.query(func.sum(
+            func.cast(MarkModel.marks_obtained, func.Float) / ExamModel.total_marks * 100
+        )).join(ExamModel).filter(
+            MarkModel.student_id == student_id
+        ).scalar() or 0
+        avg_performance = total_percentage / total_exams if total_exams > 0 else 0
     
     return {
         "timestamp": datetime.utcnow().isoformat(),
@@ -326,8 +485,11 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
         "statistics": {
             "total_exams_taken": total_exams,
             "upcoming_exams": upcoming_exams,
+            "upcoming_exams_list": upcoming_exams_list,
             "total_subjects": class_subjects,
             "final_marks_available": final_marks_count,
+            "average_performance": round(avg_performance, 2),
+            "recent_results": recent_results,
             "class_id": student.class_id
         }
     }

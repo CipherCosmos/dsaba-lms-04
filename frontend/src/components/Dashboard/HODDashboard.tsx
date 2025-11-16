@@ -1,11 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchHODAnalytics } from '../../store/slices/analyticsSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
-import { BarChart3, Users, BookOpen, TrendingUp, Award, AlertCircle, Target, Settings } from 'lucide-react'
+import { dashboardAPI } from '../../services/api'
+import { logger } from '../../core/utils/logger'
+import { BarChart3, Users, BookOpen, TrendingUp, Award, AlertCircle, Target, Settings, CheckCircle, Clock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const HODDashboard = () => {
@@ -15,10 +17,26 @@ const HODDashboard = () => {
   const { users } = useSelector((state: RootState) => state.users)
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { classes } = useSelector((state: RootState) => state.classes)
+  
+  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  const fetchDashboardStats = async () => {
+    try {
+      setLoadingStats(true)
+      const response = await dashboardAPI.getStats()
+      setDashboardStats(response)
+    } catch (error) {
+      logger.error('Error fetching HOD dashboard stats:', error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }
 
   useEffect(() => {
-    if (user?.department_id) {
-      dispatch(fetchHODAnalytics(user.department_id))
+    if (user?.department_id || user?.department_ids?.[0]) {
+      dispatch(fetchHODAnalytics(user.department_id || user.department_ids?.[0]))
+      fetchDashboardStats()
     }
     dispatch(fetchUsers())
     dispatch(fetchSubjects())
@@ -35,33 +53,32 @@ const HODDashboard = () => {
 
   const departmentStats = [
     {
-      name: 'Department Performance',
-      value: hodAnalytics?.department_overview.average_performance ? 
-        `${hodAnalytics.department_overview.average_performance.toFixed(1)}%` : '0%',
-      icon: BarChart3,
-      color: 'bg-blue-500',
-      trend: 'Based on all assessments'
-    },
-    {
       name: 'Total Students',
-      value: hodAnalytics?.department_overview.total_students || departmentUsers.filter(u => u.role === 'student').length,
+      value: dashboardStats?.statistics?.total_students || hodAnalytics?.department_overview?.total_students || departmentUsers.filter(u => u.role === 'student').length,
       icon: Users,
       color: 'bg-green-500',
-      trend: `Across ${departmentClasses.length} classes`
+      trend: `Across ${dashboardStats?.statistics?.total_classes || departmentClasses.length} classes`
     },
     {
       name: 'Faculty Members',
-      value: hodAnalytics?.department_overview.total_teachers || departmentUsers.filter(u => u.role === 'teacher').length,
+      value: dashboardStats?.statistics?.total_teachers || hodAnalytics?.department_overview?.total_teachers || departmentUsers.filter(u => u.role === 'teacher').length,
       icon: Users,
       color: 'bg-purple-500',
-      trend: `Teaching ${departmentSubjects.length} subjects`
+      trend: `Teaching ${dashboardStats?.statistics?.total_subjects || departmentSubjects.length} subjects`
     },
     {
-      name: 'Active Subjects',
-      value: hodAnalytics?.department_overview.total_subjects || departmentSubjects.length,
-      icon: BookOpen,
+      name: 'Pending Approvals',
+      value: dashboardStats?.statistics?.pending_approvals || 0,
+      icon: AlertCircle,
+      color: 'bg-red-500',
+      trend: `${dashboardStats?.statistics?.recent_submissions_7d || 0} recent submissions`
+    },
+    {
+      name: 'Active Exams',
+      value: dashboardStats?.statistics?.active_exams || 0,
+      icon: Clock,
       color: 'bg-orange-500',
-      trend: `${departmentSubjects.filter(s => s.teacher_id).length} assigned`
+      trend: `${dashboardStats?.statistics?.total_exams || 0} total exams`
     },
   ]
 
@@ -72,12 +89,21 @@ const HODDashboard = () => {
   const actionItems = []
 
   // Check for subjects without teachers
-  const unassignedSubjects = departmentSubjects.filter(s => !s.teacher_id)
-  if (unassignedSubjects.length > 0) {
+  const unassignedSubjectsCount = dashboardStats?.statistics?.unassigned_subjects || departmentSubjects.filter(s => !s.teacher_id).length
+  if (unassignedSubjectsCount > 0) {
     actionItems.push({
       type: 'warning',
-      message: `${unassignedSubjects.length} subjects need teacher assignment`,
+      message: `${unassignedSubjectsCount} subjects need teacher assignment`,
       action: 'Assign teachers to pending subjects'
+    })
+  }
+  
+  // Check for pending approvals
+  if (dashboardStats?.statistics?.pending_approvals > 0) {
+    actionItems.push({
+      type: 'alert',
+      message: `${dashboardStats.statistics.pending_approvals} marks awaiting approval`,
+      action: 'Review and approve submitted marks'
     })
   }
 

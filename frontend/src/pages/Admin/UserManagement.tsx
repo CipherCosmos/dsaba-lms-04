@@ -14,7 +14,7 @@ import {
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { userAPI } from '../../services/api'
-import { Plus, Edit2, Trash2, User, Mail, Shield, Search, Filter, Key, UserPlus, Users as UsersIcon, X, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Edit2, Trash2, User, Mail, Shield, Search, Filter, Key, UserPlus, Users as UsersIcon, X, CheckCircle2, AlertCircle, Upload, Download, FileSpreadsheet } from 'lucide-react'
 
 const schema = yup.object({
   username: yup.string().required('Username is required'),
@@ -63,6 +63,13 @@ const UserManagement = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
   const [totalUsers, setTotalUsers] = useState(0)
+  const [showBulkModal, setShowBulkModal] = useState(false)
+  const [bulkFile, setBulkFile] = useState<File | null>(null)
+  const [bulkRole, setBulkRole] = useState('student')
+  const [bulkDepartment, setBulkDepartment] = useState<string>('')
+  const [autoGeneratePassword, setAutoGeneratePassword] = useState(true)
+  const [bulkPassword, setBulkPassword] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   const validationSchema = editingUser ? schema : schema.concat(passwordSchema)
 
@@ -291,6 +298,161 @@ const UserManagement = () => {
 
   const totalPages = useMemo(() => Math.ceil(totalUsers / pageSize), [totalUsers, pageSize])
 
+  // Generate secure password
+  const generatePassword = useCallback(() => {
+    const length = 16
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    let password = ''
+    for (let i = 0; i < length; i++) {
+      password += charset.charAt(Math.floor(Math.random() * charset.length))
+    }
+    return password
+  }, [])
+
+  // Handle bulk upload
+  const handleBulkUpload = useCallback(async () => {
+    if (!bulkFile) {
+      toast.error('Please select a file')
+      return
+    }
+    if (!bulkRole) {
+      toast.error('Please select a role')
+      return
+    }
+
+    setBulkLoading(true)
+    try {
+      // Read CSV/Excel file
+      const text = await bulkFile.text()
+      const lines = text.split('\n').filter(line => line.trim())
+      if (lines.length < 2) {
+        toast.error('File must contain at least a header row and one data row')
+        setBulkLoading(false)
+        return
+      }
+
+      // Parse headers
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+      const usernameIdx = headers.findIndex(h => h.includes('username') || h.includes('user'))
+      const emailIdx = headers.findIndex(h => h.includes('email'))
+      const firstNameIdx = headers.findIndex(h => h.includes('first') || h.includes('fname') || h.includes('firstname'))
+      const lastNameIdx = headers.findIndex(h => h.includes('last') || h.includes('lname') || h.includes('lastname'))
+
+      if (usernameIdx === -1 || emailIdx === -1 || firstNameIdx === -1 || lastNameIdx === -1) {
+        toast.error('CSV must contain: username, email, first_name, last_name columns')
+        setBulkLoading(false)
+        return
+      }
+
+      // Parse data
+      const users = []
+      const errors: string[] = []
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim())
+        if (values.length < headers.length) continue
+
+        const username = values[usernameIdx]
+        const email = values[emailIdx]
+        const firstName = values[firstNameIdx]
+        const lastName = values[lastNameIdx]
+
+        if (!username || !email || !firstName || !lastName) {
+          errors.push(`Row ${i + 1}: Missing required fields`)
+          continue
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email)) {
+          errors.push(`Row ${i + 1}: Invalid email format: ${email}`)
+          continue
+        }
+
+        users.push({
+          username,
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          password: autoGeneratePassword ? generatePassword() : (bulkPassword || generatePassword()),
+          roles: [bulkRole],
+          department_ids: bulkDepartment ? [parseInt(bulkDepartment)] : []
+        })
+      }
+
+      if (users.length === 0) {
+        toast.error('No valid users found in file')
+        setBulkLoading(false)
+        return
+      }
+
+      // Call bulk create API
+      const response = await userAPI.bulkCreate(users)
+      
+      if (response.created > 0) {
+        toast.success(`Successfully created ${response.created} users${response.failed > 0 ? ` (${response.failed} failed)` : ''}`)
+      }
+      
+      if (response.failed > 0 && response.errors && response.errors.length > 0) {
+        const errorMessages = response.errors.slice(0, 10).map((e: any) => `${e.username}: ${e.error}`).join('\n')
+        console.error('Bulk upload errors:', response.errors)
+        toast.error(`${response.failed} users failed. Check console for details.`)
+      }
+
+      // Reset form
+      setBulkFile(null)
+      setBulkRole('student')
+      setBulkDepartment('')
+      setBulkPassword('')
+      setShowBulkModal(false)
+      
+      // Reload users
+      loadUsers()
+    } catch (error: any) {
+      console.error('Bulk upload error:', error)
+      
+      // Handle different error types
+      if (error.response) {
+        // Server responded with error status
+        const status = error.response.status
+        const errorData = error.response.data
+        
+        if (status === 503) {
+          toast.error('Service temporarily unavailable. Please try again in a moment.')
+        } else if (status === 500) {
+          toast.error(`Server error: ${errorData?.detail || 'Internal server error'}`)
+        } else if (status === 400) {
+          toast.error(`Bad request: ${errorData?.detail || 'Invalid request'}`)
+        } else if (status === 403) {
+          toast.error('You do not have permission to bulk create users')
+        } else if (status === 422) {
+          toast.error(`Validation error: ${errorData?.detail || 'Invalid data provided'}`)
+        } else {
+          toast.error(`Error ${status}: ${errorData?.detail || error.message || 'Failed to bulk create users'}`)
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        toast.error('Network error: Unable to connect to server. Please check your connection.')
+      } else {
+        // Error in request setup
+        toast.error(`Error: ${error.message || 'Failed to bulk create users'}`)
+      }
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [bulkFile, bulkRole, bulkDepartment, autoGeneratePassword, bulkPassword, generatePassword, loadUsers])
+
+  // Download template
+  const downloadTemplate = useCallback(() => {
+    const csvContent = 'username,email,first_name,last_name\nstudent1,student1@example.com,John,Doe\nstudent2,student2@example.com,Jane,Smith'
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'user_upload_template.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }, [])
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -299,13 +461,22 @@ const UserManagement = () => {
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-sm text-gray-600 mt-1">Manage all system users, roles, and permissions</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="btn-primary flex items-center space-x-2"
-        >
-          <UserPlus size={18} />
-          <span>Add User</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowBulkModal(true)}
+            className="btn-secondary flex items-center space-x-2"
+          >
+            <Upload size={18} />
+            <span>Bulk Upload</span>
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <UserPlus size={18} />
+            <span>Add User</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -655,12 +826,25 @@ const UserManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Password <span className="text-gray-500">(min 12 characters)</span>
                   </label>
-                  <input
-                    {...register('password')}
-                    type="password"
-                    className="input-field w-full"
-                    placeholder="Enter password"
-                  />
+                  <div className="flex items-center space-x-2">
+                    <input
+                      {...register('password')}
+                      type="password"
+                      className="input-field flex-1"
+                      placeholder="Enter password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPassword = generatePassword()
+                        setValue('password', newPassword)
+                        toast.success('Password generated!')
+                      }}
+                      className="btn-secondary text-sm"
+                    >
+                      Generate
+                    </button>
+                  </div>
                   {errors.password && (
                     <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>
                   )}
@@ -869,6 +1053,145 @@ const UserManagement = () => {
                   className="btn-primary"
                 >
                   Assign Role
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 my-8 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold mb-4">Bulk Upload Users</h2>
+            
+            <div className="space-y-4">
+              {/* File Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Upload CSV File
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={(e) => setBulkFile(e.target.files?.[0] || null)}
+                    className="input-field flex-1"
+                  />
+                  <button
+                    onClick={downloadTemplate}
+                    className="btn-secondary flex items-center space-x-1"
+                    type="button"
+                  >
+                    <Download size={16} />
+                    <span>Template</span>
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Required columns: username, email, first_name, last_name
+                </p>
+              </div>
+
+              {/* Role Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role for All Users *
+                </label>
+                <select
+                  value={bulkRole}
+                  onChange={(e) => setBulkRole(e.target.value)}
+                  className="input-field w-full"
+                >
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="hod">HOD</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {/* Department Selection */}
+              {(bulkRole === 'student' || bulkRole === 'teacher' || bulkRole === 'hod') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department (Optional)
+                  </label>
+                  <select
+                    value={bulkDepartment}
+                    onChange={(e) => setBulkDepartment(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Password Options */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={autoGeneratePassword}
+                      onChange={(e) => setAutoGeneratePassword(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <label className="text-sm text-gray-700">
+                      Auto-generate secure passwords
+                    </label>
+                  </div>
+                  {!autoGeneratePassword && (
+                    <input
+                      type="password"
+                      value={bulkPassword}
+                      onChange={(e) => setBulkPassword(e.target.value)}
+                      placeholder="Enter password for all users (min 12 characters)"
+                      className="input-field w-full"
+                      minLength={12}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Maximum 1000 users per upload. Duplicate usernames/emails will be skipped.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkModal(false)
+                    setBulkFile(null)
+                    setBulkRole('student')
+                    setBulkDepartment('')
+                    setBulkPassword('')
+                    setAutoGeneratePassword(true)
+                  }}
+                  className="btn-secondary"
+                  disabled={bulkLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkUpload}
+                  disabled={bulkLoading || !bulkFile}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {bulkLoading ? 'Uploading...' : 'Upload Users'}
                 </button>
               </div>
             </div>

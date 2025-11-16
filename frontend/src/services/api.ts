@@ -306,6 +306,23 @@ export const userAPI = {
     })
     return response.data
   },
+  bulkCreate: async (users: any[]) => {
+    try {
+      const response = await apiClient.post('/users/bulk', { users }, {
+        timeout: 120000, // 2 minutes timeout for bulk operations
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      return response.data
+    } catch (error: any) {
+      // Re-throw with more context
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timeout: Bulk operation took too long. Please try with fewer users.')
+      }
+      throw error
+    }
+  }
 }
 
 export const profileAPI = {

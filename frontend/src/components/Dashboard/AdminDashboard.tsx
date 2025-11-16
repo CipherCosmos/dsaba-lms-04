@@ -48,7 +48,7 @@ const AdminDashboard = () => {
   const stats = [
     {
       name: 'Total Departments',
-      value: dashboardStats?.total_departments ?? 0,
+      value: dashboardStats?.statistics?.total_departments ?? 0,
       icon: Building,
       color: 'bg-blue-500',
       change: 'Active departments',
@@ -56,27 +56,27 @@ const AdminDashboard = () => {
     },
     {
       name: 'Total Users',
-      value: dashboardStats?.total_users ?? 0,
+      value: dashboardStats?.statistics?.total_users ?? 0,
       icon: Users,
       color: 'bg-green-500',
-      change: `${dashboardStats?.active_users ?? 0} active`,
+      change: `${dashboardStats?.statistics?.active_users ?? 0} active`,
       href: '/admin/users'
     },
     {
-      name: 'Total Classes',
-      value: dashboardStats?.total_classes ?? 0,
+      name: 'Active Exams',
+      value: dashboardStats?.statistics?.active_exams ?? 0,
       icon: GraduationCap,
       color: 'bg-purple-500',
-      change: 'Active classes',
-      href: '/admin/classes'
+      change: `${dashboardStats?.statistics?.total_exams ?? 0} total`,
+      href: '/admin/exams'
     },
     {
-      name: 'Total Subjects',
-      value: dashboardStats?.total_subjects ?? 0,
-      icon: BookOpen,
-      color: 'bg-orange-500',
-      change: 'Course subjects',
-      href: '/admin/subjects'
+      name: 'Pending Approvals',
+      value: dashboardStats?.statistics?.pending_approvals ?? 0,
+      icon: AlertTriangle,
+      color: 'bg-red-500',
+      change: 'Awaiting review',
+      href: '/admin/approvals'
     },
   ]
 
@@ -90,9 +90,16 @@ const AdminDashboard = () => {
 
   const systemAlerts = [
     {
-      message: 'System running optimally',
-      type: 'success',
-      count: 0
+      message: dashboardStats?.statistics?.pending_approvals > 0 
+        ? `${dashboardStats.statistics.pending_approvals} marks pending approval`
+        : 'System running optimally',
+      type: dashboardStats?.statistics?.pending_approvals > 0 ? 'warning' : 'success',
+      count: dashboardStats?.statistics?.pending_approvals ?? 0
+    },
+    {
+      message: `${dashboardStats?.statistics?.active_exams ?? 0} active exams scheduled`,
+      type: 'info',
+      count: dashboardStats?.statistics?.active_exams ?? 0
     }
   ]
 
@@ -270,7 +277,26 @@ const AdminDashboard = () => {
       {/* Department Overview */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Overview</h3>
-        {departments.length > 0 ? (
+        {dashboardStats?.statistics?.department_breakdown && dashboardStats.statistics.department_breakdown.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {dashboardStats.statistics.department_breakdown.map((dept: any) => (
+              <Link key={dept.id} to={`/admin/departments/${dept.id}`} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all">
+                <h4 className="font-semibold text-gray-900 mb-2">{dept.name}</h4>
+                <p className="text-sm text-gray-600 mb-3">Code: {dept.code}</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span>Students:</span>
+                    <span className="font-medium text-blue-600">{dept.students}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Teachers:</span>
+                    <span className="font-medium text-green-600">{dept.teachers}</span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : departments.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {departments.slice(0, 4).map((dept) => (
               <div key={dept.id} className="border border-gray-200 rounded-lg p-4">
@@ -314,12 +340,12 @@ const AdminDashboard = () => {
             <Users className="h-8 w-8 text-blue-500 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-900">Active Users</p>
             <p className="text-xs text-gray-600">
-              {dashboardStats?.active_users ?? 0} active
+              {dashboardStats?.statistics?.active_users ?? 0} active
             </p>
             <div className="mt-2 bg-gray-200 rounded-full h-2">
               <div className="bg-blue-500 h-2 rounded-full" style={{ 
-                width: `${dashboardStats && dashboardStats.total_users > 0 ? 
-                  (dashboardStats.active_users / dashboardStats.total_users) * 100 : 0
+                width: `${dashboardStats?.statistics && dashboardStats.statistics.total_users > 0 ? 
+                  (dashboardStats.statistics.active_users / dashboardStats.statistics.total_users) * 100 : 0
                 }%` 
               }}></div>
             </div>
@@ -328,7 +354,7 @@ const AdminDashboard = () => {
             <BookOpen className="h-8 w-8 text-purple-500 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-900">Subject Assignment</p>
             <p className="text-xs text-purple-600">
-              {dashboardStats?.total_subjects ?? 0} subjects
+              {dashboardStats?.statistics?.total_subjects ?? 0} subjects
             </p>
             <div className="mt-2 bg-gray-200 rounded-full h-2">
               <div className="bg-purple-500 h-2 rounded-full" style={{ 

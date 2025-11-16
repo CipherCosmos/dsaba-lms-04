@@ -211,9 +211,24 @@ class UserRepository(IUserRepository):
         self.db.flush()  # Get ID
         
         # Create role associations
+        from src.infrastructure.database.role_initializer import get_or_create_role
+        from src.domain.exceptions import ValidationError
+        
+        if not entity.roles:
+            raise ValidationError("User must have at least one role", field="roles")
+        
         for role in entity.roles:
-            role_model = self.db.query(RoleModel).filter(RoleModel.name == role.value).first()
-            if role_model:
+            # Get or create role if it doesn't exist
+            role_model = get_or_create_role(self.db, role.value)
+            
+            # Check if user-role association already exists
+            existing_association = self.db.query(UserRoleModel).filter(
+                UserRoleModel.user_id == model.id,
+                UserRoleModel.role_id == role_model.id,
+                UserRoleModel.department_id == (entity.department_ids[0] if entity.department_ids else None)
+            ).first()
+            
+            if not existing_association:
                 user_role = UserRoleModel(
                     user_id=model.id,
                     role_id=role_model.id,

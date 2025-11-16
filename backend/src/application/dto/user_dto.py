@@ -4,7 +4,7 @@ Request/Response models for user management endpoints
 """
 
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -169,4 +169,43 @@ class RemoveRoleRequest(BaseModel):
     """Remove role request DTO"""
     role: str
     department_id: Optional[int] = None
+
+
+class BulkUserCreateRequest(BaseModel):
+    """Bulk user create request DTO"""
+    users: List[UserCreateRequest] = Field(..., min_items=1, max_items=1000)
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "users": [
+                    {
+                        "username": "student1",
+                        "email": "student1@example.com",
+                        "first_name": "John",
+                        "last_name": "Doe",
+                        "password": "TempPass123!@#",
+                        "roles": ["student"],
+                        "department_ids": [1]
+                    },
+                    {
+                        "username": "student2",
+                        "email": "student2@example.com",
+                        "first_name": "Jane",
+                        "last_name": "Smith",
+                        "password": "TempPass123!@#",
+                        "roles": ["student"],
+                        "department_ids": [1]
+                    }
+                ]
+            }
+        }
+
+
+class BulkUserCreateResponse(BaseModel):
+    """Bulk user create response DTO"""
+    created: int
+    failed: int
+    errors: List[Dict[str, Any]]
+    users: List[UserResponse]
 

@@ -74,7 +74,7 @@ export function useExamSubjectAssignments(exams: Exam[]) {
 
         setAssignmentMap(examToAssignmentMap)
         logger.debug('Subject assignments loaded:', examToAssignmentMap.size)
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Error fetching subject assignments:', error)
       } finally {
         setLoading(false)
@@ -103,10 +103,6 @@ export function useExamSubjectAssignments(exams: Exam[]) {
    * @deprecated LEGACY-COMPATIBLE: Backend analytics/reporting still supports class_id
    * but new flows should prefer semester_id/subject_assignment_id based analytics.
    * This helper is kept for backward compatibility only.
-   *
-   * TODO: Remove when all analytics/reporting endpoints fully migrate to
-   * semester/subject_assignment based queries. Use getAssignmentForExam() instead
-   * to access semester_id and subject_assignment_id directly.
    */
   const getClassIdForExam = useMemo(() => {
     return (exam: Exam) => {

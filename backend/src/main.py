@@ -16,7 +16,11 @@ from src.infrastructure.database.session import verify_database_connection, crea
 # Import database module to ensure relationships are configured
 from src.infrastructure.database import models as _  # noqa: F401
 from src.infrastructure.database.role_initializer import ensure_roles_exist
-from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks, batch_instances, indirect_attainment, backup, monitoring
+from src.api.v1 import (
+    auth, users, roles, departments, subjects, batches, exams, marks,
+    analytics, batch_instances, academic_structure, internal_marks,
+    final_marks, enhanced_analytics, student_progression, batch_admission, student_analytics, teacher_analytics, hod_analytics
+), reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks, batch_instances, indirect_attainment, backup, monitoring
 from src.api.middleware.error_handler import setup_error_handlers
 from src.api.middleware.security_headers import add_security_headers
 from src.api.middleware.logging import setup_logging
@@ -268,6 +272,26 @@ app.include_router(
 )
 app.include_router(
     monitoring.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    student_progression.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    batch_admission.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    student_analytics.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    teacher_analytics.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    hod_analytics.router,
     prefix=settings.api_prefix,
 )
 

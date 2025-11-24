@@ -243,63 +243,6 @@ class AnalyticsService:
         }
     
     async def get_class_analytics(
-        self,
-        class_id: int,
-        subject_id: Optional[int] = None
-    ) -> Dict[str, Any]:
-        """
-        DEPRECATED: Use batch instance or semester-based analytics. This method is kept for backward compatibility with existing API clients.
-        
-        Get analytics for a class
-        
-        Args:
-            class_id: Class ID
-            subject_id: Optional subject filter
-        
-        Returns:
-            Dict with class performance metrics
-        """
-        warnings.warn(
-            "get_class_analytics is deprecated. Use batch_instance_id or semester_id based analytics instead. "
-            "This method queries legacy class_id field and will be removed in future versions.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        # Get students in class
-        students = self.db.query(StudentModel).filter(
-            StudentModel.class_id == class_id
-        ).all()
-        
-        student_ids = [s.id for s in students]
-        
-        # Get marks for these students
-        marks_query = self.db.query(MarkModel).filter(
-            MarkModel.student_id.in_(student_ids)
-        )
-        
-        if subject_id:
-            marks_query = marks_query.join(ExamModel).join(
-                SubjectAssignmentModel
-            ).filter(SubjectAssignmentModel.subject_id == subject_id)
-        
-        marks = marks_query.all()
-        
-        # Calculate statistics
-        if marks:
-            total_marks = sum(float(m.marks_obtained) for m in marks)
-            avg_marks = total_marks / len(marks)
-            
-            # Per student averages
-            student_totals = {}
-            for student_id in student_ids:
-                student_marks = [m for m in marks if m.student_id == student_id]
-                if student_marks:
-                    student_totals[student_id] = sum(float(m.marks_obtained) for m in student_marks) / len(student_marks)
-            
-            sorted_totals = sorted(student_totals.values())
-            median = sorted_totals[len(sorted_totals) // 2] if sorted_totals else 0
-        else:
-            total_marks = 0
             avg_marks = 0
             median = 0
             student_totals = {}
@@ -317,35 +260,41 @@ class AnalyticsService:
     async def get_subject_analytics(
         self,
         subject_id: int,
-        class_id: Optional[int] = None
+        semester_id: Optional[int] = None,
+        batch_instance_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Get analytics for a subject
+        Get analytics for a specific subject
         
         Args:
             subject_id: Subject ID
-            class_id: Optional class filter
-        
+            semester_id: Optional semester filter
+            batch_instance_id: Optional batch instance filter
+            
         Returns:
-            Dict with subject performance metrics
+            Subject analytics including exam statistics and student performance
         """
         # Get subject
         subject = await self.subject_repository.get_by_id(subject_id)
         if not subject:
             raise EntityNotFoundError("Subject", subject_id)
         
-        # Get assignments
-        assignments_query = self.db.query(SubjectAssignmentModel).filter(
+        # Get all assignments for this subject
+        from app.models.semester import Semester as SemesterModel
+        query = self.db.query(SubjectAssignmentModel).filter(
             SubjectAssignmentModel.subject_id == subject_id
         )
         
-        if class_id:
-            # DEPRECATED: class_id filter for backward compatibility
-            assignments_query = assignments_query.filter(
-                SubjectAssignmentModel.class_id == class_id
+        if semester_id:
+            query = query.filter(SubjectAssignmentModel.semester_id == semester_id)
+        
+        if batch_instance_id:
+            # Filter via semester -> batch instance
+            query = query.join(SemesterModel).filter(
+                SemesterModel.batch_instance_id == batch_instance_id
             )
         
-        assignments = assignments_query.all()
+        assignments = query.all()
         assignment_ids = [a.id for a in assignments]
         
         # Get exams

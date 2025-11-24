@@ -33,9 +33,11 @@ async def get_database_stats(
 
     Requires admin privileges
     """
-    # Check if user has admin privileges (you may want to implement proper role checking)
-    if not current_user or current_user.username not in ['admin']:  # TODO: Implement proper admin check
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not current_user or current_user.role not in ['admin', 'principal']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
 
     try:
         stats = get_database_performance_stats()
@@ -55,8 +57,9 @@ async def trigger_performance_report(
     Requires admin privileges
     """
     # Check if user has admin privileges
-    if not current_user or current_user.username not in ['admin']:  # TODO: Implement proper admin check
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not current_user or current_user.role not in ['admin', 'principal']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
 
     try:
         log_performance_report()

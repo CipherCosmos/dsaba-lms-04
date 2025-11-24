@@ -43,7 +43,6 @@ interface InternalMark {
 interface SubjectAssignment {
   id: number
   subject_id: number
-  class_id: number
   semester_id: number
   academic_year?: number
   academic_year_id?: number

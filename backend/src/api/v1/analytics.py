@@ -113,37 +113,6 @@ async def get_teacher_analytics(
         )
 
 
-@router.get("/class/{class_id}", response_model=ClassAnalyticsResponse, deprecated=True)
-async def get_class_analytics(
-    class_id: int,
-    subject_id: Optional[int] = Query(None, gt=0),
-    analytics_service: AnalyticsService = Depends(get_analytics_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    ⚠️ DEPRECATED: Get class analytics (legacy endpoint)
-    
-    **This endpoint is deprecated.** Use batch instance or semester-based analytics instead.
-    Kept for backward compatibility with existing clients.
-    
-    Parameters:
-    - **class_id**: Legacy class ID (deprecated)
-    - **subject_id**: Optional subject filter
-    """
-    try:
-        # TODO: Add response header 'Deprecation: true' and 'Sunset: 2026-01-01'
-        analytics = await analytics_service.get_class_analytics(
-            class_id=class_id,
-            subject_id=subject_id
-        )
-        return ClassAnalyticsResponse(**analytics)
-    except EntityNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-
-
 @router.get("/subject/{subject_id}", response_model=SubjectAnalyticsResponse)
 async def get_subject_analytics(
     subject_id: int,

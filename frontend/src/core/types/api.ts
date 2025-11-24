@@ -272,6 +272,34 @@ export interface StudentPerformanceAnalytics {
     marks_trend: 'improving' | 'declining' | 'stable'
     sgpa_trend: 'improving' | 'declining' | 'stable'
   }
+
+  // Legacy properties for backward compatibility with old StudentAnalytics component
+  /**
+   * @deprecated Use overall_performance.rank instead
+   */
+  rank?: number
+  /**
+   * @deprecated Calculate from subject_wise_performance
+   */
+  percentage?: number
+  /**
+   * @deprecated Use overall_performance.cgpa/sgpa instead
+   */
+  total_marks?: number
+  /**
+   * @deprecated Legacy performance trend data - use trends.marks_trend instead
+   */
+  performance_trend?: Array<{
+    exam: string
+    percentage: number
+    marks?: number
+  }>
+  /**
+   * @deprecated PO attainment not available in student-level analytics
+   */
+  po_attainment?: {
+    [po_code: string]: number
+  }
 }
 
 export interface TeacherPerformanceAnalytics {
@@ -933,21 +961,4 @@ export interface QueryParams {
 
 export type APIParams = PaginationParams & FilterParams & SortParams
 
-// Export all new DTO types
-export type {
-  DepartmentCreateRequest,
-  DepartmentUpdateRequest,
-  SubjectCreateRequest,
-  SubjectUpdateRequest,
-  UserCreateRequest,
-  UserUpdateRequest,
-  ExamCreateRequest,
-  ExamUpdateRequest,
-  QuestionCreateRequest,
-  QuestionUpdateRequest,
-  MarkCreateRequest,
-  EvidenceItem,
-  QuestionAnalysisItem,
-  QueryParams,
-}
 

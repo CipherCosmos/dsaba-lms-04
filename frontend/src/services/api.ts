@@ -51,7 +51,7 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  
+
   // Add cache busting for GET requests
   if (config.method === 'get') {
     const timestamp = new Date().getTime()
@@ -61,27 +61,28 @@ apiClient.interceptors.request.use((config) => {
       _cache: 'no-cache'
     }
   }
-  
+
   // Add cache control headers
   config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
   config.headers['Pragma'] = 'no-cache'
   config.headers['Expires'] = '0'
-  
+
   return config
 })
 
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  async (error: any) => {
+    logger.error('Response error:', error)
     const originalRequest = error.config
-    
+
     // Handle 401 errors
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
       return Promise.reject(error)
     }
-    
+
     // Handle validation errors with better formatting
     if (error.response?.status === 422) {
       const errorData = error.response.data
@@ -95,21 +96,21 @@ apiClient.interceptors.response.use(
         error.formattedErrors = formattedErrors
       }
     }
-    
+
     // Retry logic for network errors
     if (!error.response && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true
-      
+
       // Wait before retry
       await new Promise(resolve => setTimeout(resolve, 1000))
-      
+
       try {
         return await apiClient(originalRequest)
       } catch (retryError) {
         return Promise.reject(retryError)
       }
     }
-    
+
     return Promise.reject(error)
   }
 )
@@ -191,15 +192,6 @@ export const departmentAPI = {
     return response.data
   },
 }
-
-// ❌ DEPRECATED: classAPI removed - use batchInstanceAPI and academicStructureAPI instead
-// classAPI was using legacy endpoints that don't match the production backend
-// Migration guide:
-//   classAPI.getAll() → batchInstanceAPI.getAll()
-//   classAPI.getBatchYears() → Use semester management via academicStructureAPI
-//   classAPI.getSemesters() → academicStructureAPI.getAllSemesters()
-//   classAPI.create() → batchInstanceAPI.create()
-//   classAPI.delete() → batchInstanceAPI.deactivate()
 
 export const subjectAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { department_id?: number; is_active?: boolean }) => {
@@ -306,9 +298,9 @@ export const userAPI = {
         }
       })
       return response.data
-    } catch (error: unknown) {
+    } catch (error: any) {
       // Re-throw with more context
-      if (error.code === 'ECONNABORTED') {
+      if (error?.code === 'ECONNABORTED') {
         throw new Error('Request timeout: Bulk operation took too long. Please try with fewer users.')
       }
       throw error
@@ -361,7 +353,7 @@ const getCacheBustingParams = () => ({
 const forceFreshRequest = (url: string, config: Record<string, unknown> = {}) => {
   const timestamp = new Date().getTime()
   const randomId = Math.random().toString(36).substring(2, 15)
-  
+
   return apiClient.get(url, {
     ...config,
     params: {
@@ -385,12 +377,12 @@ const forceFreshRequest = (url: string, config: Record<string, unknown> = {}) =>
 export const examAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { status?: string; exam_type?: string; subject_assignment_id?: number }, forceRefresh = false) => {
     logger.debug('Fetching exams', forceRefresh ? '(force refresh)' : '')
-    
+
     const params: QueryParams = { skip, limit }
     if (filters?.status) params.status = filters.status
     if (filters?.exam_type) params.exam_type = filters.exam_type
     if (filters?.subject_assignment_id) params.subject_assignment_id = filters.subject_assignment_id
-    
+
     if (forceRefresh) {
       // Clear server cache first
       try {
@@ -400,7 +392,7 @@ export const examAPI = {
       } catch (error) {
         logger.warn('Cache clear failed, continuing', error)
       }
-      
+
       // Use force fresh request to completely bypass cache
       const response = await forceFreshRequest('/exams', { params })
       logger.debug('Force fresh response received')
@@ -566,16 +558,6 @@ export const analyticsAPI = {
     const params: QueryParams = {}
     if (academicYearId) params.academic_year_id = academicYearId
     const response = await apiClient.get(`/analytics/hod/department/${departmentId}`, { params })
-    return response.data
-  },
-  /**
-   * @deprecated LEGACY-COMPATIBLE: Backend still supports class-based analytics
-   * TODO: Migrate to batch_instance_id/semester_id based analytics when backend supports
-   */
-  getClassAnalytics: async (classId: number, subjectId?: number): Promise<ClassPerformanceAnalytics> => {
-    const params: QueryParams = {}
-    if (subjectId) params.subject_id = subjectId
-    const response = await apiClient.get(`/analytics/class/${classId}`, { params })
     return response.data
   },
   getStrategicDashboardData: async (departmentId: number): Promise<DepartmentAnalytics> => {
@@ -799,14 +781,6 @@ export const analyticsAPI = {
   },
 
   /**
-   * Get class attainment (from attainmentAnalyticsAPI)
-   */
-  getClassAttainment: async (classId: number, term?: string): Promise<ClassPerformanceAnalytics> => {
-    const response = await apiClient.get(`/analytics/class/${classId}`)
-    return response.data
-  },
-
-  /**
    * Get program attainment (from attainmentAnalyticsAPI)
    */
   getProgramAttainment: async (departmentId: number, year?: number): Promise<DepartmentAnalytics> => {
@@ -853,7 +827,7 @@ export const fileAPI = {
   uploadMarksTemplate: async (examId: number, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const response = await apiClient.post(`/bulk-uploads/marks/${examId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -861,7 +835,7 @@ export const fileAPI = {
     })
     return response.data
   },
-  
+
   downloadMarksTemplate: async (examId: number) => {
     const response = await apiClient.get(`/bulk-uploads/template/marks`, {
       params: { exam_id: examId },
@@ -869,11 +843,11 @@ export const fileAPI = {
     })
     return response.data
   },
-  
+
   uploadQuestions: async (examId: number, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const response = await apiClient.post(`/bulk-uploads/questions/${examId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -881,7 +855,7 @@ export const fileAPI = {
     })
     return response.data
   },
-  
+
   downloadQuestionTemplate: async () => {
     const response = await apiClient.get(`/bulk-uploads/template/questions`, {
       responseType: 'blob'
@@ -907,18 +881,17 @@ export const reportsAPI = {
   getStudentReport: async (studentId: number, subjectId?: number, semesterId?: number, format: string = 'json'): Promise<unknown> => {
     const params: QueryParams = { format }
     if (subjectId) params.subject_id = subjectId
-    if (semesterId) params.semester_id = semesterId
     const response = await apiClient.get(`/reports/student/${studentId}`, { params, responseType: format === 'pdf' ? 'blob' : 'json' })
     return response.data
   },
   /**
-   * @deprecated LEGACY-COMPATIBLE: Backend still supports class-based reports
-   * TODO: Migrate to batch_instance_id/semester_id based reports when backend supports
+   * Subject Reports with Batch Instance Support
    */
-  getClassReport: async (classId: number, subjectId?: number, format: string = 'json'): Promise<unknown> => {
+  getSubjectReport: async (batch_instance_id?: number, subjectId?: number, format: string = 'json'): Promise<unknown> => {
     const params: QueryParams = { format }
     if (subjectId) params.subject_id = subjectId
-    const response = await apiClient.get(`/reports/class/${classId}`, { params, responseType: format === 'pdf' ? 'blob' : 'json' })
+    if (batch_instance_id) params.batch_instance_id = batch_instance_id
+    const response = await apiClient.get(`/reports/batch-instance/${batch_instance_id}`, { params, responseType: format === 'pdf' ? 'blob' : 'json' })
     return response.data
   },
   getCOPOReport: async (subjectId: number, examType?: string, semesterId?: number, format: string = 'json'): Promise<unknown> => {
@@ -1028,7 +1001,7 @@ export const coPoMatrixAPI = {
     const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
     // Backend returns COListResponse with items array (standardized format)
     const cos = cosResponse.data.items || []
-    
+
     // Get mappings for each CO
     const mappings = await Promise.all(
       cos.map((co: any) =>
@@ -1074,17 +1047,17 @@ export const coPoMatrixAPI = {
     const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
     // Backend returns COListResponse with items array (standardized format)
     const cos = cosResponse.data.items || []
-    
+
     // For each CO in the matrix, update/create/delete mappings
     const results = []
     for (const matrixItem of coPoMatrix) {
       const co = cos.find((c: { id: number }) => c.id === matrixItem.co_id)
       if (!co) continue
-      
+
       // Get existing mappings for this CO
       // Backend returns COPOMappingListResponse with items array (standardized format)
       const existingMappings = await apiClient.get(`/co-po-mappings/co/${co.id}`).then(r => r.data.items || [])
-      
+
       // Process updates (existing mappings)
       for (const mapping of matrixItem.mappings || []) {
         const existing = existingMappings.find((m: { po_id: number }) => m.po_id === mapping.po_id)
@@ -1106,7 +1079,7 @@ export const coPoMatrixAPI = {
           results.push(newMapping.data)
         }
       }
-      
+
       // Delete mappings that are no longer in the matrix
       const newPoIds = new Set((matrixItem.mappings || []).map((m) => m.po_id))
       for (const existing of existingMappings) {
@@ -1115,7 +1088,7 @@ export const coPoMatrixAPI = {
         }
       }
     }
-    
+
     return results
   },
 }
@@ -1130,13 +1103,13 @@ export const questionCoWeightAPI = {
     const existingResponse = await apiClient.get(`/questions/${questionId}/co-mappings`)
     // Backend returns COPOMappingListResponse with items array (standardized format)
     const existing = existingResponse.data.items || []
-    
+
     await Promise.all(
       existing.map((mapping: { co_id: number }) =>
         apiClient.delete(`/questions/co-mapping/${questionId}/${mapping.co_id}`)
       )
     )
-    
+
     // Create new mappings
     const newMappings = await Promise.all(
       coMappings.map(mapping =>
@@ -1929,12 +1902,19 @@ export const coPOAttainmentAPI = {
 
 // Attainment Analytics API - provides attainment-related analytics methods
 export const attainmentAnalyticsAPI = {
-  getSubjectAttainment: analyticsAPI.getSubjectAttainment,
-  getStudentAttainment: analyticsAPI.getStudentAttainment,
-  getClassAttainment: analyticsAPI.getClassAttainment,
+  //  getBatchComparison: analyticsAPI.getBatchComparison,
+  getInstitutionAnalytics: analyticsAPI.getInstitutionAnalytics,
+  getBloomsTaxonomyAnalysis: analyticsAPI.getBloomsTaxonomyAnalysis,
+  exportAnalytics: analyticsAPI.exportAnalytics,
+
+  // Teacher analytics
+  getTeacherPerformanceAnalytics: analyticsAPI.getTeacherPerformanceAnalytics,
+
+  // Student analytics  
+  getStudentPerformance: analyticsAPI.getStudentPerformance,
   getProgramAttainment: analyticsAPI.getProgramAttainment,
   getBlueprintValidation: analyticsAPI.getBlueprintValidation,
-  getCOPOMapping: analyticsAPI.getCOPOMapping,
+  getMultiDimensionalAnalytics: analyticsAPI.getMultiDimensionalAnalytics
 }
 
 
@@ -1942,4 +1922,190 @@ export const attainmentAnalyticsAPI = {
 // Components using classAPI should be updated to use batchInstanceAPI
 // NOTE: Legacy classAPI fully removed. Use batchInstanceAPI, batchesAPI, and academicStructureAPI instead.
 
+
+// ============================================================================
+// STUDENT YEAR PROGRESSION API
+// ============================================================================
+
+export const studentProgressionAPI = {
+  /**
+   * Check if student is eligible for promotion
+   */
+  checkEligibility: async (studentId: number, performanceData?: {
+    cgpa?: number
+    sgpa?: number
+    attendance?: number
+  }): Promise<{
+    eligible: boolean
+    reasons: string[]
+    performance: any
+  }> => {
+    const params: QueryParams = {}
+    if (performanceData?.cgpa) params.cgpa = performanceData.cgpa
+    if (performanceData?.sgpa) params.sgpa = performanceData.sgpa
+    if (performanceData?.attendance) params.attendance = performanceData.attendance
+
+    const response = await apiClient.get(`/student-progression/students/${studentId}/eligibility`, { params })
+    return response.data
+  },
+
+  /**
+   * Promote individual student to next year
+   */
+  promoteStudent: async (studentId: number, data: {
+    academic_year_id: number
+    performance_data?: {
+      cgpa?: number
+      sgpa?: number
+      credits_earned?: number
+      attendance?: number
+    }
+    force?: boolean
+    notes?: string
+  }): Promise<any> => {
+    const response = await apiClient.post(`/student-progression/students/${studentId}/promote`, data)
+    return response.data
+  },
+
+  /**
+   * Promote entire batch to next year
+   */
+  promoteBatch: async (batchInstanceId: number, data: {
+    academic_year_id: number
+    auto_promote_eligible?: boolean
+    force_all?: boolean
+  }): Promise<{
+    promoted_count: number
+    failed_count: number
+    detained_count: number
+    results: any
+  }> => {
+    const response = await apiClient.post(`/student-progression/batch-instances/${batchInstanceId}/promote`, data)
+    return response.data
+  },
+
+  /**
+   * Mark student as detained (repeat current year)
+   */
+  detainStudent: async (studentId: number, reason: string, notes?: string): Promise<any> => {
+    const response = await apiClient.post(`/student-progression/students/${studentId}/detain`, { reason, notes })
+    return response.data
+  },
+
+  /**
+   * Clear student detention status
+   */
+  clearDetention: async (studentId: number): Promise<any> => {
+    const response = await apiClient.post(`/student-progression/students/${studentId}/clear-detention`)
+    return response.data
+  },
+
+  /**
+   * Get year-wise progression history of a student
+   */
+  getProgressionHistory: async (studentId: number): Promise<Array<{
+    id: number
+    from_year_level: number
+    to_year_level: number
+    academic_year_id: number
+    promotion_date: string
+    promotion_type: string
+    cgpa: number | null
+    sgpa: number | null
+    backlogs_count: number
+    notes: string | null
+  }>> => {
+    const response = await apiClient.get(`/student-progression/students/${studentId}/history`)
+    return response.data
+  },
+
+  /**
+   * Get statistics for students in a specific year level
+   */
+  getYearStatistics: async (yearLevel: number, departmentId?: number, academicYearId?: number): Promise<{
+    year_level: number
+    total_students: number
+    detained_students: number
+    students_with_backlogs: number
+    students_in_good_standing: number
+  }> => {
+    const params: QueryParams = {}
+    if (departmentId) params.department_id = departmentId
+    if (academicYearId) params.academic_year_id = academicYearId
+
+    const response = await apiClient.get(`/student-progression/year/${yearLevel}/statistics`, { params })
+    return response.data
+  }
+}
+
+// ============================================================================
+// Batch Admission API  
+// ============================================================================
+export const batchAdmissionAPI = {
+  createBatch: async (data: any) => {
+    const response = await apiClient.post('/batch-admission/create-batch', data)
+    return response.data
+  },
+  bulkAdmit: async (data: any) => {
+    const response = await apiClient.post('/batch-admission/bulk-admit', data)
+    return response.data
+  },
+  uploadFile: async (batchInstanceId: number, file: File) => {
+    const formData = new FormData()
+    formData.append('batch_instance_id', batchInstanceId.toString())
+    formData.append('file', file)
+    const response = await apiClient.post('/batch-admission/upload-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+  downloadTemplate: async () => {
+    const response = await apiClient.get('/batch-admission/template', { responseType: 'blob' })
+    return response.data
+  }
+}
+
+// ============================================================================
+// Student Analytics API
+// ============================================================================
+export const studentAnalyticsAPI = {
+  getDashboard: async (studentId: number, semesterId?: number) => {
+    const params = semesterId ? { semester_id: semesterId } : {}
+    const response = await apiClient.get(`/student-analytics/dashboard/${studentId}`, { params })
+    return response.data
+  },
+  getPerformance: async (studentId: number, semesterId?: number) => {
+    const params = semesterId ? { semester_id: semesterId } : {}
+    const response = await apiClient.get(`/student-analytics/performance/${studentId}`, { params })
+    return response.data
+  },
+  getSubjects: async (studentId: number, semesterId?: number) => {
+    const params = semesterId ? { semester_id: semesterId } : {}
+    const response = await apiClient.get(`/student-analytics/subjects/${studentId}`, { params })
+    return response.data
+  }
+}
+
+// ============================================================================
+// Teacher Analytics API
+// ============================================================================
+export const teacherAnalyticsAPI = {
+  getDashboard: async (teacherId: number, subjectAssignmentId?: number) => {
+    const params = subjectAssignmentId ? { subject_assignment_id: subjectAssignmentId } : {}
+    const response = await apiClient.get(`/teacher-analytics/dashboard/${teacherId}`, { params })
+    return response.data
+  },
+  getClassPerformance: async (subjectAssignmentId: number) => {
+    const response = await apiClient.get(`/teacher-analytics/class-performance/${subjectAssignmentId}`)
+    return response.data
+  },
+  getAtRiskStudents: async (teacherId: number, threshold: number = 40.0) => {
+    const response = await apiClient.get(`/teacher-analytics/at-risk-students/${teacherId}`, {
+      params: { threshold }
+    })
+    return response.data
+  }
+}
+
 export default apiClient
+

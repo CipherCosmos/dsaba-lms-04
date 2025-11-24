@@ -48,15 +48,12 @@ class TeacherAnalyticsResponse(BaseModel):
     subject_id: Optional[int] = None
 
 
-class ClassAnalyticsResponse(BaseModel):
-    """Class analytics response DTO"""
-    class_id: int
-    total_students: int
-    total_marks_entries: int
-    average_marks: float
-    median_marks: float
-    student_averages: Dict[str, float]
-    subject_id: Optional[int] = None
+class SubjectAnalyticsRequest(BaseModel):
+    """Subject analytics request parameters"""
+    subject_id: int
+    semester_id: Optional[int] = None
+    academic_year_id: Optional[int] = None
+    batch_instance_id: Optional[int] = None
 
 
 class SubjectAnalyticsResponse(BaseModel):

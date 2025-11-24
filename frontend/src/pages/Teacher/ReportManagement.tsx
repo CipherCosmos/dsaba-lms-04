@@ -78,8 +78,9 @@ const ReportManagement = () => {
   const fetchReportTemplates = async () => {
     setLoadingTemplates(true)
     try {
-      const types = await reportsAPI.getTypes()
-      const formattedTemplates = (types?.report_types || []).map((template: any) => ({
+      const types: any = await reportsAPI.getTypes()
+      const reportTypes = (types?.report_types || []) as any[]
+      const formattedTemplates = reportTypes.map((template: any) => ({
         id: template.id,
         name: template.name,
         description: template.description,
@@ -98,7 +99,7 @@ const ReportManagement = () => {
       )
       // Store this for UI conditional rendering
       setReportFilters(prev => ({ ...prev, supportsClassReports }))
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error fetching report templates:', error)
     } finally {
       setLoadingTemplates(false)
@@ -132,14 +133,14 @@ const ReportManagement = () => {
         include_recommendations: reportFilters.includeRecommendations
       }
 
-      const response = await reportsAPI.generateReport(
+      const response: any = await reportsAPI.generateReport(
         selectedTemplate.id,
         filters,
         selectedTemplate.format
       )
 
       // Create blob and download directly
-      const blob = new Blob([response], { 
+      const blob = new Blob([response as BlobPart], { 
         type: selectedTemplate.format === 'pdf' ? 'application/pdf' : 
               selectedTemplate.format === 'excel' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
               'text/csv'
@@ -168,7 +169,7 @@ const ReportManagement = () => {
       setGeneratedReports(prev => [newReport, ...prev])
       setTaskStatus('Report generated successfully!')
       
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error generating report:', error)
       setTaskStatus('Error generating report')
     } finally {
@@ -192,7 +193,6 @@ const ReportManagement = () => {
         // LEGACY-COMPATIBLE: Class-based reports migrated to subject-based CO-PO reports
         // Backend supports subject-based CO-PO attainment reports which provide comprehensive analytics
         // Class-level filters are hidden in UI unless backend explicitly supports class_id reports
-        // TODO: Remove when all class-based report dependencies are eliminated
         if (report.subjectId) {
           blob = await reportsAPI.getCOPOReport(report.subjectId, 'pdf')
         } else {
@@ -208,7 +208,7 @@ const ReportManagement = () => {
         blob = result
       }
       
-      const url = URL.createObjectURL(blob)
+      const url = URL.createObjectURL(blob as Blob)
       const a = document.createElement('a')
       a.href = url
       a.download = `${report.template.name}-${new Date(report.generatedAt).toISOString().split('T')[0]}.${report.template.format}`
@@ -216,7 +216,7 @@ const ReportManagement = () => {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error downloading report:', error)
     }
   }

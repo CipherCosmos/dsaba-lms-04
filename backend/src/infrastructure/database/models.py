@@ -210,6 +210,8 @@ class BatchInstanceModel(Base):
     batch_id = Column(Integer, ForeignKey("batches.id", ondelete="CASCADE"), nullable=False)  # Program type (B.Tech, MBA)
     admission_year = Column(Integer, nullable=False)
     current_semester = Column(Integer, nullable=False, default=1)  # Tracks batch progress (1-8)
+    current_year = Column(Integer, nullable=False, default=1)  # 1, 2, 3, 4 - year level of batch
+    expected_graduation_year = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -339,9 +341,6 @@ class SemesterModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # Keep batch_year_id for backward compatibility (optional) - FK removed
-    batch_year_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
-    
     # Relationships
     batch_instance = relationship("BatchInstanceModel", back_populates="semesters")
     academic_year = relationship("AcademicYearModel", back_populates="semesters")
@@ -446,11 +445,14 @@ class StudentModel(Base):
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"))
     
-    # Legacy fields (keep for backward compatibility) - FKs removed
-    batch_year_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
-    class_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
-    
     admission_date = Column(Date)
+    
+    # Year-level progression tracking
+    current_year_level = Column(Integer, nullable=False, default=1)  # 1, 2, 3, 4
+    expected_graduation_year = Column(Integer, nullable=True)
+    is_detained = Column(Boolean, default=False)
+    backlog_count = Column(Integer, default=0)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
@@ -464,6 +466,8 @@ class StudentModel(Base):
     enrollments = relationship("StudentEnrollmentModel", back_populates="student")
     internal_marks = relationship("InternalMarkModel", back_populates="student")
     promotion_history = relationship("PromotionHistoryModel", back_populates="student")
+    year_progression_history = relationship("StudentYearProgressionModel", back_populates="student", cascade="all, delete-orphan")
+
 
 
 class TeacherModel(Base):
@@ -541,7 +545,6 @@ class SubjectAssignmentModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete="CASCADE"), nullable=False)
-    class_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
     semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
     academic_year = Column(Integer, nullable=False)  # Keep for backward compatibility
     academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # New FK
@@ -1104,6 +1107,52 @@ class DepartmentSettingsModel(Base):
 # ============================================
 # Configure Relationships After All Models Defined
 # ============================================
+
+
+# ============================================================================
+# STUDENT YEAR PROGRESSION TRACKING
+# ============================================================================
+
+class StudentYearProgressionModel(Base):
+    """
+    Track student progression through academic year levels
+    
+    Year Level System:
+    - Year 1 (Level 1): Semesters 1-2
+    - Year 2 (Level 2): Semesters 3-4
+    - Year 3 (Level 3): Semesters 5-6
+    - Year 4 (Level 4): Semesters 7-8
+    """
+    __tablename__ = "student_year_progression"
+    __table_args__ = (
+        Index('idx_progression_student', 'student_id'),
+        Index('idx_progression_year', 'academic_year_id'),
+        Index('idx_progression_from_to', 'from_year_level', 'to_year_level'),
+    )
+    
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    from_year_level = Column(Integer, nullable=False)  # 1, 2, 3, 4 (or 0 for admission)
+    to_year_level = Column(Integer, nullable=False)    # 1, 2, 3, 4
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=False)
+    promotion_date = Column(Date, nullable=False, server_default=func.current_date())
+    promotion_type = Column(String(20), default='regular')  # regular, repeat, detained, promoted_with_backlogs
+    promoted_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
+    # Performance summary at time of promotion
+    cgpa = Column(DECIMAL(3, 2), nullable=True)
+    sgpa = Column(DECIMAL(3, 2), nullable=True)  # SGPA of last semester completed
+    total_credits_earned = Column(Integer, nullable=True)
+    backlogs_count = Column(Integer, default=0)
+    
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    student = relationship("StudentModel", back_populates="year_progression_history")
+    academic_year = relationship("AcademicYearModel")
+    promoter = relationship("UserModel", foreign_keys=[promoted_by])
+
 
 # Configure UserModel.user_roles relationship after all models are defined
 # This resolves the ambiguity with the granted_by foreign key

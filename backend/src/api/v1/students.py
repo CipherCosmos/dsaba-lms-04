@@ -146,16 +146,6 @@ async def get_student_semesters(
     if student.batch_instance_id:
         batch_instance_id = student.batch_instance_id
     elif student.batch_year_id:
-        # Legacy support: temporarily disabled
-        # TODO: Implement proper migration path for old batch_year data
-        # batch_repo = BatchRepository(db)
-        # batch_year_repo = BatchYearRepository(db)
-        # semester_repo = SemesterRepository(db)
-        # service = AcademicStructureService(batch_repo, batch_year_repo, semester_repo)
-        # semesters = await service.get_semesters_by_batch_year(student.batch_year_id)
-        # items = [SemesterResponse(**s.to_dict()) for s in semesters]
-        # return SemesterListResponse(
-        #     items=items,
         #     total=len(items),
         #     skip=skip,
         #     limit=limit

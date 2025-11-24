@@ -214,33 +214,6 @@ async def generate_student_report(
         )
 
 
-@router.get("/class/{class_id}", response_model=ReportResponse, deprecated=True)
-async def generate_class_report(
-    class_id: int,  # DEPRECATED parameter
-    subject_id: Optional[int] = Query(None, gt=0),
-    format: str = Query("json", pattern="^(json|pdf|excel)$"),
-    reports_service: ReportsService = Depends(get_reports_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    ⚠️ DEPRECATED: Generate class report (legacy)
-    
-    Use batch instance or semester-based reports instead.
-    """
-    try:
-        report = await reports_service.generate_class_analysis_report(
-            class_id=class_id,
-            subject_id=subject_id,
-            format_type=format
-        )
-        return ReportResponse(**report)
-    except EntityNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-
-
 @router.get("/co-po/{subject_id}", response_model=ReportResponse)
 async def generate_co_po_report(
     subject_id: int,

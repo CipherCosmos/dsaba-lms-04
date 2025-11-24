@@ -20,6 +20,9 @@ htmlcov/
 *.pyc
 *.pyo
 *.pyd
+.agent/*
+.agent/
+.cursor/*
 
 # Database files
 *.db

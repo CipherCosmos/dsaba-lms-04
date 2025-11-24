@@ -6,7 +6,6 @@ interface User {
   username: string
   email: string
   role: 'admin' | 'hod' | 'teacher' | 'student'
-  // Note: class_id removed - students are associated via StudentEnrollments
   first_name: string
   last_name: string
   full_name?: string

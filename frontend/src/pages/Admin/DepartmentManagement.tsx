@@ -14,6 +14,7 @@ import {
 import { fetchUsers } from '../../store/slices/userSlice'
 import { departmentAPI } from '../../services/api'
 import { Plus, Edit2, Trash2, Building, Users, GraduationCap, Search, X, UserCheck, UserX, Power, PowerOff } from 'lucide-react'
+import type { Department } from '../../core/types/api'
 
 const schema = yup.object({
   name: yup.string().required('Department name is required'),
@@ -59,26 +60,26 @@ const DepartmentManagement = () => {
   })
 
   // Filter departments
-  const filteredDepartments = departments.filter((dept: any) => {
-    const matchesSearch = 
+  const filteredDepartments = departments.filter((dept: Department) => {
+    const matchesSearch =
       dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dept.code.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || 
+
+    const matchesStatus = statusFilter === 'all' ||
       (statusFilter === 'active' && (dept.is_active ?? true)) ||
       (statusFilter === 'inactive' && !(dept.is_active ?? true))
-    
+
     const matchesHOD = hasHODFilter === 'all' ||
       (hasHODFilter === 'has' && dept.hod_id) ||
       (hasHODFilter === 'none' && !dept.hod_id)
-    
+
     return matchesSearch && matchesStatus && matchesHOD
   })
 
   // Calculate stats
   const stats = {
     total: departments.length,
-    active: departments.filter((d: any) => d.is_active ?? true).length,
+    active: departments.filter((d: Department) => d.is_active ?? true).length,
     inactive: departments.filter((d: any) => !(d.is_active ?? true)).length,
     withHOD: departments.filter((d: any) => d.hod_id).length,
     withoutHOD: departments.filter((d: any) => !d.hod_id).length,

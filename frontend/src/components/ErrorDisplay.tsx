@@ -1,5 +1,6 @@
 import React from 'react'
 import { AlertCircle, X } from 'lucide-react'
+import type { AxiosErrorResponse, ValidationErrorDetail } from '../core/types'
 
 interface ValidationError {
   field: string
@@ -7,8 +8,16 @@ interface ValidationError {
   type: string
 }
 
+function isAxiosError(error: unknown): error is AxiosErrorResponse {
+  return typeof error === 'object' && error !== null && 'response' in error
+}
+
+function isErrorObject(error: unknown): error is Error {
+  return error instanceof Error
+}
+
 interface ErrorDisplayProps {
-  error: any
+  error: AxiosErrorResponse | Error | string
   onClose?: () => void
   className?: string
 }
@@ -18,27 +27,33 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, onClose, className =
 
   // Handle different error formats
   let errors: ValidationError[] = []
-  
-  if (error.formattedErrors) {
-    errors = error.formattedErrors
-  } else if (error.response?.data?.detail) {
+
+  if ('formattedErrors' in error && Array.isArray((error as any).formattedErrors)) {
+    errors = (error as any).formattedErrors
+  } else if (isAxiosError(error) && error.response?.data?.detail) {
     if (Array.isArray(error.response.data.detail)) {
-      errors = error.response.data.detail.map((err: any) => ({
+      errors = error.response.data.detail.map((err: ValidationErrorDetail) => ({
         field: err.loc ? err.loc.join('.') : 'general',
         message: err.msg,
         type: err.type
       }))
-    } else {
+    } else if (typeof error.response.data.detail === 'string') {
       errors = [{
         field: 'general',
         message: error.response.data.detail,
         type: 'error'
       }]
     }
-  } else if (error.message) {
+  } else if (isErrorObject(error)) {
     errors = [{
       field: 'general',
       message: error.message,
+      type: 'error'
+    }]
+  } else if (typeof error === 'string') {
+    errors = [{
+      field: 'general',
+      message: error,
       type: 'error'
     }]
   }

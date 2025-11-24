@@ -5,6 +5,7 @@ CRUD operations and workflow management for Internal Marks
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional, List
+from pydantic import ValidationError
 
 from src.application.services.internal_marks_service import InternalMarksService
 from src.application.dto.internal_mark_dto import (

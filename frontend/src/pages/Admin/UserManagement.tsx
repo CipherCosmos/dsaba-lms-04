@@ -16,6 +16,7 @@ import { fetchClasses } from '../../store/slices/classSlice'
 import { userAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
 import { Plus, Edit2, Trash2, User, Mail, Shield, Search, Filter, Key, UserPlus, Users as UsersIcon, X, CheckCircle2, AlertCircle, Upload, Download, FileSpreadsheet } from 'lucide-react'
+import type { UserUpdateRequest } from '../../core/types/api'
 
 const schema = yup.object({
   username: yup.string().required('Username is required'),
@@ -93,7 +94,7 @@ const UserManagement = () => {
 
   const loadUsers = async () => {
     try {
-      const filters: any = {}
+      const filters: { is_active?: boolean } = {}
       if (statusFilter === 'active') filters.is_active = true
       if (statusFilter === 'inactive') filters.is_active = false
       
@@ -147,7 +148,7 @@ const UserManagement = () => {
   const onSubmit = useCallback(async (data: UserForm) => {
     try {
       if (editingUser) {
-        const updateData: any = { 
+        const updateData: UserUpdateRequest = { 
           first_name: data.first_name,
           last_name: data.last_name,
           email: data.email,

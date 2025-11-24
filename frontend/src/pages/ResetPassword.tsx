@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { authAPI } from '../services/api'
+import type { AxiosErrorResponse } from '../core/types'
 
 const schema = yup.object({
   new_password: yup
@@ -67,7 +68,7 @@ const ResetPassword = () => {
       setTimeout(() => {
         navigate('/login')
       }, 3000)
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       toast.error(error.response?.data?.detail || 'Failed to reset password')
     } finally {
       setIsSubmitting(false)
@@ -230,4 +231,3 @@ const ResetPassword = () => {
 }
 
 export default ResetPassword
-

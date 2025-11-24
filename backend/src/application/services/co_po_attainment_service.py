@@ -395,6 +395,198 @@ class COPOAttainmentService:
             "status": "calculated" if contributing_cos else "no_data"
         }
     
+    def calculate_student_co_attainment(
+        self,
+        student_id: int,
+        subject_id: int,
+        academic_year_id: Optional[int] = None,
+        semester_id: Optional[int] = None
+    ) -> Dict[str, Dict[str, any]]:
+        """
+        Calculate CO attainment for a specific student in a subject
+
+        Args:
+            student_id: Student ID
+            subject_id: Subject ID
+            academic_year_id: Optional academic year filter
+            semester_id: Optional semester filter
+
+        Returns:
+            Dictionary with student CO attainment data:
+            {
+                "CO1": {
+                    "co_code": "CO1",
+                    "co_title": "Understand basic concepts",
+                    "marks_obtained": 15.5,
+                    "max_marks": 20.0,
+                    "percentage": 77.5,
+                    "attainment_level": "L3",  # L1, L2, L3 based on thresholds
+                    "target_attainment": 70.0,
+                    "l1_threshold": 60.0,
+                    "l2_threshold": 70.0,
+                    "l3_threshold": 80.0,
+                    "attained": True
+                },
+                ...
+            }
+        """
+        # Get all COs for the subject
+        cos = self.db.query(CourseOutcomeModel).filter(
+            CourseOutcomeModel.subject_id == subject_id
+        ).all()
+
+        if not cos:
+            return {}
+
+        student_co_attainment = {}
+
+        for co in cos:
+            attainment_data = self._calculate_single_student_co_attainment(
+                student_id=student_id,
+                co=co,
+                subject_id=subject_id,
+                academic_year_id=academic_year_id,
+                semester_id=semester_id
+            )
+            student_co_attainment[co.code] = attainment_data
+
+        return student_co_attainment
+
+    def _calculate_single_student_co_attainment(
+        self,
+        student_id: int,
+        co: CourseOutcomeModel,
+        subject_id: int,
+        academic_year_id: Optional[int] = None,
+        semester_id: Optional[int] = None
+    ) -> Dict[str, any]:
+        """Calculate attainment for a single CO for a specific student"""
+
+        # Get all questions mapped to this CO
+        question_mappings = self.db.query(QuestionCOMappingModel).filter(
+            QuestionCOMappingModel.co_id == co.id
+        ).all()
+
+        if not question_mappings:
+            return {
+                "co_code": co.code,
+                "co_title": co.title,
+                "marks_obtained": 0.0,
+                "max_marks": 0.0,
+                "percentage": 0.0,
+                "attainment_level": "L1",
+                "target_attainment": float(co.target_attainment),
+                "l1_threshold": float(co.l1_threshold),
+                "l2_threshold": float(co.l2_threshold),
+                "l3_threshold": float(co.l3_threshold),
+                "attained": False,
+                "status": "no_mappings"
+            }
+
+        question_ids = [qm.question_id for qm in question_mappings]
+
+        # Get all marks for this student on these questions
+        marks_query = self.db.query(MarkModel).join(
+            QuestionModel, MarkModel.question_id == QuestionModel.id
+        ).join(
+            ExamModel, MarkModel.exam_id == ExamModel.id
+        ).join(
+            SubjectAssignmentModel, ExamModel.subject_assignment_id == SubjectAssignmentModel.id
+        ).filter(
+            MarkModel.question_id.in_(question_ids),
+            MarkModel.student_id == student_id,
+            SubjectAssignmentModel.subject_id == subject_id
+        )
+
+        # Apply filters if provided
+        if semester_id:
+            marks_query = marks_query.filter(
+                SubjectAssignmentModel.semester_id == semester_id
+            )
+
+        if academic_year_id:
+            marks_query = marks_query.filter(
+                SubjectAssignmentModel.academic_year_id == academic_year_id
+            )
+
+        marks = marks_query.all()
+
+        if not marks:
+            return {
+                "co_code": co.code,
+                "co_title": co.title,
+                "marks_obtained": 0.0,
+                "max_marks": 0.0,
+                "percentage": 0.0,
+                "attainment_level": "L1",
+                "target_attainment": float(co.target_attainment),
+                "l1_threshold": float(co.l1_threshold),
+                "l2_threshold": float(co.l2_threshold),
+                "l3_threshold": float(co.l3_threshold),
+                "attained": False,
+                "status": "no_marks"
+            }
+
+        # Calculate weighted marks for this student
+        total_marks_obtained = 0.0
+        total_max_marks = 0.0
+
+        for mark in marks:
+            question = self.db.query(QuestionModel).filter(
+                QuestionModel.id == mark.question_id
+            ).first()
+
+            if not question:
+                continue
+
+            # Get CO mapping weight
+            mapping = next((m for m in question_mappings if m.question_id == mark.question_id), None)
+            weight_pct = float(mapping.weight_pct) / 100.0 if mapping else 1.0
+
+            # Calculate weighted marks
+            marks_obtained = float(mark.marks_obtained) * weight_pct
+            max_marks = float(question.marks_per_question) * weight_pct
+
+            total_marks_obtained += marks_obtained
+            total_max_marks += max_marks
+
+        # Calculate percentage
+        percentage = 0.0
+        if total_max_marks > 0:
+            percentage = (total_marks_obtained / total_max_marks) * 100.0
+
+        # Determine attainment level based on thresholds
+        l1_threshold = float(co.l1_threshold)
+        l2_threshold = float(co.l2_threshold)
+        l3_threshold = float(co.l3_threshold)
+
+        if percentage >= l3_threshold:
+            attainment_level = "L3"
+        elif percentage >= l2_threshold:
+            attainment_level = "L2"
+        elif percentage >= l1_threshold:
+            attainment_level = "L1"
+        else:
+            attainment_level = "L1"  # Below L1 threshold
+
+        # Check if attained (met target attainment)
+        attained = percentage >= float(co.target_attainment)
+
+        return {
+            "co_code": co.code,
+            "co_title": co.title,
+            "marks_obtained": round(total_marks_obtained, 2),
+            "max_marks": round(total_max_marks, 2),
+            "percentage": round(percentage, 2),
+            "attainment_level": attainment_level,
+            "target_attainment": float(co.target_attainment),
+            "l1_threshold": l1_threshold,
+            "l2_threshold": l2_threshold,
+            "l3_threshold": l3_threshold,
+            "attained": attained,
+            "status": "calculated"
+        }
+
     def get_co_po_attainment_summary(
         self,
         department_id: int,

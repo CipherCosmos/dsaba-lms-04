@@ -140,9 +140,25 @@ class Settings(BaseSettings):
     SENTRY_DSN: Optional[str] = None
     SENTRY_ENVIRONMENT: str = "development"
     SENTRY_TRACES_SAMPLE_RATE: float = 1.0
-    
+
     PROMETHEUS_ENABLED: bool = False
     PROMETHEUS_PORT: int = 9090
+
+    # ============================================
+    # Audit Settings
+    # ============================================
+    AUDIT_API_REQUESTS: bool = True
+    AUDIT_SENSITIVE_DATA_ACCESS: bool = True
+    AUDIT_RETENTION_DAYS: int = 365  # Keep audit logs for 1 year
+
+    # ============================================
+    # Backup Settings
+    # ============================================
+    BACKUP_DIR: str = "backups"
+    BACKUP_RETENTION_DAYS: int = 30
+    BACKUP_SCHEDULE_ENABLED: bool = True
+    BACKUP_SCHEDULE_HOUR: int = 2  # 2 AM daily
+    BACKUP_COMPRESSION_ENABLED: bool = True
     
     # ============================================
     # Feature Flags

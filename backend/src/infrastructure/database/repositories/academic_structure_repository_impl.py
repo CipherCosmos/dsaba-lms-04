@@ -3,12 +3,12 @@ Academic Structure Repository Implementations
 SQLAlchemy implementations for Batch, BatchYear, Semester
 """
 
+import warnings
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 
 from src.domain.repositories.academic_structure_repository import (
     IBatchRepository,
-    IBatchYearRepository,
     ISemesterRepository,
     IBatchInstanceRepository,
     ISectionRepository
@@ -16,7 +16,7 @@ from src.domain.repositories.academic_structure_repository import (
 from src.domain.entities.academic_structure import Batch, BatchYear, Semester, BatchInstance, Section
 from src.domain.exceptions import EntityNotFoundError, EntityAlreadyExistsError
 
-from ..models import BatchModel, BatchYearModel, SemesterModel, BatchInstanceModel, SectionModel
+from ..models import BatchModel, SemesterModel, BatchInstanceModel, SectionModel
 
 
 class BatchRepository(IBatchRepository):
@@ -102,108 +102,6 @@ class BatchRepository(IBatchRepository):
         query = self.db.query(BatchModel)
         if filters and 'is_active' in filters:
             query = query.filter(BatchModel.is_active == filters['is_active'])
-        return query.count()
-
-
-class BatchYearRepository(IBatchYearRepository):
-    """SQLAlchemy implementation of batch year repository"""
-    
-    def __init__(self, db: Session):
-        self.db = db
-    
-    def _to_entity(self, model: BatchYearModel) -> Optional[BatchYear]:
-        if not model:
-            return None
-        return BatchYear(
-            id=model.id,
-            batch_id=model.batch_id,
-            start_year=model.start_year,
-            end_year=model.end_year,
-            is_current=model.is_current,
-            created_at=model.created_at
-        )
-    
-    def _to_model(self, entity: BatchYear) -> BatchYearModel:
-        return BatchYearModel(
-            id=entity.id,
-            batch_id=entity.batch_id,
-            start_year=entity.start_year,
-            end_year=entity.end_year,
-            is_current=entity.is_current
-        )
-    
-    async def get_by_id(self, id: int) -> Optional[BatchYear]:
-        model = self.db.query(BatchYearModel).filter(BatchYearModel.id == id).first()
-        return self._to_entity(model)
-    
-    async def get_by_batch(self, batch_id: int) -> List[BatchYear]:
-        models = self.db.query(BatchYearModel).filter(BatchYearModel.batch_id == batch_id).all()
-        return [self._to_entity(model) for model in models]
-    
-    async def get_current(self) -> Optional[BatchYear]:
-        model = self.db.query(BatchYearModel).filter(BatchYearModel.is_current == True).first()
-        return self._to_entity(model)
-    
-    async def get_by_years(self, start_year: int, end_year: int) -> Optional[BatchYear]:
-        model = self.db.query(BatchYearModel).filter(
-            BatchYearModel.start_year == start_year,
-            BatchYearModel.end_year == end_year
-        ).first()
-        return self._to_entity(model)
-    
-    async def get_all(self, skip: int = 0, limit: int = 100, filters: Optional[Dict[str, Any]] = None) -> List[BatchYear]:
-        query = self.db.query(BatchYearModel)
-        if filters:
-            if 'batch_id' in filters:
-                query = query.filter(BatchYearModel.batch_id == filters['batch_id'])
-            if 'is_current' in filters:
-                query = query.filter(BatchYearModel.is_current == filters['is_current'])
-        models = query.offset(skip).limit(limit).all()
-        return [self._to_entity(model) for model in models]
-    
-    async def create(self, entity: BatchYear) -> BatchYear:
-        # Check for duplicate
-        existing = await self.get_by_years(entity.start_year, entity.end_year)
-        if existing:
-            raise EntityAlreadyExistsError(
-                "BatchYear",
-                "start_year + end_year",
-                f"{entity.start_year}-{entity.end_year}"
-            )
-        model = self._to_model(entity)
-        self.db.add(model)
-        self.db.commit()
-        self.db.refresh(model)
-        return await self.get_by_id(model.id)
-    
-    async def update(self, entity: BatchYear) -> BatchYear:
-        model = self.db.query(BatchYearModel).filter(BatchYearModel.id == entity.id).first()
-        if not model:
-            raise EntityNotFoundError("BatchYear", entity.id)
-        model.batch_id = entity.batch_id
-        model.start_year = entity.start_year
-        model.end_year = entity.end_year
-        model.is_current = entity.is_current
-        self.db.commit()
-        self.db.refresh(model)
-        return await self.get_by_id(entity.id)
-    
-    async def delete(self, id: int) -> bool:
-        model = self.db.query(BatchYearModel).filter(BatchYearModel.id == id).first()
-        if not model:
-            return False
-        self.db.delete(model)
-        self.db.commit()
-        return True
-    
-    async def exists(self, id: int) -> bool:
-        return self.db.query(BatchYearModel).filter(BatchYearModel.id == id).count() > 0
-    
-    async def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
-        query = self.db.query(BatchYearModel)
-        if filters:
-            if 'batch_id' in filters:
-                query = query.filter(BatchYearModel.batch_id == filters['batch_id'])
         return query.count()
 
 

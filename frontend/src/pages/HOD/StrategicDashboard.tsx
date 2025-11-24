@@ -282,7 +282,7 @@ const StrategicDashboard: React.FC = () => {
     datasets: [
       {
         label: 'Current Status',
-        data: departmentalIntelligence?.compliance_monitoring?.current_status ? 
+        data: departmentalIntelligence?.compliance_monitoring?.current_status ?
           [
             departmentalIntelligence.compliance_monitoring.current_status.co_attainment || 0,
             departmentalIntelligence.compliance_monitoring.current_status.po_attainment || 0,
@@ -294,7 +294,7 @@ const StrategicDashboard: React.FC = () => {
       },
       {
         label: 'NBA Thresholds',
-        data: departmentalIntelligence?.compliance_monitoring?.nba_thresholds ? 
+        data: departmentalIntelligence?.compliance_monitoring?.nba_thresholds ?
           [
             departmentalIntelligence.compliance_monitoring.nba_thresholds.co_attainment || 0,
             departmentalIntelligence.compliance_monitoring.nba_thresholds.po_attainment || 0,
@@ -307,12 +307,16 @@ const StrategicDashboard: React.FC = () => {
     ]
   }
 
+  /**
+   * Longitudinal trends data structure for performance analytics over time.
+   * Each trend item contains semester identifier and performance metrics.
+   */
   const longitudinalTrendsData = {
-    labels: strategicPerformance?.longitudinal_trends?.map((t: any) => t.semester) || [],
+    labels: strategicPerformance?.longitudinal_trends?.map((t: { semester: string; overall_performance: number; co_attainment: number; po_attainment: number }) => t.semester) || [],
     datasets: [
       {
         label: 'Overall Performance',
-        data: strategicPerformance?.longitudinal_trends?.map((t: any) => t.overall_performance) || [],
+        data: strategicPerformance?.longitudinal_trends?.map((t: { semester: string; overall_performance: number; co_attainment: number; po_attainment: number }) => t.overall_performance) || [],
         borderColor: 'rgba(59, 130, 246, 1)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.4,
@@ -320,7 +324,7 @@ const StrategicDashboard: React.FC = () => {
       },
       {
         label: 'CO Attainment',
-        data: strategicPerformance?.longitudinal_trends?.map((t: any) => t.co_attainment) || [],
+        data: strategicPerformance?.longitudinal_trends?.map((t: { semester: string; overall_performance: number; co_attainment: number; po_attainment: number }) => t.co_attainment) || [],
         borderColor: 'rgba(34, 197, 94, 1)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         tension: 0.4,
@@ -328,7 +332,7 @@ const StrategicDashboard: React.FC = () => {
       },
       {
         label: 'PO Attainment',
-        data: strategicPerformance?.longitudinal_trends?.map((t: any) => t.po_attainment) || [],
+        data: strategicPerformance?.longitudinal_trends?.map((t: { semester: string; overall_performance: number; co_attainment: number; po_attainment: number }) => t.po_attainment) || [],
         borderColor: 'rgba(168, 85, 247, 1)',
         backgroundColor: 'rgba(168, 85, 247, 0.1)',
         tension: 0.4,

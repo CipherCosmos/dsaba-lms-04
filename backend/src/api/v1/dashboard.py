@@ -3,6 +3,7 @@ Dashboard API Endpoints
 System dashboard and statistics
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List
@@ -37,20 +38,24 @@ async def get_dashboard_stats(
 ) -> Dict[str, Any]:
     """
     Get dashboard statistics based on user role
-    
+
     Returns:
         Dictionary with role-specific statistics
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"get_dashboard_stats called by user {current_user.id}")
+
     try:
         # Check cache first
         from src.infrastructure.cache.redis_client import get_cache_service
         from src.shared.constants import CACHE_KEYS
         cache_service = get_cache_service()
-        
+
         # Get user's primary role
         primary_role = current_user.roles[0] if current_user.roles else None
+        logger.info(f"User primary role: {primary_role}")
         cache_key = None
-        
+
         if cache_service and cache_service.is_enabled:
             if primary_role == UserRole.ADMIN:
                 cache_key = cache_service.get_cache_key(CACHE_KEYS["dashboard"], user_id=current_user.id, role="admin")
@@ -63,19 +68,22 @@ async def get_dashboard_stats(
                 student = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
                 if student:
                     cache_key = cache_service.get_cache_key(CACHE_KEYS["dashboard"], user_id=current_user.id, role="student", student_id=student.id)
-            
+
             if cache_key:
                 cached = await cache_service.get(cache_key)
                 if cached:
+                    logger.info("Returning cached dashboard stats")
                     return cached
-        
+
         # Generate stats
+        logger.info(f"Generating fresh stats for role: {primary_role}")
         if primary_role == UserRole.ADMIN:
             stats = await _get_admin_dashboard_stats(db)
         elif primary_role == UserRole.HOD:
             # Get department_id from user's roles
             dept_id = current_user.department_ids[0] if current_user.department_ids else None
             if not dept_id:
+                logger.error(f"HOD user {current_user.id} has no department association")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="HOD user must be associated with a department"
@@ -87,6 +95,7 @@ async def get_dashboard_stats(
             # Get student profile
             student = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
             if not student:
+                logger.error(f"Student profile not found for user {current_user.id}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Student profile not found"
@@ -94,6 +103,7 @@ async def get_dashboard_stats(
             stats = await _get_student_dashboard_stats(db, student.id)
         else:
             # Default: return basic stats
+            logger.warning(f"Unknown role {primary_role} for user {current_user.id}, using admin stats")
             stats = await _get_admin_dashboard_stats(db)
         
         # Cache the result (5 minutes TTL)
@@ -247,16 +257,16 @@ async def _get_hod_dashboard_stats(db: Session, department_id: int) -> Dict[str,
         SubjectModel.department_id == department_id
     ).subquery()
     dept_subject_assignment_ids = db.query(SubjectAssignmentModel.id).filter(
-        SubjectAssignmentModel.subject_id.in_(select([dept_subject_ids.c.id]))
+        SubjectAssignmentModel.subject_id.in_(select(dept_subject_ids.c.id))
     ).subquery()
-    
+
     pending_approvals = db.query(InternalMarkModel).filter(
         and_(
-            InternalMarkModel.subject_assignment_id.in_(select([dept_subject_assignment_ids.c.id])),
+            InternalMarkModel.subject_assignment_id.in_(select(dept_subject_assignment_ids.c.id)),
             InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED
         )
     ).count()
-    
+
     # Get active exams (upcoming)
     active_exams = db.query(ExamModel).join(SubjectAssignmentModel).join(SubjectModel).filter(
         and_(
@@ -264,22 +274,22 @@ async def _get_hod_dashboard_stats(db: Session, department_id: int) -> Dict[str,
             ExamModel.exam_date >= datetime.utcnow().date()
         )
     ).distinct().count()
-    
+
     # Get recent submissions (last 7 days)
     recent_submissions = db.query(InternalMarkModel).filter(
         and_(
-            InternalMarkModel.subject_assignment_id.in_(select([dept_subject_assignment_ids.c.id])),
+            InternalMarkModel.subject_assignment_id.in_(select(dept_subject_assignment_ids.c.id)),
             InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED,
             InternalMarkModel.updated_at >= datetime.utcnow() - timedelta(days=7)
         )
     ).count()
-    
+
     # Get unassigned subjects
     unassigned_subjects = db.query(SubjectModel).filter(
         and_(
             SubjectModel.department_id == department_id,
             ~SubjectModel.id.in_(
-                select([SubjectAssignmentModel.subject_id]).distinct()
+                select(SubjectAssignmentModel.subject_id).distinct()
             )
         )
     ).count()
@@ -351,11 +361,12 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
     semester_ids_subq = db.query(SubjectAssignmentModel.semester_id).filter(
         SubjectAssignmentModel.teacher_id == teacher.id
     ).distinct().subquery()
-    
+
     # Count unique students via enrollments
     from src.infrastructure.database.models import StudentEnrollmentModel
+    from sqlalchemy import select
     total_students = db.query(StudentModel.id).join(StudentEnrollmentModel).filter(
-        StudentEnrollmentModel.semester_id.in_(select([semester_ids_subq.c.semester_id]))
+        StudentEnrollmentModel.semester_id.in_(select(semester_ids_subq.c.semester_id))
     ).distinct().count()
     
     # Get pending marks (exams without marks entered)
@@ -366,15 +377,15 @@ async def _get_teacher_dashboard_stats(db: Session, teacher_id: int) -> Dict[str
     # Get pending internal marks (draft state)
     pending_internal_marks = db.query(InternalMarkModel).filter(
         and_(
-            InternalMarkModel.subject_assignment_id.in_(select([teacher_assignment_ids.c.id])),
+            InternalMarkModel.subject_assignment_id.in_(select(teacher_assignment_ids.c.id)),
             InternalMarkModel.workflow_state == MarksWorkflowState.DRAFT
         )
     ).count()
-    
+
     # Get submitted internal marks awaiting approval
     submitted_marks = db.query(InternalMarkModel).filter(
         and_(
-            InternalMarkModel.subject_assignment_id.in_(select([teacher_assignment_ids.c.id])),
+            InternalMarkModel.subject_assignment_id.in_(select(teacher_assignment_ids.c.id)),
             InternalMarkModel.workflow_state == MarksWorkflowState.SUBMITTED
         )
     ).count()
@@ -431,8 +442,8 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
             MarkModel.student_id == student_id
         ).distinct().subquery()
         upcoming_exams_query = db.query(ExamModel).filter(
-            ExamModel.id.in_(select([semester_exam_ids_subq.c.id])),
-            ~ExamModel.id.in_(select([taken_exam_ids_subq.c.exam_id])),
+            ExamModel.id.in_(select(semester_exam_ids_subq.c.id)),
+            ~ExamModel.id.in_(select(taken_exam_ids_subq.c.exam_id)),
             ExamModel.exam_date >= datetime.utcnow().date()
         ).order_by(ExamModel.exam_date).limit(5)
         upcoming_exams = upcoming_exams_query.count()
@@ -444,19 +455,13 @@ async def _get_student_dashboard_stats(db: Session, student_id: int) -> Dict[str
                 "total_marks": exam.total_marks
             })
     
-    # Get recent exam results (last 5)
-    recent_exams = db.query(ExamModel).join(MarkModel).filter(
+    # Get recent exam results (last 5) - optimized to avoid N+1 queries
+    recent_results_query = db.query(ExamModel, MarkModel).join(MarkModel).filter(
         MarkModel.student_id == student_id
     ).order_by(desc(ExamModel.exam_date)).limit(5).all()
-    
+
     recent_results = []
-    for exam in recent_exams:
-        mark = db.query(MarkModel).filter(
-            and_(
-                MarkModel.exam_id == exam.id,
-                MarkModel.student_id == student_id
-            )
-        ).first()
+    for exam, mark in recent_results_query:
         if mark:
             recent_results.append({
                 "exam_id": exam.id,

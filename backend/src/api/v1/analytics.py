@@ -3,6 +3,7 @@ Analytics API Endpoints
 Analytics and CO/PO attainment calculations
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 
@@ -31,6 +32,7 @@ from src.infrastructure.database.repositories.subject_repository_impl import Sub
 from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models import QuestionModel
 from src.infrastructure.cache.redis_client import get_cache_service
+from src.api.middleware.rate_limiting import limiter
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
@@ -111,7 +113,7 @@ async def get_teacher_analytics(
         )
 
 
-@router.get("/class/{class_id}", response_model=ClassAnalyticsResponse)
+@router.get("/class/{class_id}", response_model=ClassAnalyticsResponse, deprecated=True)
 async def get_class_analytics(
     class_id: int,
     subject_id: Optional[int] = Query(None, gt=0),
@@ -119,12 +121,17 @@ async def get_class_analytics(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get class analytics
+    ⚠️ DEPRECATED: Get class analytics (legacy endpoint)
     
-    - **class_id**: Class ID
+    **This endpoint is deprecated.** Use batch instance or semester-based analytics instead.
+    Kept for backward compatibility with existing clients.
+    
+    Parameters:
+    - **class_id**: Legacy class ID (deprecated)
     - **subject_id**: Optional subject filter
     """
     try:
+        # TODO: Add response header 'Deprecation: true' and 'Sunset: 2026-01-01'
         analytics = await analytics_service.get_class_analytics(
             class_id=class_id,
             subject_id=subject_id
@@ -302,21 +309,25 @@ async def get_multi_dimensional_analytics(
 ):
     """
     Get multi-dimensional analytics with pivot queries
-    
+
     - **dim**: Dimension to analyze (year, semester, subject, class, teacher)
     - **filters**: Optional JSON string with additional filters
-    
+
     Returns pivot data for charts (bar/line)
     """
     import json
-    
+    logger = logging.getLogger(__name__)
+    logger.info(f"get_multi_dimensional_analytics called with dim={dim}, filters={filters}")
+
     try:
         # Parse filters if provided
         filter_dict = {}
         if filters:
             try:
                 filter_dict = json.loads(filters)
+                logger.info(f"Parsed filters: {filter_dict}")
             except json.JSONDecodeError:
+                logger.error(f"Invalid filters JSON: {filters}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid filters JSON"
@@ -424,44 +435,53 @@ async def get_multi_dimensional_analytics(
             }
         
         elif dim == "class":
+            logger.info("Processing class dimension analytics")
             # Group by batch instance (class)
             from src.infrastructure.database.models import (
                 FinalMarkModel, SemesterModel, BatchInstanceModel,
                 BatchModel, DepartmentModel, AcademicYearModel
             )
-            query = db.query(
-                BatchInstanceModel.id,
-                DepartmentModel.code,
-                BatchModel.name,
-                BatchInstanceModel.admission_year,
-                AcademicYearModel.display_name,
-                func.avg(FinalMarkModel.total).label('avg_total'),
-                func.count(FinalMarkModel.id).label('count')
-            ).join(
-                SemesterModel, FinalMarkModel.semester_id == SemesterModel.id
-            ).join(
-                BatchInstanceModel, SemesterModel.batch_instance_id == BatchInstanceModel.id
-            ).join(
-                DepartmentModel, BatchInstanceModel.department_id == DepartmentModel.id
-            ).join(
-                BatchModel, BatchInstanceModel.batch_id == BatchModel.id
-            ).join(
-                AcademicYearModel, BatchInstanceModel.academic_year_id == AcademicYearModel.id
-            )
-            
-            if filter_dict.get('department_id'):
-                query = query.filter(BatchInstanceModel.department_id == filter_dict['department_id'])
-            
-            if filter_dict.get('academic_year_id'):
-                query = query.filter(BatchInstanceModel.academic_year_id == filter_dict['academic_year_id'])
-            
-            results = query.group_by(
-                BatchInstanceModel.id,
-                DepartmentModel.code,
-                BatchModel.name,
-                BatchInstanceModel.admission_year,
-                AcademicYearModel.display_name
-            ).all()
+            try:
+                query = db.query(
+                    BatchInstanceModel.id,
+                    DepartmentModel.code,
+                    BatchModel.name,
+                    BatchInstanceModel.admission_year,
+                    AcademicYearModel.display_name,
+                    func.avg(FinalMarkModel.total).label('avg_total'),
+                    func.count(FinalMarkModel.id).label('count')
+                ).join(
+                    SemesterModel, FinalMarkModel.semester_id == SemesterModel.id
+                ).join(
+                    BatchInstanceModel, SemesterModel.batch_instance_id == BatchInstanceModel.id
+                ).join(
+                    DepartmentModel, BatchInstanceModel.department_id == DepartmentModel.id
+                ).join(
+                    BatchModel, BatchInstanceModel.batch_id == BatchModel.id
+                ).join(
+                    AcademicYearModel, BatchInstanceModel.academic_year_id == AcademicYearModel.id
+                )
+
+                if filter_dict.get('department_id'):
+                    query = query.filter(BatchInstanceModel.department_id == filter_dict['department_id'])
+                    logger.info(f"Applied department filter: {filter_dict['department_id']}")
+
+                if filter_dict.get('academic_year_id'):
+                    query = query.filter(BatchInstanceModel.academic_year_id == filter_dict['academic_year_id'])
+                    logger.info(f"Applied academic_year filter: {filter_dict['academic_year_id']}")
+
+                logger.info("Executing class dimension query")
+                results = query.group_by(
+                    BatchInstanceModel.id,
+                    DepartmentModel.code,
+                    BatchModel.name,
+                    BatchInstanceModel.admission_year,
+                    AcademicYearModel.display_name
+                ).all()
+                logger.info(f"Class dimension query returned {len(results)} results")
+            except Exception as e:
+                logger.error(f"Error in class dimension query: {str(e)}", exc_info=True)
+                raise
             
             return {
                 "dimension": "class",

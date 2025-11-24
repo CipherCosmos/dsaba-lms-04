@@ -9,6 +9,7 @@ import { dashboardAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
 import { Building, Users, BookOpen, GraduationCap, TrendingUp, AlertTriangle, Target, BarChart3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import type { Department } from '../../core/types/api'
 
 const AdminDashboard = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -279,7 +280,7 @@ const AdminDashboard = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Overview</h3>
         {dashboardStats?.statistics?.department_breakdown && dashboardStats.statistics.department_breakdown.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {dashboardStats.statistics.department_breakdown.map((dept: any) => (
+            {dashboardStats.statistics.department_breakdown.map((dept: Department) => (
               <Link key={dept.id} to={`/admin/departments/${dept.id}`} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all">
                 <h4 className="font-semibold text-gray-900 mb-2">{dept.name}</h4>
                 <p className="text-sm text-gray-600 mb-3">Code: {dept.code}</p>

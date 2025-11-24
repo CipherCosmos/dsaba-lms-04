@@ -114,5 +114,39 @@ class POAttainmentResponse(BaseModel):
     """PO attainment response DTO"""
     department_id: int
     subject_id: Optional[int]
+    academic_year_id: Optional[int]
+    semester_id: Optional[int]
     po_attainment: Dict[str, Any]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "department_id": 1,
+                "subject_id": None,
+                "academic_year_id": 1,
+                "semester_id": 1,
+                "po_attainment": {
+                    "1": {
+                        "po_code": "PO1",
+                        "po_title": "Engineering knowledge",
+                        "po_type": "technical",
+                        "target_attainment": 70.0,
+                        "actual_attainment": 72.5,
+                        "contributing_cos": [
+                            {
+                                "co_id": 1,
+                                "co_code": "CO1",
+                                "subject_name": "Data Structures",
+                                "mapping_strength": 3,
+                                "co_attainment": 75.0,
+                                "weighted_contribution": 22.5
+                            }
+                        ],
+                        "total_cos": 15,
+                        "attained": True,
+                        "status": "calculated"
+                    }
+                }
+            }
+        }
 

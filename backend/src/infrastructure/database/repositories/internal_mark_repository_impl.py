@@ -125,6 +125,9 @@ class InternalMarkRepository(IInternalMarkRepository):
         limit: int = 1000
     ) -> List[InternalMark]:
         """Get all marks in a specific workflow state with eager loading and pagination"""
+        # DEPRECATED: Using ClassModel for department filtering
+        # TODO: Migrate to use semester.batch_instance.department_id instead
+        # This join is kept for backward compatibility with assignments that have class_id
         from src.infrastructure.database.models import SubjectAssignmentModel, ClassModel
         
         query = self.db.query(InternalMarkModel).options(
@@ -141,7 +144,7 @@ class InternalMarkRepository(IInternalMarkRepository):
                 SubjectAssignmentModel,
                 InternalMarkModel.subject_assignment_id == SubjectAssignmentModel.id
             ).join(
-                ClassModel,
+                ClassModel,  # DEPRECATED: Legacy class-based filtering
                 SubjectAssignmentModel.class_id == ClassModel.id
             ).filter(ClassModel.department_id == department_id)
         

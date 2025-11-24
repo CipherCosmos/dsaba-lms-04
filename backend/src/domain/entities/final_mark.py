@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 from decimal import Decimal
 
 from .base import Entity
+from ..services.marks_validation_service import MarksValidationService
 
 
 class FinalMark(Entity):
@@ -115,17 +116,13 @@ class FinalMark(Entity):
     
     def _validate(self) -> None:
         """Validate final mark data"""
-        if self.grade not in self.GRADE_POINTS:
-            raise ValueError(f"Grade must be one of: {list(self.GRADE_POINTS.keys())}")
-        
-        if self.status not in ["draft", "published", "locked"]:
-            raise ValueError("Status must be draft, published, or locked")
-        
-        if float(self.internal_1) < 0 or float(self.internal_2) < 0:
-            raise ValueError("Internal marks cannot be negative")
-        
-        if float(self.external) < 0:
-            raise ValueError("External marks cannot be negative")
+        MarksValidationService.validate_final_mark_data(
+            self.grade,
+            self.status,
+            self.internal_1,
+            self.internal_2,
+            self.external
+        )
     
     def calculate_best_internal(self, method: str = "best") -> Decimal:
         """
@@ -210,9 +207,15 @@ class FinalMark(Entity):
     
     def publish(self) -> None:
         """Publish final marks"""
+        # Validate status transition
         if self.status == "locked":
-            raise ValueError("Cannot publish locked marks")
-        
+            from ..exceptions import ValidationError
+            raise ValidationError(
+                "Cannot publish locked marks",
+                field="status",
+                value=self.status
+            )
+
         self.status = "published"
         self.is_published = True
         self.published_at = datetime.utcnow()
@@ -232,7 +235,7 @@ class FinalMark(Entity):
     ) -> None:
         """
         Update marks and recalculate
-        
+
         Args:
             internal_1: New internal 1 marks
             internal_2: New internal 2 marks
@@ -240,17 +243,81 @@ class FinalMark(Entity):
             best_internal_method: Method for calculating best internal
         """
         if self.status == "locked":
-            raise ValueError("Cannot update locked marks")
-        
+            from ..exceptions import ValidationError
+            raise ValidationError(
+                "Cannot update locked marks",
+                field="status",
+                value=self.status
+            )
+
         if internal_1 is not None:
             self.internal_1 = internal_1
         if internal_2 is not None:
             self.internal_2 = internal_2
         if external is not None:
             self.external = external
-        
+
         # Recalculate best internal
         self.best_internal = self.calculate_best_internal(best_internal_method)
-        
+
         self.updated_at = datetime.utcnow()
+
+    def update_co_attainment(self, co_attainment: Dict[str, Any]) -> None:
+        """
+        Update CO attainment data
+
+        Args:
+            co_attainment: Dictionary containing CO attainment data for this student
+        """
+        if self.status == "locked":
+            from ..exceptions import ValidationError
+            raise ValidationError(
+                "Cannot update locked marks",
+                field="status",
+                value=self.status
+            )
+
+        self.co_attainment = co_attainment or {}
+        self.updated_at = datetime.utcnow()
+
+    def get_co_attainment_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of CO attainment data
+
+        Returns:
+            Dictionary with CO attainment summary
+        """
+        if not self.co_attainment:
+            return {
+                "total_cos": 0,
+                "attained_cos": 0,
+                "attainment_rate": 0.0,
+                "average_percentage": 0.0,
+                "co_levels": {"L1": 0, "L2": 0, "L3": 0}
+            }
+
+        total_cos = len(self.co_attainment)
+        attained_cos = sum(1 for co_data in self.co_attainment.values()
+                          if isinstance(co_data, dict) and co_data.get("attained", False))
+
+        percentages = [co_data.get("percentage", 0.0)
+                      for co_data in self.co_attainment.values()
+                      if isinstance(co_data, dict)]
+        average_percentage = sum(percentages) / len(percentages) if percentages else 0.0
+
+        # Count attainment levels
+        co_levels = {"L1": 0, "L2": 0, "L3": 0}
+        for co_data in self.co_attainment.values():
+            if isinstance(co_data, dict):
+                level = co_data.get("attainment_level", "L1")
+                if level in co_levels:
+                    co_levels[level] += 1
+
+        return {
+            "total_cos": total_cos,
+            "attained_cos": attained_cos,
+            "attainment_rate": round((attained_cos / total_cos * 100.0) if total_cos > 0 else 0.0, 2),
+            "average_percentage": round(average_percentage, 2),
+            "co_levels": co_levels
+        }
 

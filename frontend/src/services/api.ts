@@ -1,6 +1,42 @@
 import axios from 'axios'
 import { API_CONFIG } from '../config/api'
 import { logger } from '../core/utils/logger'
+import type {
+  SmartMarksCalculation,
+  SGPACalculation,
+  CGPACalculation,
+  GradingScale,
+  FinalMarksData,
+  COAttainment,
+  POAttainment,
+  COPOAttainmentSummary,
+  AttainmentTrend,
+  BloomsTaxonomyAnalysis,
+  PerformanceTrend,
+  DepartmentComparison,
+  StudentPerformanceAnalytics,
+  TeacherPerformanceAnalytics,
+  ClassPerformanceAnalytics,
+  SubjectAnalytics,
+  DepartmentAnalytics,
+  NBAAccreditationData,
+  ListResponse,
+  MessageResponse,
+  QueryParams,
+  DepartmentCreateRequest,
+  DepartmentUpdateRequest,
+  SubjectCreateRequest,
+  SubjectUpdateRequest,
+  UserCreateRequest,
+  UserUpdateRequest,
+  ExamCreateRequest,
+  ExamUpdateRequest,
+  QuestionCreateRequest,
+  QuestionUpdateRequest,
+  MarkCreateRequest,
+} from '../core/types/api'
+import type { ValidationErrorDetail } from '../core/types'
+import type { FormattedValidationError } from '../core/types'
 
 const apiClient = axios.create({
   baseURL: `${API_CONFIG.BASE_URL}/api/v1`,
@@ -51,7 +87,7 @@ apiClient.interceptors.response.use(
       const errorData = error.response.data
       if (errorData.detail && Array.isArray(errorData.detail)) {
         // Format validation errors for better display
-        const formattedErrors = errorData.detail.map((err: any) => ({
+        const formattedErrors: FormattedValidationError[] = errorData.detail.map((err: ValidationErrorDetail) => ({
           field: err.loc ? err.loc.join('.') : 'general',
           message: err.msg,
           type: err.type
@@ -117,7 +153,7 @@ export const authAPI = {
 
 export const departmentAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { is_active?: boolean; has_hod?: boolean }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.is_active !== undefined) params.is_active = filters.is_active
     if (filters?.has_hod !== undefined) params.has_hod = filters.has_hod
     const response = await apiClient.get('/departments', { params })
@@ -127,11 +163,11 @@ export const departmentAPI = {
     const response = await apiClient.get(`/departments/${id}`)
     return response.data
   },
-  create: async (department: any) => {
+  create: async (department: DepartmentCreateRequest) => {
     const response = await apiClient.post('/departments', department)
     return response.data
   },
-  update: async (id: number, department: any) => {
+  update: async (id: number, department: DepartmentUpdateRequest) => {
     const response = await apiClient.put(`/departments/${id}`, department)
     return response.data
   },
@@ -167,7 +203,7 @@ export const departmentAPI = {
 
 export const subjectAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { department_id?: number; is_active?: boolean }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.department_id) params.department_id = filters.department_id
     if (filters?.is_active !== undefined) params.is_active = filters.is_active
     const response = await apiClient.get('/subjects', { params })
@@ -183,11 +219,11 @@ export const subjectAPI = {
     })
     return response.data
   },
-  create: async (subject: any) => {
+  create: async (subject: SubjectCreateRequest) => {
     const response = await apiClient.post('/subjects', subject)
     return response.data
   },
-  update: async (id: number, subject: any) => {
+  update: async (id: number, subject: SubjectUpdateRequest) => {
     const response = await apiClient.put(`/subjects/${id}`, subject)
     return response.data
   },
@@ -210,7 +246,7 @@ export const subjectAPI = {
 
 export const userAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { is_active?: boolean; email_verified?: boolean }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.is_active !== undefined) params.is_active = filters.is_active
     if (filters?.email_verified !== undefined) params.email_verified = filters.email_verified
     const response = await apiClient.get('/users', { params })
@@ -220,11 +256,11 @@ export const userAPI = {
     const response = await apiClient.get(`/users/${id}`)
     return response.data
   },
-  create: async (user: any) => {
+  create: async (user: UserCreateRequest) => {
     const response = await apiClient.post('/users', user)
     return response.data
   },
-  update: async (id: number, user: any) => {
+  update: async (id: number, user: UserUpdateRequest) => {
     const response = await apiClient.put(`/users/${id}`, user)
     return response.data
   },
@@ -261,7 +297,7 @@ export const userAPI = {
     })
     return response.data
   },
-  bulkCreate: async (users: any[]) => {
+  bulkCreate: async (users: UserCreateRequest[]) => {
     try {
       const response = await apiClient.post('/users/bulk', { users }, {
         timeout: 120000, // 2 minutes timeout for bulk operations
@@ -270,7 +306,7 @@ export const userAPI = {
         }
       })
       return response.data
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Re-throw with more context
       if (error.code === 'ECONNABORTED') {
         throw new Error('Request timeout: Bulk operation took too long. Please try with fewer users.')
@@ -322,7 +358,7 @@ const getCacheBustingParams = () => ({
 })
 
 // Force fresh request utility
-const forceFreshRequest = (url: string, config: any = {}) => {
+const forceFreshRequest = (url: string, config: Record<string, unknown> = {}) => {
   const timestamp = new Date().getTime()
   const randomId = Math.random().toString(36).substring(2, 15)
   
@@ -350,7 +386,7 @@ export const examAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { status?: string; exam_type?: string; subject_assignment_id?: number }, forceRefresh = false) => {
     logger.debug('Fetching exams', forceRefresh ? '(force refresh)' : '')
     
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.status) params.status = filters.status
     if (filters?.exam_type) params.exam_type = filters.exam_type
     if (filters?.subject_assignment_id) params.subject_assignment_id = filters.subject_assignment_id
@@ -380,11 +416,11 @@ export const examAPI = {
     const response = await apiClient.get(`/exams/${id}`)
     return response.data
   },
-  create: async (exam: any) => {
+  create: async (exam: ExamCreateRequest) => {
     const response = await apiClient.post('/exams', exam)
     return response.data
   },
-  update: async (id: number, exam: any) => {
+  update: async (id: number, exam: ExamUpdateRequest) => {
     const response = await apiClient.put(`/exams/${id}`, exam)
     return response.data
   },
@@ -409,7 +445,7 @@ export const examAPI = {
 
 export const questionAPI = {
   getAll: async (examId: number, section?: 'A' | 'B' | 'C', skip: number = 0, limit: number = 100) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (section) params.section = section
     const response = await apiClient.get(`/questions/exam/${examId}`, { params })
     return response.data
@@ -418,11 +454,11 @@ export const questionAPI = {
     const response = await apiClient.get(`/questions/${questionId}`)
     return response.data
   },
-  create: async (question: any) => {
+  create: async (question: QuestionCreateRequest) => {
     const response = await apiClient.post('/questions', question)
     return response.data
   },
-  update: async (questionId: number, question: any) => {
+  update: async (questionId: number, question: QuestionUpdateRequest) => {
     const response = await apiClient.put(`/questions/${questionId}`, question)
     return response.data
   },
@@ -433,7 +469,7 @@ export const questionAPI = {
     const response = await apiClient.get(`/questions/${questionId}/co-mappings`)
     return response.data
   },
-  createCOMapping: async (mapping: any) => {
+  createCOMapping: async (mapping: { question_id: number; co_id: number; weight_pct: number }) => {
     const response = await apiClient.post('/questions/co-mapping', mapping)
     return response.data
   },
@@ -467,11 +503,11 @@ export const marksAPI = {
       lock_reason: exam.status === 'locked' ? 'Exam is locked' : exam.status === 'published' ? 'Exam is published' : null
     }
   },
-  create: async (mark: any) => {
+  create: async (mark: MarkCreateRequest) => {
     const response = await apiClient.post('/marks', mark)
     return response.data
   },
-  bulkCreate: async (examId: number, marks: any[]) => {
+  bulkCreate: async (examId: number, marks: MarkCreateRequest[]) => {
     const response = await apiClient.post('/marks/bulk', {
       exam_id: examId,
       marks
@@ -491,7 +527,7 @@ export const marksAPI = {
   },
   calculateStudentTotal: async (studentId: number, examId: number, questionMaxMarks: Record<number, number>, optionalQuestions?: number[]) => {
     // Backend expects question_max_marks as body and optional_questions as query param
-    const params: any = {}
+    const params: QueryParams = {}
     if (optionalQuestions) params.optional_questions = optionalQuestions
     const response = await apiClient.post(`/marks/student/${studentId}/exam/${examId}/calculate`, questionMaxMarks, {
       params
@@ -510,60 +546,70 @@ export const marksAPI = {
 }
 
 export const analyticsAPI = {
-  getStudentAnalytics: async (studentId: number, subjectId?: number) => {
-    const params: any = {}
+  getStudentAnalytics: async (studentId: number, subjectId?: number, semesterId?: number, academicYearId?: number): Promise<StudentPerformanceAnalytics> => {
+    const params: QueryParams = {}
     if (subjectId) params.subject_id = subjectId
+    if (semesterId) params.semester_id = semesterId
+    if (academicYearId) params.academic_year_id = academicYearId
     const response = await apiClient.get(`/analytics/student/${studentId}`, { params })
     return response.data
   },
-  getTeacherAnalytics: async (teacherId: number, subjectId?: number) => {
-    const params: any = {}
+  getTeacherAnalytics: async (teacherId: number, subjectId?: number, semesterId?: number, academicYearId?: number): Promise<TeacherPerformanceAnalytics> => {
+    const params: QueryParams = {}
     if (subjectId) params.subject_id = subjectId
+    if (semesterId) params.semester_id = semesterId
+    if (academicYearId) params.academic_year_id = academicYearId
     const response = await apiClient.get(`/analytics/teacher/${teacherId}`, { params })
     return response.data
   },
-  getHODAnalytics: async (departmentId: number) => {
-    const response = await apiClient.get(`/analytics/hod/department/${departmentId}`)
+  getHODAnalytics: async (departmentId: number, academicYearId?: number): Promise<DepartmentAnalytics> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get(`/analytics/hod/department/${departmentId}`, { params })
     return response.data
   },
-  getClassAnalytics: async (classId: number, subjectId?: number) => {
-    const params: any = {}
+  /**
+   * @deprecated LEGACY-COMPATIBLE: Backend still supports class-based analytics
+   * TODO: Migrate to batch_instance_id/semester_id based analytics when backend supports
+   */
+  getClassAnalytics: async (classId: number, subjectId?: number): Promise<ClassPerformanceAnalytics> => {
+    const params: QueryParams = {}
     if (subjectId) params.subject_id = subjectId
     const response = await apiClient.get(`/analytics/class/${classId}`, { params })
     return response.data
   },
-  getSubjectAnalytics: async (subjectId: number, classId?: number) => {
-    const params: any = {}
-    if (classId) params.class_id = classId
-    const response = await apiClient.get(`/analytics/subject/${subjectId}`, { params })
-    return response.data
-  },
-  getStrategicDashboardData: async (departmentId: number) => {
+  getStrategicDashboardData: async (departmentId: number): Promise<DepartmentAnalytics> => {
     // Use HOD analytics endpoint
     const response = await apiClient.get(`/analytics/hod/department/${departmentId}`)
     return response.data
   },
-  getCOAttainment: async (subjectId: number, examType?: 'internal1' | 'internal2' | 'external' | 'all') => {
-    const params: any = {}
+  getCOAttainment: async (subjectId: number, examType?: 'internal1' | 'internal2' | 'external' | 'all', semesterId?: number, academicYearId?: number): Promise<COAttainment[]> => {
+    const params: QueryParams = {}
     if (examType) params.exam_type = examType
+    if (semesterId) params.semester_id = semesterId
+    if (academicYearId) params.academic_year_id = academicYearId
     const response = await apiClient.get(`/analytics/co-attainment/subject/${subjectId}`, { params })
     return response.data
   },
-  getPOAttainment: async (departmentId: number, subjectId?: number) => {
-    const params: any = {}
+  getPOAttainment: async (departmentId: number, subjectId?: number, academicYearId?: number, semesterId?: number): Promise<POAttainment[]> => {
+    const params: QueryParams = {}
     if (subjectId) params.subject_id = subjectId
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (semesterId) params.semester_id = semesterId
     const response = await apiClient.get(`/analytics/po-attainment/department/${departmentId}`, { params })
     return response.data
   },
-  getBloomsAnalysis: async (examId?: number, subjectId?: number) => {
-    const params: any = {}
+  getBloomsAnalysis: async (examId?: number, subjectId?: number, semesterId?: number, departmentId?: number): Promise<BloomsTaxonomyAnalysis> => {
+    const params: QueryParams = {}
     if (examId) params.exam_id = examId
     if (subjectId) params.subject_id = subjectId
+    if (semesterId) params.semester_id = semesterId
+    if (departmentId) params.department_id = departmentId
     const response = await apiClient.get('/analytics/blooms', { params })
     return response.data
   },
-  getMultiDimensionalAnalytics: async (dimension: 'year' | 'semester' | 'subject' | 'class' | 'teacher', filters?: Record<string, any>) => {
-    const params: any = { dim: dimension }
+  getMultiDimensionalAnalytics: async (dimension: 'year' | 'semester' | 'subject' | 'class' | 'teacher', filters?: Record<string, string | number | boolean | undefined>): Promise<unknown> => {
+    const params: QueryParams = { dim: dimension }
     if (filters) {
       params.filters = JSON.stringify(filters)
     }
@@ -571,9 +617,9 @@ export const analyticsAPI = {
     return response.data
   },
   // These endpoints may not exist in backend - using available endpoints instead
-  getStudentPerformance: async (subjectId: number, studentId?: number, examType?: string) => {
+  getStudentPerformance: async (subjectId: number, studentId?: number, examType?: string): Promise<StudentPerformanceAnalytics> => {
     // Use student analytics with subject filter
-    const params: any = {}
+    const params: QueryParams = {}
     if (subjectId) params.subject_id = subjectId
     if (studentId) {
       const response = await apiClient.get(`/analytics/student/${studentId}`, { params })
@@ -583,21 +629,14 @@ export const analyticsAPI = {
     const response = await apiClient.get(`/analytics/subject/${subjectId}`)
     return response.data
   },
-  getClassPerformance: async (subjectId: number, classId?: number, examType?: string) => {
-    // Use class analytics or subject analytics
-    if (classId) {
-      const params: any = { subject_id: subjectId }
-      const response = await apiClient.get(`/analytics/class/${classId}`, { params })
-      return response.data
-    }
-    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
+  getClassPerformance: async (subjectId: number, batchInstanceId?: number, examType?: string): Promise<ClassPerformanceAnalytics> => {
+    // Use subject analytics with batch instance filter
+    const params: QueryParams = {}
+    if (batchInstanceId) params.batch_instance_id = batchInstanceId
+    const response = await apiClient.get(`/analytics/subject/${subjectId}`, { params })
     return response.data
   },
-  getCOPOMapping: async (subjectId: number) => {
-    const response = await apiClient.get(`/analytics/co-po-mapping/${subjectId}`)
-    return response.data
-  },
-  generateReport: async (type: string, filters: any, format: string = 'pdf') => {
+  generateReport: async (type: string, filters: Record<string, string | number | boolean | undefined>, format: string = 'pdf'): Promise<Blob> => {
     const response = await apiClient.post('/reports/generate', {
       report_type: type,
       filters,
@@ -607,9 +646,199 @@ export const analyticsAPI = {
     })
     return response.data
   },
-  getReportTemplates: async () => {
+  getReportTemplates: async (): Promise<unknown> => {
     const response = await apiClient.get('/reports/templates')
     return response.data
+  },
+
+  /**
+   * Get Bloom's Taxonomy analysis for questions and performance
+   * Analyzes distribution across 6 cognitive levels (L1-L6)
+   */
+  getBloomsTaxonomyAnalysis: async (subjectId?: number, departmentId?: number, semesterId?: number, examId?: number): Promise<BloomsTaxonomyAnalysis> => {
+    const params: QueryParams = {}
+    if (subjectId) params.subject_id = subjectId
+    if (departmentId) params.department_id = departmentId
+    if (semesterId) params.semester_id = semesterId
+    if (examId) params.exam_id = examId
+    const response = await apiClient.get('/enhanced-analytics/blooms-taxonomy', {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get performance trends over time
+   * Shows marks trends, pass rates, and attainment trends
+   */
+  getPerformanceTrends: async (studentId?: number, subjectId?: number, departmentId?: number, months?: number): Promise<PerformanceTrend[]> => {
+    const params: QueryParams = {}
+    if (studentId) params.student_id = studentId
+    if (subjectId) params.subject_id = subjectId
+    if (departmentId) params.department_id = departmentId
+    if (months) params.months = months
+    const response = await apiClient.get('/enhanced-analytics/performance-trends', {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Compare performance across departments
+   * Useful for HOD/Principal dashboards
+   */
+  getDepartmentComparison: async (academicYearId?: number, semesterId?: number): Promise<DepartmentComparison> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (semesterId) params.semester_id = semesterId
+    const response = await apiClient.get('/enhanced-analytics/department-comparison', {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get comprehensive student performance analytics
+   * Includes marks, attainment, strengths, weaknesses, trends
+   */
+  getStudentPerformanceAnalytics: async (studentId: number, academicYearId?: number): Promise<StudentPerformanceAnalytics> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get(`/enhanced-analytics/student/${studentId}/performance`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get comprehensive teacher performance analytics
+   * Includes class performance, teaching effectiveness, CO attainment
+   */
+  getTeacherPerformanceAnalytics: async (teacherId: number, academicYearId?: number, semesterId?: number): Promise<TeacherPerformanceAnalytics> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (semesterId) params.semester_id = semesterId
+    const response = await apiClient.get(`/enhanced-analytics/teacher/${teacherId}/performance`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get class/batch instance performance analytics
+   */
+  getClassPerformanceAnalytics: async (batchInstanceId: number, semesterId?: number, subjectId?: number): Promise<ClassPerformanceAnalytics> => {
+    const params: QueryParams = {}
+    if (semesterId) params.semester_id = semesterId
+    if (subjectId) params.subject_id = subjectId
+    const response = await apiClient.get(`/enhanced-analytics/class/${batchInstanceId}/performance`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get subject-level analytics
+   * Includes performance distribution, CO attainment, question analysis
+   */
+  getSubjectAnalytics: async (subjectId: number, semesterId?: number, batchInstanceId?: number, includeBloomAnalysis?: boolean): Promise<SubjectAnalytics> => {
+    const params: QueryParams = {}
+    if (semesterId) params.semester_id = semesterId
+    if (batchInstanceId) params.batch_instance_id = batchInstanceId
+    if (includeBloomAnalysis) params.include_bloom_analysis = includeBloomAnalysis
+    const response = await apiClient.get(`/enhanced-analytics/subject/${subjectId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get department-level analytics
+   * Includes overall performance, PO attainment, teacher comparison
+   */
+  getDepartmentAnalytics: async (departmentId: number, academicYearId?: number, includePOAttainment?: boolean, includeTrends?: boolean): Promise<DepartmentAnalytics> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (includePOAttainment) params.include_po_attainment = includePOAttainment
+    if (includeTrends) params.include_trends = includeTrends
+    const response = await apiClient.get(`/enhanced-analytics/department/${departmentId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get NBA accreditation report data
+   * Formatted specifically for NBA requirements
+   */
+  getNBAAccreditationData: async (departmentId: number, academicYearId: number, includeIndirectAttainment?: boolean): Promise<NBAAccreditationData> => {
+    const params: QueryParams = {
+      academic_year_id: academicYearId
+    }
+    if (includeIndirectAttainment) params.include_indirect_attainment = includeIndirectAttainment
+    const response = await apiClient.get(`/enhanced-analytics/nba/${departmentId}`, {
+      params
+    })
+    return response.data
+  },
+
+  /**
+   * Get subject attainment (from attainmentAnalyticsAPI)
+   */
+  getSubjectAttainment: async (subjectId: number, examType?: string): Promise<SubjectAnalytics> => {
+    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
+    return response.data
+  },
+
+  /**
+   * Get student attainment (from attainmentAnalyticsAPI)
+   */
+  getStudentAttainment: async (studentId: number, subjectId: number): Promise<StudentPerformanceAnalytics> => {
+    const response = await apiClient.get(`/analytics/student/${studentId}`)
+    return response.data
+  },
+
+  /**
+   * Get class attainment (from attainmentAnalyticsAPI)
+   */
+  getClassAttainment: async (classId: number, term?: string): Promise<ClassPerformanceAnalytics> => {
+    const response = await apiClient.get(`/analytics/class/${classId}`)
+    return response.data
+  },
+
+  /**
+   * Get program attainment (from attainmentAnalyticsAPI)
+   */
+  getProgramAttainment: async (departmentId: number, year?: number): Promise<DepartmentAnalytics> => {
+    const response = await apiClient.get(`/analytics/hod/department/${departmentId}`)
+    return response.data
+  },
+
+  /**
+   * Get blueprint validation (from attainmentAnalyticsAPI)
+   */
+  getBlueprintValidation: async (subjectId: number): Promise<SubjectAnalytics> => {
+    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
+    return response.data
+  },
+
+  /**
+   * Get CO-PO mapping (from attainmentAnalyticsAPI)
+   */
+  getCOPOMapping: async (subjectId: number): Promise<Array<{ co_id: number; co_code: string; mappings: unknown[] }>> => {
+    const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
+    const cos = cosResponse.data.items || []
+
+    const mappings = await Promise.all(
+      cos.map((co: { id: number; code: string }) =>
+        apiClient.get(`/co-po-mappings/co/${co.id}`).then((r: { data: { items?: unknown[] } }) => ({
+          co_id: co.id,
+          co_code: co.code,
+          mappings: r.data.items || []
+        }))
+      )
+    )
+    return mappings
   },
 }
 
@@ -663,11 +892,11 @@ export const fileAPI = {
 
 // Reports API
 export const reportsAPI = {
-  getTypes: async () => {
+  getTypes: async (): Promise<unknown> => {
     const response = await apiClient.get('/reports/types')
     return response.data
   },
-  generateReport: async (reportType: string, filters: any, format: string = 'pdf') => {
+  generateReport: async (reportType: string, filters: Record<string, string | number | boolean | undefined>, format: string = 'pdf'): Promise<unknown> => {
     const response = await apiClient.post('/reports/generate', {
       report_type: reportType,
       filters,
@@ -675,20 +904,27 @@ export const reportsAPI = {
     })
     return response.data
   },
-  getStudentReport: async (studentId: number, subjectId?: number, format: string = 'json') => {
-    const params: any = { format }
+  getStudentReport: async (studentId: number, subjectId?: number, semesterId?: number, format: string = 'json'): Promise<unknown> => {
+    const params: QueryParams = { format }
     if (subjectId) params.subject_id = subjectId
+    if (semesterId) params.semester_id = semesterId
     const response = await apiClient.get(`/reports/student/${studentId}`, { params, responseType: format === 'pdf' ? 'blob' : 'json' })
     return response.data
   },
-  getClassReport: async (classId: number, subjectId?: number, format: string = 'json') => {
-    const params: any = { format }
+  /**
+   * @deprecated LEGACY-COMPATIBLE: Backend still supports class-based reports
+   * TODO: Migrate to batch_instance_id/semester_id based reports when backend supports
+   */
+  getClassReport: async (classId: number, subjectId?: number, format: string = 'json'): Promise<unknown> => {
+    const params: QueryParams = { format }
     if (subjectId) params.subject_id = subjectId
     const response = await apiClient.get(`/reports/class/${classId}`, { params, responseType: format === 'pdf' ? 'blob' : 'json' })
     return response.data
   },
-  getCOPOReport: async (subjectId: number, format: string = 'json') => {
-    const params = { format }
+  getCOPOReport: async (subjectId: number, examType?: string, semesterId?: number, format: string = 'json'): Promise<unknown> => {
+    const params: QueryParams = { format }
+    if (examType) params.exam_type = examType
+    if (semesterId) params.semester_id = semesterId
     const response = await apiClient.get(`/reports/co-po/${subjectId}`, { params, responseType: format === 'pdf' ? 'blob' : 'json' })
     return response.data
   },
@@ -706,11 +942,11 @@ export const coAPI = {
     const response = await apiClient.get(`/course-outcomes/${coId}`)
     return response.data
   },
-  create: async (coData: any) => {
+  create: async (coData: { subject_id: number; code: string; description: string; bloom_level: 1 | 2 | 3; target_attainment: number; l1_threshold: number; l2_threshold: number; l3_threshold: number }) => {
     const response = await apiClient.post('/course-outcomes', coData)
     return response.data
   },
-  update: async (coId: number, coData: any) => {
+  update: async (coId: number, coData: Partial<{ code: string; description: string; bloom_level: 1 | 2 | 3; target_attainment: number; l1_threshold: number; l2_threshold: number; l3_threshold: number }>) => {
     const response = await apiClient.put(`/course-outcomes/${coId}`, coData)
     return response.data
   },
@@ -721,7 +957,7 @@ export const coAPI = {
 
 export const poAPI = {
   getByDepartment: async (departmentId: number, poType?: 'PO' | 'PSO', skip: number = 0, limit: number = 100) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (poType) params.po_type = poType
     const response = await apiClient.get(`/program-outcomes/department/${departmentId}`, { params })
     return response.data
@@ -730,11 +966,11 @@ export const poAPI = {
     const response = await apiClient.get(`/program-outcomes/${poId}`)
     return response.data
   },
-  create: async (poData: any) => {
+  create: async (poData: { department_id: number; code: string; description: string; po_type: 'PO' | 'PSO'; target_attainment: number }) => {
     const response = await apiClient.post('/program-outcomes', poData)
     return response.data
   },
-  update: async (poId: number, poData: any) => {
+  update: async (poId: number, poData: Partial<{ code: string; description: string; po_type: 'PO' | 'PSO'; target_attainment: number }>) => {
     const response = await apiClient.put(`/program-outcomes/${poId}`, poData)
     return response.data
   },
@@ -749,10 +985,10 @@ export const coTargetAPI = {
     const response = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
     return response.data
   },
-  bulkUpdate: async (subjectId: number, coTargets: any[]) => {
+  bulkUpdate: async (subjectId: number, coTargets: Array<{ co_id: number; target_attainment: number; l1_threshold: number; l2_threshold: number; l3_threshold: number }>) => {
     // Update each CO's target_attainment individually
     const updates = await Promise.all(
-      coTargets.map((target: any) =>
+      coTargets.map((target) =>
         apiClient.put(`/course-outcomes/${target.co_id}`, {
           target_attainment: target.target_attainment,
           l1_threshold: target.l1_threshold,
@@ -761,7 +997,7 @@ export const coTargetAPI = {
         })
       )
     )
-    return updates.map((r: any) => r.data)
+    return updates.map((r) => r.data)
   },
 }
 
@@ -775,7 +1011,7 @@ export const assessmentWeightAPI = {
       max_external: subject.max_external || 0
     }
   },
-  bulkUpdate: async (subjectId: number, assessmentWeights: any[]) => {
+  bulkUpdate: async (subjectId: number, assessmentWeights: Array<{ max_internal: number; max_external: number }>) => {
     // Update subject marks distribution
     const subject = assessmentWeights[0] || {}
     const response = await apiClient.put(`/subjects/${subjectId}/marks`, {
@@ -833,7 +1069,7 @@ export const coPoMatrixAPI = {
   delete: async (mappingId: number) => {
     await apiClient.delete(`/co-po-mappings/${mappingId}`)
   },
-  bulkUpdate: async (subjectId: number, coPoMatrix: any[]) => {
+  bulkUpdate: async (subjectId: number, coPoMatrix: Array<{ co_id: number; mappings?: Array<{ po_id: number; strength?: 1 | 2 | 3; correlation_level?: 'high' | 'medium' | 'low' }> }>) => {
     // Get COs for subject first
     const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
     // Backend returns COListResponse with items array (standardized format)
@@ -842,7 +1078,7 @@ export const coPoMatrixAPI = {
     // For each CO in the matrix, update/create/delete mappings
     const results = []
     for (const matrixItem of coPoMatrix) {
-      const co = cos.find((c: any) => c.id === matrixItem.co_id)
+      const co = cos.find((c: { id: number }) => c.id === matrixItem.co_id)
       if (!co) continue
       
       // Get existing mappings for this CO
@@ -851,7 +1087,7 @@ export const coPoMatrixAPI = {
       
       // Process updates (existing mappings)
       for (const mapping of matrixItem.mappings || []) {
-        const existing = existingMappings.find((m: any) => m.po_id === mapping.po_id)
+        const existing = existingMappings.find((m: { po_id: number }) => m.po_id === mapping.po_id)
         if (existing) {
           // Update existing mapping - backend uses strength (1-3)
           const strength = mapping.strength || (mapping.correlation_level === 'high' ? 3 : mapping.correlation_level === 'medium' ? 2 : 1)
@@ -872,10 +1108,10 @@ export const coPoMatrixAPI = {
       }
       
       // Delete mappings that are no longer in the matrix
-      const newPoIds = new Set((matrixItem.mappings || []).map((m: any) => m.po_id))
+      const newPoIds = new Set((matrixItem.mappings || []).map((m) => m.po_id))
       for (const existing of existingMappings) {
-        if (!newPoIds.has(existing.po_id)) {
-          await apiClient.delete(`/co-po-mappings/${existing.id}`)
+        if (!newPoIds.has((existing as { po_id: number }).po_id)) {
+          await apiClient.delete(`/co-po-mappings/${(existing as { id: number }).id}`)
         }
       }
     }
@@ -889,14 +1125,14 @@ export const questionCoWeightAPI = {
     const response = await apiClient.get(`/questions/${questionId}/co-mappings`)
     return response.data
   },
-  bulkUpdate: async (questionId: number, coMappings: any[]) => {
+  bulkUpdate: async (questionId: number, coMappings: Array<{ co_id: number; weight_pct: number }>) => {
     // Delete existing mappings
     const existingResponse = await apiClient.get(`/questions/${questionId}/co-mappings`)
     // Backend returns COPOMappingListResponse with items array (standardized format)
     const existing = existingResponse.data.items || []
     
     await Promise.all(
-      existing.map((mapping: any) =>
+      existing.map((mapping: { co_id: number }) =>
         apiClient.delete(`/questions/co-mapping/${questionId}/${mapping.co_id}`)
       )
     )
@@ -916,34 +1152,133 @@ export const questionCoWeightAPI = {
 }
 
 // Indirect attainment API
-// Note: Indirect attainment (surveys, exit exams, etc.) is a future enhancement
-// This API is reserved for future implementation when indirect assessment methods are added
-// Currently returns empty data to prevent errors in components that reference it
+// Now implemented with full survey and exit exam functionality
 export const indirectAttainmentAPI = {
+  // Legacy endpoint - returns empty array for backward compatibility
   getBySubject: async (subjectId: number) => {
-    // Future: GET /indirect-attainment/subject/{subject_id}
-    // Returns indirect attainment data (surveys, exit exams, etc.)
-    // For now, return empty array to prevent errors
-    logger.info('Indirect attainment API not yet implemented - returning empty data', { subjectId })
-    return []
+    try {
+      const response = await apiClient.get(`/indirect-attainment/subject/${subjectId}`)
+      return response.data
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      logger.warn('Indirect attainment by subject API failed, returning empty data', { subjectId, error: errorMessage })
+      return []
+    }
   },
-  create: async (subjectId: number, attainmentData: any) => {
-    // Future: POST /indirect-attainment
-    // Creates indirect attainment record
-    logger.warn('Indirect attainment create API not yet implemented', { subjectId })
-    throw new Error('Indirect attainment API is a future enhancement and not yet implemented')
+
+  // Survey management
+  getSurveys: async (departmentId?: number, skip: number = 0, limit: number = 100) => {
+    const params: QueryParams = { skip, limit }
+    if (departmentId) params.department_id = departmentId
+    const response = await apiClient.get('/indirect-attainment/surveys', { params })
+    return response.data
   },
-  update: async (attainmentId: number, attainmentData: any) => {
-    // Future: PUT /indirect-attainment/{id}
-    // Updates indirect attainment record
-    logger.warn('Indirect attainment update API not yet implemented', { attainmentId })
-    throw new Error('Indirect attainment API is a future enhancement and not yet implemented')
+
+  getActiveSurveys: async (departmentId: number, academicYearId?: number) => {
+    const params: QueryParams = { department_id: departmentId }
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get('/indirect-attainment/surveys/active', { params })
+    return response.data
   },
+
+  getSurvey: async (surveyId: number) => {
+    const response = await apiClient.get(`/indirect-attainment/surveys/${surveyId}`)
+    return response.data
+  },
+
+  createSurvey: async (surveyData: Record<string, unknown>) => {
+    const response = await apiClient.post('/indirect-attainment/surveys', surveyData)
+    return response.data
+  },
+
+  updateSurvey: async (surveyId: number, surveyData: Record<string, unknown>) => {
+    const response = await apiClient.put(`/indirect-attainment/surveys/${surveyId}`, surveyData)
+    return response.data
+  },
+
+  deleteSurvey: async (surveyId: number) => {
+    await apiClient.delete(`/indirect-attainment/surveys/${surveyId}`)
+  },
+
+  submitSurveyResponse: async (surveyId: number, responses: unknown[]) => {
+    const response = await apiClient.post(`/indirect-attainment/surveys/${surveyId}/responses`, responses)
+    return response.data
+  },
+
+  getSurveyAnalytics: async (surveyId: number) => {
+    const response = await apiClient.get(`/indirect-attainment/surveys/${surveyId}/analytics`)
+    return response.data
+  },
+
+  // Exit exam management
+  getExitExams: async (departmentId?: number, skip: number = 0, limit: number = 100) => {
+    const params: QueryParams = { skip, limit }
+    if (departmentId) params.department_id = departmentId
+    const response = await apiClient.get('/indirect-attainment/exit-exams', { params })
+    return response.data
+  },
+
+  getActiveExitExams: async (departmentId: number, academicYearId?: number) => {
+    const params: QueryParams = { department_id: departmentId }
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get('/indirect-attainment/exit-exams/active', { params })
+    return response.data
+  },
+
+  getExitExam: async (examId: number) => {
+    const response = await apiClient.get(`/indirect-attainment/exit-exams/${examId}`)
+    return response.data
+  },
+
+  createExitExam: async (examData: Record<string, unknown>) => {
+    const response = await apiClient.post('/indirect-attainment/exit-exams', examData)
+    return response.data
+  },
+
+  updateExitExam: async (examId: number, examData: Record<string, unknown>) => {
+    const response = await apiClient.put(`/indirect-attainment/exit-exams/${examId}`, examData)
+    return response.data
+  },
+
+  deleteExitExam: async (examId: number) => {
+    await apiClient.delete(`/indirect-attainment/exit-exams/${examId}`)
+  },
+
+  submitExitExamResult: async (examId: number, resultData: Record<string, unknown>) => {
+    const response = await apiClient.post(`/indirect-attainment/exit-exams/${examId}/results`, resultData)
+    return response.data
+  },
+
+  getExitExamAnalytics: async (examId: number) => {
+    const response = await apiClient.get(`/indirect-attainment/exit-exams/${examId}/analytics`)
+    return response.data
+  },
+
+  // Indirect attainment calculation
+  calculateIndirectAttainment: async (departmentId: number, academicYearId?: number) => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get(`/indirect-attainment/attainment/${departmentId}`, { params })
+    return response.data
+  },
+
+  // Legacy methods for backward compatibility - now return proper responses instead of errors
+  create: async (subjectId: number, attainmentData: Record<string, unknown>) => {
+    // This was a legacy method - redirect to survey creation if needed
+    logger.warn('Legacy indirect attainment create called - consider using createSurvey instead', { subjectId })
+    throw new Error('Use createSurvey or createExitExam for indirect attainment')
+  },
+
+  update: async (attainmentId: number, attainmentData: Record<string, unknown>) => {
+    // This was a legacy method - redirect to appropriate update method
+    logger.warn('Legacy indirect attainment update called - consider using updateSurvey or updateExitExam instead', { attainmentId })
+    throw new Error('Use updateSurvey or updateExitExam for indirect attainment')
+  },
+
   delete: async (attainmentId: number) => {
-    // Future: DELETE /indirect-attainment/{id}
-    // Deletes indirect attainment record
-    logger.warn('Indirect attainment delete API not yet implemented', { attainmentId })
-    throw new Error('Indirect attainment API is a future enhancement and not yet implemented')
+    // This was a legacy method - redirect to appropriate delete method
+    logger.warn('Legacy indirect attainment delete called - consider using deleteSurvey or deleteExitExam instead', { attainmentId })
+    throw new Error('Use deleteSurvey or deleteExitExam for indirect attainment')
   },
 }
 
@@ -959,79 +1294,6 @@ export const attainmentAuditAPI = {
   },
 }
 
-// Enhanced Analytics APIs - using existing backend endpoints
-export const attainmentAnalyticsAPI = {
-  getSubjectAttainment: async (subjectId: number, examType?: string) => {
-    // Use subject analytics endpoint
-    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
-    return response.data
-  },
-  getStudentAttainment: async (studentId: number, subjectId: number) => {
-    // Use student analytics endpoint
-    const response = await apiClient.get(`/analytics/student/${studentId}`)
-    return response.data
-  },
-  getClassAttainment: async (classId: number, term?: string) => {
-    // Use class analytics endpoint
-    const response = await apiClient.get(`/analytics/class/${classId}`)
-    return response.data
-  },
-  getProgramAttainment: async (departmentId: number, year?: number) => {
-    // Use HOD analytics endpoint
-    const response = await apiClient.get(`/analytics/hod/department/${departmentId}`)
-    return response.data
-  },
-  getCOAttainment: async (subjectId: number, examType?: string) => {
-    const response = await apiClient.get(`/analytics/co-attainment/subject/${subjectId}`)
-    return response.data
-  },
-  getPOAttainment: async (departmentId: number, examType?: string) => {
-    // PO attainment is department-level
-    const response = await apiClient.get(`/analytics/po-attainment/department/${departmentId}`)
-    return response.data
-  },
-  getBlueprintValidation: async (subjectId: number) => {
-    // Use subject analytics endpoint for blueprint validation
-    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
-    return response.data
-  },
-  getStudentPerformance: async (subjectId: number, studentId?: number, examType?: string) => {
-    // Use student analytics endpoint with subject filter
-    if (studentId) {
-      const response = await apiClient.get(`/analytics/student/${studentId}`, {
-        params: { subject_id: subjectId }
-      })
-      return response.data
-    }
-    // If no studentId, use subject analytics
-    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
-    return response.data
-  },
-  getClassPerformance: async (subjectId: number, examType?: string) => {
-    // Use subject analytics endpoint - class performance is part of subject analytics
-    const response = await apiClient.get(`/analytics/subject/${subjectId}`)
-    return response.data
-  },
-  getCOPOMapping: async (subjectId: number) => {
-    // Get COs for subject, then get their CO-PO mappings
-    const cosResponse = await apiClient.get(`/course-outcomes/subject/${subjectId}`)
-    // Backend returns COListResponse with items array (standardized format)
-    const cos = cosResponse.data.items || []
-    
-    // Get mappings for each CO
-    // Backend returns COPOMappingListResponse with items array (standardized format)
-    const mappings = await Promise.all(
-      cos.map((co: any) =>
-        apiClient.get(`/co-po-mappings/co/${co.id}`).then((r: any) => ({
-          co_id: co.id,
-          co_code: co.code,
-          mappings: r.data.items || []
-        }))
-      )
-    )
-    return mappings
-  },
-}
 
 // Student Progress API - Uses analytics endpoint for progress tracking
 export const studentProgressAPI = {
@@ -1051,7 +1313,7 @@ export const subjectAssignmentAPI = {
     semester_id?: number
     academic_year_id?: number
   }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.teacher_id) params.teacher_id = filters.teacher_id
     if (filters?.subject_id) params.subject_id = filters.subject_id
     if (filters?.class_id) params.class_id = filters.class_id
@@ -1198,7 +1460,7 @@ export const studentAPI = {
 // Academic Structure API (Batches, Semesters, etc.)
 export const academicStructureAPI = {
   getAllSemesters: async (skip: number = 0, limit: number = 100, filters?: { is_current?: boolean; academic_year_id?: number; department_id?: number; batch_instance_id?: number }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     // Note: batch_year_id filter removed - use batch_instance_id or academic_year_id instead
     if (filters?.is_current !== undefined) params.is_current = filters.is_current
     if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
@@ -1207,7 +1469,6 @@ export const academicStructureAPI = {
     const response = await apiClient.get('/academic/semesters', { params })
     return response.data
   },
-  // Note: getSemestersByBatchYear deprecated - use getAllSemesters with batch_instance_id filter
   publishSemester: async (semesterId: number) => {
     const response = await apiClient.post(`/academic/semesters/${semesterId}/publish`)
     return response.data
@@ -1217,7 +1478,7 @@ export const academicStructureAPI = {
 // Academic Year API
 export const academicYearAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { status?: string; is_current?: boolean }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.status) params.status = filters.status
     if (filters?.is_current !== undefined) params.is_current = filters.is_current
     const response = await apiClient.get('/academic-years', { params })
@@ -1252,7 +1513,7 @@ export const academicYearAPI = {
 // Student Enrollment API
 export const studentEnrollmentAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { student_id?: number; semester_id?: number; academic_year_id?: number }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.student_id) params.student_id = filters.student_id
     if (filters?.semester_id) params.semester_id = filters.semester_id
     if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
@@ -1276,7 +1537,7 @@ export const studentEnrollmentAPI = {
     promotion_type?: 'regular' | 'lateral' | 'failed' | 'retained'
     notes?: string
   }) => {
-    const params: any = { next_semester_id: nextSemesterId }
+    const params: QueryParams = { next_semester_id: nextSemesterId }
     if (options?.roll_no) params.roll_no = options.roll_no
     if (options?.promotion_type) params.promotion_type = options.promotion_type
     if (options?.notes) params.notes = options.notes
@@ -1288,7 +1549,7 @@ export const studentEnrollmentAPI = {
 // Internal Marks API
 export const internalMarksAPI = {
   getAll: async (skip: number = 0, limit: number = 100, filters?: { student_id?: number; subject_assignment_id?: number; semester_id?: number; academic_year_id?: number; workflow_state?: string }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.student_id) params.student_id = filters.student_id
     if (filters?.subject_assignment_id) params.subject_assignment_id = filters.subject_assignment_id
     if (filters?.semester_id) params.semester_id = filters.semester_id
@@ -1334,7 +1595,7 @@ export const internalMarksAPI = {
     return response.data
   },
   getSubmitted: async (skip: number = 0, limit: number = 100, department_id?: number) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (department_id) params.department_id = department_id
     const response = await apiClient.get('/internal-marks/submitted/list', { params })
     return response.data
@@ -1351,7 +1612,7 @@ export const auditAPI = {
     skip?: number
     limit?: number
   }) => {
-    const params: any = {
+    const params: QueryParams = {
       skip: filters?.skip || 0,
       limit: filters?.limit || 100
     }
@@ -1369,7 +1630,7 @@ export const auditAPI = {
     skip?: number
     limit?: number
   }) => {
-    const params: any = {
+    const params: QueryParams = {
       skip: filters?.skip || 0,
       limit: filters?.limit || 100
     }
@@ -1389,7 +1650,7 @@ export const batchInstanceAPI = {
     batch_id?: number
     is_active?: boolean
   }) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (filters?.academic_year_id) params.academic_year_id = filters.academic_year_id
     if (filters?.department_id) params.department_id = filters.department_id
     if (filters?.batch_id) params.batch_id = filters.batch_id
@@ -1459,7 +1720,7 @@ export const batchInstanceAPI = {
 // Batches (Program catalog) API – current, non-legacy
 export const batchesAPI = {
   getAll: async (skip: number = 0, limit: number = 200, isActive?: boolean) => {
-    const params: any = { skip, limit }
+    const params: QueryParams = { skip, limit }
     if (isActive !== undefined) params.is_active = isActive
     const response = await apiClient.get('/academic/batches', { params })
     return response.data
@@ -1484,14 +1745,18 @@ export const smartMarksAPI = {
   calculateBestOfTwo: async (params: {
     student_id: number
     subject_assignment_id: number
+    semester_id: number
+    academic_year_id: number
     ia1_marks?: number
     ia2_marks?: number
-  }) => {
-    const response = await apiClient.post('/smart-marks/calculate-final-marks', {
-      student_id: params.student_id,
-      subject_assignment_id: params.subject_assignment_id,
-      internal_1: params.ia1_marks,
-      internal_2: params.ia2_marks
+  }): Promise<SmartMarksCalculation> => {
+    const response = await apiClient.get('/smart-marks/best-of-two', {
+      params: {
+        student_id: params.student_id,
+        subject_assignment_id: params.subject_assignment_id,
+        semester_id: params.semester_id,
+        academic_year_id: params.academic_year_id
+      }
     })
     return response.data
   },
@@ -1499,11 +1764,13 @@ export const smartMarksAPI = {
   /**
    * Get final calculated marks for a student in a subject
    */
-  getFinalMarks: async (studentId: number, subjectAssignmentId: number) => {
+  getFinalMarks: async (studentId: number, subjectAssignmentId: number, semesterId: number, academicYearId: number): Promise<FinalMarksData> => {
     const response = await apiClient.get('/smart-marks/final-marks', {
       params: {
         student_id: studentId,
-        subject_assignment_id: subjectAssignmentId
+        subject_assignment_id: subjectAssignmentId,
+        semester_id: semesterId,
+        academic_year_id: academicYearId
       }
     })
     return response.data
@@ -1520,7 +1787,7 @@ export const smartMarksAPI = {
     external_marks?: number
     grade?: string
     total_marks?: number
-  }) => {
+  }): Promise<MessageResponse> => {
     const response = await apiClient.post('/smart-marks/save-final-marks', data)
     return response.data
   },
@@ -1528,7 +1795,7 @@ export const smartMarksAPI = {
   /**
    * Calculate SGPA for a student for a specific semester
    */
-  calculateSGPA: async (studentId: number, semesterId: number) => {
+  calculateSGPA: async (studentId: number, semesterId: number): Promise<SGPACalculation> => {
     const response = await apiClient.get('/smart-marks/sgpa', {
       params: {
         student_id: studentId,
@@ -1541,7 +1808,7 @@ export const smartMarksAPI = {
   /**
    * Calculate CGPA for a student (all semesters or up to a specific semester)
    */
-  calculateCGPA: async (studentId: number, upToSemesterId?: number) => {
+  calculateCGPA: async (studentId: number, upToSemesterId?: number): Promise<CGPACalculation> => {
     const response = await apiClient.get('/smart-marks/cgpa', {
       params: {
         student_id: studentId,
@@ -1559,7 +1826,7 @@ export const smartMarksAPI = {
     semester_id?: number
     subject_assignment_id?: number
     batch_instance_id?: number
-  }) => {
+  }): Promise<MessageResponse> => {
     const response = await apiClient.post('/smart-marks/recalculate', params)
     return response.data
   },
@@ -1567,7 +1834,7 @@ export const smartMarksAPI = {
   /**
    * Get the grading scale used for grade calculation
    */
-  getGradingScale: async () => {
+  getGradingScale: async (): Promise<GradingScale[]> => {
     const response = await apiClient.get('/smart-marks/grading-scale')
     return response.data
   },
@@ -1575,7 +1842,7 @@ export const smartMarksAPI = {
   /**
    * Calculate grade based on percentage
    */
-  calculateGrade: async (percentage: number, maxMarks: number) => {
+  calculateGrade: async (percentage: number, maxMarks: number): Promise<{ grade: string; grade_point: number }> => {
     const response = await apiClient.post('/smart-marks/calculate-grade', {
       percentage,
       max_marks: maxMarks
@@ -1594,11 +1861,10 @@ export const coPOAttainmentAPI = {
    * Calculate CO attainment for a specific subject
    * Returns attainment levels (L1, L2, L3) and overall attainment
    */
-  calculateCOAttainment: async (subjectId: number, params?: {
-    semester_id?: number
-    exam_type?: 'internal1' | 'internal2' | 'external'
-    threshold?: number
-  }) => {
+  calculateCOAttainment: async (subjectId: number, academicYearId?: number, semesterId?: number): Promise<COAttainment[]> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (semesterId) params.semester_id = semesterId
     const response = await apiClient.get(`/co-po-attainment/co/${subjectId}`, {
       params
     })
@@ -1609,11 +1875,10 @@ export const coPOAttainmentAPI = {
    * Calculate PO attainment for a department
    * Aggregates CO attainments weighted by CO-PO mapping strength
    */
-  calculatePOAttainment: async (departmentId: number, params?: {
-    academic_year_id?: number
-    semester_id?: number
-    batch_id?: number
-  }) => {
+  calculatePOAttainment: async (departmentId: number, academicYearId?: number, semesterId?: number): Promise<POAttainment[]> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (semesterId) params.semester_id = semesterId
     const response = await apiClient.get(`/co-po-attainment/po/${departmentId}`, {
       params
     })
@@ -1624,10 +1889,11 @@ export const coPOAttainmentAPI = {
    * Get comprehensive CO-PO attainment summary for a department
    * Includes CO attainment, PO attainment, trends, and NBA compliance data
    */
-  getAttainmentSummary: async (departmentId: number, params?: {
-    academic_year_id?: number
-    include_trends?: boolean
-  }) => {
+  getAttainmentSummary: async (departmentId: number, academicYearId?: number, semesterId?: number, includeTrends?: boolean): Promise<COPOAttainmentSummary> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    if (semesterId) params.semester_id = semesterId
+    if (includeTrends) params.include_trends = includeTrends
     const response = await apiClient.get(`/co-po-attainment/summary/${departmentId}`, {
       params
     })
@@ -1637,10 +1903,10 @@ export const coPOAttainmentAPI = {
   /**
    * Get CO attainment trends over multiple semesters
    */
-  getCOAttainmentTrends: async (subjectId: number, params?: {
-    start_semester_id?: number
-    end_semester_id?: number
-  }) => {
+  getCOAttainmentTrends: async (subjectId: number, startSemesterId?: number, endSemesterId?: number): Promise<AttainmentTrend[]> => {
+    const params: QueryParams = {}
+    if (startSemesterId) params.start_semester_id = startSemesterId
+    if (endSemesterId) params.end_semester_id = endSemesterId
     const response = await apiClient.get(`/co-po-attainment/co/${subjectId}/trends`, {
       params
     })
@@ -1650,10 +1916,10 @@ export const coPOAttainmentAPI = {
   /**
    * Get PO attainment trends over multiple academic years
    */
-  getPOAttainmentTrends: async (departmentId: number, params?: {
-    start_year?: number
-    end_year?: number
-  }) => {
+  getPOAttainmentTrends: async (departmentId: number, startYear?: number, endYear?: number): Promise<AttainmentTrend[]> => {
+    const params: QueryParams = {}
+    if (startYear) params.start_year = startYear
+    if (endYear) params.end_year = endYear
     const response = await apiClient.get(`/co-po-attainment/po/${departmentId}/trends`, {
       params
     })
@@ -1661,153 +1927,16 @@ export const coPOAttainmentAPI = {
   },
 }
 
-/**
- * Enhanced Analytics API
- * Provides advanced analytics including Bloom's Taxonomy, performance trends,
- * department comparisons, and comprehensive student/teacher analytics
- * Backend: /api/v1/enhanced-analytics/*
- */
-export const enhancedAnalyticsAPI = {
-  /**
-   * Get Bloom's Taxonomy analysis for questions and performance
-   * Analyzes distribution across 6 cognitive levels (L1-L6)
-   */
-  getBloomsTaxonomyAnalysis: async (params: {
-    exam_id?: number
-    subject_id?: number
-    semester_id?: number
-    department_id?: number
-  }) => {
-    const response = await apiClient.get('/enhanced-analytics/blooms-taxonomy', {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Get performance trends over time
-   * Shows marks trends, pass rates, and attainment trends
-   */
-  getPerformanceTrends: async (params: {
-    subject_id?: number
-    department_id?: number
-    batch_instance_id?: number
-    start_date?: string
-    end_date?: string
-    group_by?: 'semester' | 'month' | 'year'
-  }) => {
-    const response = await apiClient.get('/enhanced-analytics/performance-trends', {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Compare performance across departments
-   * Useful for HOD/Principal dashboards
-   */
-  getDepartmentComparison: async (params?: {
-    academic_year_id?: number
-    semester_id?: number
-    metrics?: string[] // ['avg_marks', 'pass_rate', 'co_attainment', 'po_attainment']
-  }) => {
-    const response = await apiClient.get('/enhanced-analytics/department-comparison', {
-      params: {
-        ...params,
-        metrics: params?.metrics?.join(',')
-      }
-    })
-    return response.data
-  },
-
-  /**
-   * Get comprehensive student performance analytics
-   * Includes marks, attainment, strengths, weaknesses, trends
-   */
-  getStudentPerformanceAnalytics: async (studentId: number, params?: {
-    semester_id?: number
-    subject_id?: number
-    include_co_attainment?: boolean
-    include_trends?: boolean
-  }) => {
-    const response = await apiClient.get(`/enhanced-analytics/student/${studentId}/performance`, {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Get comprehensive teacher performance analytics
-   * Includes class performance, teaching effectiveness, CO attainment
-   */
-  getTeacherPerformanceAnalytics: async (teacherId: number, params?: {
-    semester_id?: number
-    subject_id?: number
-    include_class_comparison?: boolean
-  }) => {
-    const response = await apiClient.get(`/enhanced-analytics/teacher/${teacherId}/performance`, {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Get class/batch instance performance analytics
-   */
-  getClassPerformanceAnalytics: async (batchInstanceId: number, params?: {
-    semester_id?: number
-    subject_id?: number
-  }) => {
-    const response = await apiClient.get(`/enhanced-analytics/class/${batchInstanceId}/performance`, {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Get subject-level analytics
-   * Includes performance distribution, CO attainment, question analysis
-   */
-  getSubjectAnalytics: async (subjectId: number, params?: {
-    semester_id?: number
-    batch_instance_id?: number
-    include_bloom_analysis?: boolean
-  }) => {
-    const response = await apiClient.get(`/enhanced-analytics/subject/${subjectId}`, {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Get department-level analytics
-   * Includes overall performance, PO attainment, teacher comparison
-   */
-  getDepartmentAnalytics: async (departmentId: number, params?: {
-    academic_year_id?: number
-    include_po_attainment?: boolean
-    include_trends?: boolean
-  }) => {
-    const response = await apiClient.get(`/enhanced-analytics/department/${departmentId}`, {
-      params
-    })
-    return response.data
-  },
-
-  /**
-   * Get NBA accreditation report data
-   * Formatted specifically for NBA requirements
-   */
-  getNBAAccreditationData: async (departmentId: number, params: {
-    academic_year_id: number
-    include_indirect_attainment?: boolean
-  }) => {
-    const response = await apiClient.get(`/enhanced-analytics/nba/${departmentId}`, {
-      params
-    })
-    return response.data
-  },
+// Attainment Analytics API - provides attainment-related analytics methods
+export const attainmentAnalyticsAPI = {
+  getSubjectAttainment: analyticsAPI.getSubjectAttainment,
+  getStudentAttainment: analyticsAPI.getStudentAttainment,
+  getClassAttainment: analyticsAPI.getClassAttainment,
+  getProgramAttainment: analyticsAPI.getProgramAttainment,
+  getBlueprintValidation: analyticsAPI.getBlueprintValidation,
+  getCOPOMapping: analyticsAPI.getCOPOMapping,
 }
+
 
 // Export utility for backward compatibility
 // Components using classAPI should be updated to use batchInstanceAPI

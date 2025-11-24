@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { questionAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
+import type { QuestionUpdateRequest } from '../types/api'
 
 /**
  * Hook to fetch questions by exam
@@ -36,7 +38,7 @@ export function useQuestionCOMappings(questionId: number) {
     queryFn: async () => {
       try {
         return await questionAPI.getCOMappings(questionId)
-      } catch (error: any) {
+      } catch (error: AxiosErrorResponse) {
         // If endpoint doesn't exist, return empty array
         if (error.response?.status === 404) {
           return []
@@ -63,7 +65,7 @@ export function useCreateQuestion() {
       }
       toast.success('Question created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to create question')
     },
   })
@@ -76,7 +78,7 @@ export function useUpdateQuestion() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => questionAPI.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: QuestionUpdateRequest }) => questionAPI.update(id, data),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.questions.detail(variables.id) })
       if (data.exam_id) {

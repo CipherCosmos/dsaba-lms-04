@@ -97,103 +97,6 @@ class Batch(AggregateRoot):
         return f"Batch(id={self.id}, name={self._name}, duration={self._duration_years})"
 
 
-class BatchYear(Entity):
-    """
-    BatchYear entity
-    
-    Represents a specific admission year for a batch (e.g., 2023-2027, 2024-2028)
-    """
-    
-    def __init__(
-        self,
-        batch_id: int,
-        start_year: int,
-        end_year: int,
-        id: Optional[int] = None,
-        is_current: bool = False,
-        created_at: Optional[datetime] = None
-    ):
-        super().__init__(id)
-        
-        # Validate
-        self._validate_years(start_year, end_year)
-        
-        # Set attributes
-        self._batch_id = batch_id
-        self._start_year = start_year
-        self._end_year = end_year
-        self._is_current = is_current
-        self._created_at = created_at
-    
-    # Properties
-    @property
-    def batch_id(self) -> int:
-        return self._batch_id
-    
-    @property
-    def start_year(self) -> int:
-        return self._start_year
-    
-    @property
-    def end_year(self) -> int:
-        return self._end_year
-    
-    @property
-    def is_current(self) -> bool:
-        return self._is_current
-    
-    @property
-    def display_name(self) -> str:
-        return f"{self._start_year}-{self._end_year}"
-    
-    # Validation
-    def _validate_years(self, start_year: int, end_year: int) -> None:
-        current_year = datetime.now().year
-        
-        if start_year < 2000 or start_year > current_year + 1:
-            raise ValidationError(
-                f"Start year must be between 2000 and {current_year + 1}",
-                field="start_year",
-                value=start_year
-            )
-        
-        if end_year <= start_year:
-            raise ValidationError(
-                "End year must be after start year",
-                field="end_year",
-                value=end_year
-            )
-        
-        if (end_year - start_year) > 6:
-            raise ValidationError(
-                "Batch duration cannot exceed 6 years",
-                field="end_year",
-                value=end_year
-            )
-    
-    # Business methods
-    def mark_as_current(self) -> None:
-        """Mark this batch year as current"""
-        self._is_current = True
-    
-    def unmark_as_current(self) -> None:
-        """Unmark this batch year as current"""
-        self._is_current = False
-    
-    def to_dict(self) -> dict:
-        return {
-            **super().to_dict(),
-            "batch_id": self._batch_id,
-            "start_year": self._start_year,
-            "end_year": self._end_year,
-            "display_name": self.display_name,
-            "is_current": self._is_current,
-        }
-    
-    def __repr__(self) -> str:
-        return f"BatchYear(id={self.id}, {self.display_name}, current={self._is_current})"
-
-
 class Semester(Entity):
     """
     Semester entity
@@ -475,6 +378,95 @@ class BatchInstance(AggregateRoot):
     
     def __repr__(self) -> str:
         return f"BatchInstance(id={self.id}, AY={self._academic_year_id}, Dept={self._department_id}, Batch={self._batch_id}, Sem={self._current_semester})"
+
+
+class BatchYear(Entity):
+    """
+    BatchYear entity - Legacy entity for backward compatibility
+
+    This entity is kept for backward compatibility during the transition
+    to BatchInstance. It represents a year instance of a batch.
+    """
+
+    def __init__(
+        self,
+        batch_id: int,
+        start_year: int,
+        end_year: int,
+        id: Optional[int] = None,
+        is_current: bool = False,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None
+    ):
+        super().__init__(id)
+
+        # Validate
+        self._validate_years(start_year, end_year)
+
+        # Set attributes
+        self._batch_id = batch_id
+        self._start_year = start_year
+        self._end_year = end_year
+        self._is_current = is_current
+        self._created_at = created_at
+        self._updated_at = updated_at
+
+    # Properties
+    @property
+    def batch_id(self) -> int:
+        return self._batch_id
+
+    @property
+    def start_year(self) -> int:
+        return self._start_year
+
+    @property
+    def end_year(self) -> int:
+        return self._end_year
+
+    @property
+    def is_current(self) -> bool:
+        return self._is_current
+
+    # Validation
+    def _validate_years(self, start: int, end: int) -> None:
+        if end <= start:
+            raise ValidationError(
+                "End year must be greater than start year",
+                field="end_year",
+                value=end
+            )
+
+        current_year = datetime.now().year
+        if start < 2000 or start > current_year + 1:
+            raise ValidationError(
+                f"Start year must be between 2000 and {current_year + 1}",
+                field="start_year",
+                value=start
+            )
+
+    # Business methods
+    def mark_as_current(self) -> None:
+        """Mark this batch year as current"""
+        self._is_current = True
+
+    def unmark_as_current(self) -> None:
+        """Unmark this batch year as current"""
+        self._is_current = False
+
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "batch_id": self._batch_id,
+            "start_year": self._start_year,
+            "end_year": self._end_year,
+            "is_current": self._is_current,
+            "created_at": self._created_at.isoformat() if self._created_at else None,
+            "updated_at": self._updated_at.isoformat() if self._updated_at else None,
+        }
+
+    def __repr__(self) -> str:
+        return f"BatchYear(id={self.id}, batch_id={self._batch_id}, {self._start_year}-{self._end_year}, current={self._is_current})"
 
 
 class Section(Entity):

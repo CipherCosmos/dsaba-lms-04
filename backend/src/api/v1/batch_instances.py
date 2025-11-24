@@ -107,7 +107,7 @@ async def create_batch_instance(
 @router.get("", response_model=BatchInstanceListResponse)
 async def list_batch_instances(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=1000),
     academic_year_id: Optional[int] = Query(None, gt=0),
     department_id: Optional[int] = Query(None, gt=0),
     batch_id: Optional[int] = Query(None, gt=0),
@@ -116,6 +116,9 @@ async def list_batch_instances(
     current_user: User = Depends(get_current_user)
 ):
     """List batch instances with optional filters"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"User {current_user.username} listing batch instances: skip={skip}, limit={limit}, academic_year_id={academic_year_id}, department_id={department_id}, batch_id={batch_id}, is_active={is_active}")
     batch_instances = await service.list_batch_instances(
         skip=skip,
         limit=limit,
@@ -124,6 +127,7 @@ async def list_batch_instances(
         batch_id=batch_id,
         is_active=is_active
     )
+    logger.info(f"Found {len(batch_instances)} batch instances")
     return BatchInstanceListResponse(
         items=[BatchInstanceResponse(**bi.to_dict()) for bi in batch_instances],
         total=len(batch_instances),

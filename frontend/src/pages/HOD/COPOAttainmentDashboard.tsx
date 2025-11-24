@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { Target, TrendingUp, CheckCircle, XCircle, BarChart3, Download, AlertCircle } from 'lucide-react'
 import { coPOAttainmentAPI, departmentAPI, academicYearAPI } from '../../services/api'
 import { COPOAttainmentSummary, COAttainment, POAttainment } from '../../core/types'
+import type { AcademicYear } from '../../core/types/api'
 import { useAuth } from '../../contexts/AuthContext'
+import jsPDF from 'jspdf'
 
 export default function COPOAttainmentDashboard() {
   const { user } = useAuth()
@@ -13,6 +15,7 @@ export default function COPOAttainmentDashboard() {
   const [academicYears, setAcademicYears] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'co' | 'po' | 'nba'>('co')
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     loadDepartments()
@@ -41,7 +44,7 @@ export default function COPOAttainmentDashboard() {
     try {
       const response = await academicYearAPI.getAll(0, 100, { status: 'active' })
       setAcademicYears(response.items || [])
-      const currentYear = response.items?.find((y: any) => y.is_current)
+      const currentYear = response.items?.find((y: AcademicYear) => y.is_current)
       if (currentYear) {
         setSelectedAcademicYear(currentYear.id)
       }
@@ -79,8 +82,184 @@ export default function COPOAttainmentDashboard() {
     return 'bg-red-100 border-red-300'
   }
 
-  const downloadNBAReport = () => {
-    alert('NBA Report download will be implemented')
+  const downloadNBAReport = async () => {
+    if (!summary) return
+
+    setDownloading(true)
+    try {
+      const doc = new jsPDF()
+
+      // Header
+      doc.setFontSize(20)
+      doc.setFont('helvetica', 'bold')
+      doc.text('NBA Accreditation Report', 105, 20, { align: 'center' })
+      doc.setFontSize(16)
+      doc.text('CO-PO Attainment Analysis', 105, 30, { align: 'center' })
+
+      // Department and Year Info
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      const selectedDept = departments.find(d => d.id === selectedDepartment)
+      const selectedYear = academicYears.find(y => y.id === selectedAcademicYear)
+      doc.text(`Department: ${selectedDept?.name || 'N/A'} (${selectedDept?.code || 'N/A'})`, 20, 50)
+      doc.text(`Academic Year: ${selectedYear?.display_name || 'N/A'}`, 20, 60)
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 70)
+
+      // Overall Summary
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Overall Attainment Summary', 20, 90)
+
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Overall CO Attainment: ${summary.overall_co_attainment.toFixed(1)}%`, 20, 105)
+      doc.text(`Overall PO Attainment: ${summary.overall_po_attainment.toFixed(1)}%`, 20, 115)
+      doc.text(`NBA Compliance: ${summary.nba_compliance.is_compliant ? 'COMPLIANT' : 'NOT COMPLIANT'}`, 20, 125)
+      doc.text(`COs Met: ${summary.nba_compliance.cos_met}/${summary.nba_compliance.cos_total}`, 20, 135)
+      doc.text(`POs Met: ${summary.nba_compliance.pos_met}/${summary.nba_compliance.pos_total}`, 20, 145)
+
+      // CO Attainment Table
+      doc.addPage()
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Course Outcomes (CO) Attainment', 20, 20)
+
+      let yPos = 35
+      const coHeaders = ['CO Code', 'Description', 'Attainment %', 'Target %', 'Status', 'Students']
+      const coWidths = [25, 70, 20, 20, 25, 20]
+
+      // Header
+      doc.setFillColor(41, 128, 185)
+      doc.rect(20, yPos, 180, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      let xPos = 25
+      coHeaders.forEach((header, idx) => {
+        doc.text(header, xPos, yPos + 7)
+        xPos += coWidths[idx]
+      })
+
+      // Data rows
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      yPos += 10
+
+      summary.co_attainments.forEach((co: COAttainment, idx: number) => {
+        if (yPos > 270) {
+          doc.addPage()
+          yPos = 20
+        }
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(245, 245, 245)
+          doc.rect(20, yPos, 180, 8, 'F')
+        }
+        xPos = 25
+        const rowData = [
+          co.co_code,
+          co.co_description.substring(0, 25) + (co.co_description.length > 25 ? '...' : ''),
+          `${co.actual_attainment.toFixed(1)}%`,
+          `${co.target_attainment}%`,
+          co.attainment_met ? 'Met' : 'Not Met',
+          co.students_analyzed
+        ]
+        rowData.forEach((cell, cellIdx) => {
+          doc.text(String(cell), xPos, yPos + 6)
+          xPos += coWidths[cellIdx]
+        })
+        yPos += 8
+      })
+
+      // PO Attainment Table
+      doc.addPage()
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Program Outcomes (PO) Attainment', 20, 20)
+
+      yPos = 35
+      const poHeaders = ['PO Code', 'Description', 'Attainment %', 'Target %', 'Status']
+      const poWidths = [25, 90, 20, 20, 25]
+
+      doc.setFillColor(52, 152, 219)
+      doc.rect(20, yPos, 180, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      xPos = 25
+      poHeaders.forEach((header, idx) => {
+        doc.text(header, xPos, yPos + 7)
+        xPos += poWidths[idx]
+      })
+
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      yPos += 10
+
+      summary.po_attainments.forEach((po: POAttainment, idx: number) => {
+        if (yPos > 270) {
+          doc.addPage()
+          yPos = 20
+        }
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(245, 245, 245)
+          doc.rect(20, yPos, 180, 8, 'F')
+        }
+        xPos = 25
+        const rowData = [
+          po.po_code,
+          po.po_description.substring(0, 35) + (po.po_description.length > 35 ? '...' : ''),
+          `${po.actual_attainment.toFixed(1)}%`,
+          `${po.target_attainment}%`,
+          po.attainment_met ? 'Met' : 'Not Met'
+        ]
+        rowData.forEach((cell, cellIdx) => {
+          doc.text(String(cell), xPos, yPos + 6)
+          xPos += poWidths[cellIdx]
+        })
+        yPos += 8
+      })
+
+      // NBA Compliance Details
+      doc.addPage()
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('NBA Accreditation Compliance', 20, 20)
+
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      yPos = 35
+      doc.text(`CO Attainment Threshold: ${summary.nba_compliance.co_attainment_threshold}%`, 20, yPos)
+      yPos += 10
+      doc.text(`PO Attainment Threshold: ${summary.nba_compliance.po_attainment_threshold}%`, 20, yPos)
+      yPos += 10
+      doc.text(`Current CO Attainment: ${summary.overall_co_attainment.toFixed(1)}%`, 20, yPos)
+      yPos += 10
+      doc.text(`Current PO Attainment: ${summary.overall_po_attainment.toFixed(1)}%`, 20, yPos)
+      yPos += 20
+
+      const complianceStatus = summary.nba_compliance.is_compliant ? 'COMPLIANT' : 'NOT COMPLIANT'
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`Status: ${complianceStatus}`, 20, yPos)
+
+      // Footer
+      const pageCount = doc.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.text(`Generated by DSABA LMS - Page ${i} of ${pageCount}`, 105, 285, { align: 'center' })
+      }
+
+      const fileName = `NBA_Report_${selectedDept?.code || 'Dept'}_${selectedYear?.display_name?.replace(/\s+/g, '_') || 'Year'}_${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+    } catch (error) {
+      console.error('Failed to generate NBA report:', error)
+      alert('Failed to generate NBA report. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   if (loading) {
@@ -110,10 +289,11 @@ export default function COPOAttainmentDashboard() {
         {summary && (
           <button
             onClick={downloadNBAReport}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            disabled={downloading}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed"
           >
-            <Download className="h-5 w-5" />
-            NBA Report
+            <Download className={`h-5 w-5 ${downloading ? 'animate-pulse' : ''}`} />
+            {downloading ? 'Generating...' : 'NBA Report'}
           </button>
         )}
       </div>
@@ -364,7 +544,7 @@ export default function COPOAttainmentDashboard() {
                       <div className="mt-4 pt-4 border-t border-gray-300">
                         <div className="text-sm font-medium text-gray-700 mb-2">Contributing Course Outcomes</div>
                         <div className="space-y-2">
-                          {po.contributing_cos.slice(0, 5).map((co: any) => (
+                          {po.contributing_cos.slice(0, 5).map((co: { co_id: number; co_code: string; subject_name: string; co_attainment: number; mapping_strength: 1 | 2 | 3; weighted_contribution: number }) => (
                             <div key={co.co_id} className="flex items-center justify-between text-sm">
                               <span className="text-gray-700">
                                 {co.co_code} ({co.subject_name})

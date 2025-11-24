@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from .base import Entity
 from ..exceptions import ValidationError, BusinessRuleViolationError
+from ..services.marks_validation_service import MarksValidationService
 
 
 class Mark(Entity):
@@ -74,14 +75,7 @@ class Mark(Entity):
     
     # Validation methods
     def _validate_marks(self, marks: float) -> None:
-        if marks < 0:
-            raise ValidationError(
-                "Marks cannot be negative",
-                field="marks_obtained",
-                value=marks
-            )
-        # Note: Max marks validation should be done at service layer
-        # where we have access to question max marks
+        MarksValidationService.validate_mark_obtained(marks)
     
     # Business methods
     def update_marks(

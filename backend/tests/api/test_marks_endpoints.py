@@ -48,7 +48,7 @@ class TestMarksEndpoints:
         
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list) or ("marks" in data and isinstance(data["marks"], list))
+        assert isinstance(data, list) or ("items" in data and isinstance(data["items"], list))
     
     @pytest.mark.api
     @pytest.mark.integration

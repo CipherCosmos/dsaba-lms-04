@@ -34,16 +34,20 @@ class IStudentEnrollmentRepository(ABC):
     async def get_by_student(
         self,
         student_id: int,
-        academic_year_id: Optional[int] = None
+        academic_year_id: Optional[int] = None,
+        skip: int = 0,
+        limit: Optional[int] = None
     ) -> List[StudentEnrollment]:
         """Get all enrollments for a student"""
         pass
-    
+
     @abstractmethod
     async def get_by_semester(
         self,
         semester_id: int,
-        academic_year_id: Optional[int] = None
+        academic_year_id: Optional[int] = None,
+        skip: int = 0,
+        limit: Optional[int] = None
     ) -> List[StudentEnrollment]:
         """Get all enrollments for a semester"""
         pass

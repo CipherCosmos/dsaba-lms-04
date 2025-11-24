@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -5,56 +6,77 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Simple SVG to PNG conversion using canvas (requires canvas package)
-// This is a placeholder script - in a real implementation, you would use a proper image processing library
+const svgPath = path.join(__dirname, 'icon.svg');
 
-const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="256" fill="#0d6efd"/>
-  
-  <!-- Book/Education icon -->
-  <rect x="128" y="160" width="256" height="192" rx="8" fill="white"/>
-  <rect x="128" y="160" width="256" height="32" rx="8" fill="#f8f9fa"/>
-  
-  <!-- Pages -->
-  <line x1="160" y1="220" x2="352" y2="220" stroke="#0d6efd" stroke-width="2"/>
-  <line x1="160" y1="240" x2="352" y2="240" stroke="#0d6efd" stroke-width="2"/>
-  <line x1="160" y1="260" x2="352" y2="260" stroke="#0d6efd" stroke-width="2"/>
-  <line x1="160" y1="280" x2="280" y2="280" stroke="#0d6efd" stroke-width="2"/>
-  
-  <!-- Chart/Analytics icon -->
-  <rect x="200" y="300" width="16" height="32" fill="#28a745"/>
-  <rect x="224" y="280" width="16" height="52" fill="#28a745"/>
-  <rect x="248" y="290" width="16" height="42" fill="#28a745"/>
-  <rect x="272" y="270" width="16" height="62" fill="#28a745"/>
-  
-  <!-- IEMS text -->
-  <text x="256" y="420" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">IEMS</text>
-</svg>`;
+async function generateIcons() {
+  try {
+    console.log('Generating PWA icons from SVG...');
 
-// Create placeholder files for now
-// In a real implementation, you would use a library like sharp, canvas, or puppeteer to convert SVG to PNG
+    // Read the SVG content
+    const svgBuffer = fs.readFileSync(svgPath);
 
-console.log('Creating placeholder icon files...');
+    // Generate standard icons
+    await sharp(svgBuffer)
+      .resize(192, 192)
+      .png()
+      .toFile(path.join(__dirname, 'icon-192.png'));
 
-// Create a simple base64 encoded PNG placeholder (1x1 pixel)
-const placeholderPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    await sharp(svgBuffer)
+      .resize(512, 512)
+      .png()
+      .toFile(path.join(__dirname, 'icon-512.png'));
 
-// Write placeholder files
-fs.writeFileSync(path.join(__dirname, 'icon-192.png'), Buffer.from(placeholderPng, 'base64'));
-fs.writeFileSync(path.join(__dirname, 'icon-512.png'), Buffer.from(placeholderPng, 'base64'));
-fs.writeFileSync(path.join(__dirname, 'icon-512-maskable.png'), Buffer.from(placeholderPng, 'base64'));
+    console.log('Generated standard icons: icon-192.png, icon-512.png');
 
-console.log('Placeholder icon files created.');
-console.log('');
-console.log('To generate proper PWA icons:');
-console.log('1. Install a tool like sharp: npm install sharp');
-console.log('2. Use an online SVG to PNG converter');
-console.log('3. Or use a design tool to create 192x192, 512x512, and 512x512 maskable icons');
-console.log('');
-console.log('The icons should:');
-console.log('- Be square (192x192, 512x512)');
-console.log('- Have a transparent background');
-console.log('- Be optimized for web use');
-console.log('- The maskable icon should have safe padding for adaptive icons');
+    // Generate maskable icon with safe padding
+    // For maskable icons, create a 512x512 canvas and place the icon in the center 80% area
+    const iconResized = await sharp(svgBuffer)
+      .resize(409, 409) // 80% of 512
+      .png()
+      .toBuffer();
+
+    await sharp({
+      create: {
+        width: 512,
+        height: 512,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
+      }
+    })
+      .composite([{
+        input: iconResized,
+        top: 51, // (512 - 409) / 2
+        left: 51
+      }])
+      .png()
+      .toFile(path.join(__dirname, 'icon-512-maskable.png'));
+
+    console.log('Generated maskable icon: icon-512-maskable.png');
+
+    // Generate favicon variants
+    await sharp(svgBuffer)
+      .resize(16, 16)
+      .png()
+      .toFile(path.join(__dirname, 'favicon-16x16.png'));
+
+    await sharp(svgBuffer)
+      .resize(32, 32)
+      .png()
+      .toFile(path.join(__dirname, 'favicon-32x32.png'));
+
+    await sharp(svgBuffer)
+      .resize(48, 48)
+      .png()
+      .toFile(path.join(__dirname, 'favicon-48x48.png'));
+
+    console.log('Generated favicon variants: favicon-16x16.png, favicon-32x32.png, favicon-48x48.png');
+
+    console.log('All PWA icons generated successfully!');
+
+  } catch (error) {
+    console.error('Error generating icons:', error);
+    process.exit(1);
+  }
+}
+
+generateIcons();

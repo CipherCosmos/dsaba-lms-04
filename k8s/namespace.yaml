@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dsaba-lms
+  labels:
+    name: dsaba-lms
+    app: dsaba-lms

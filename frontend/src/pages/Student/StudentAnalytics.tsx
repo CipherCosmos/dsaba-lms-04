@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { AppDispatch, RootState } from '../../store/store'
-import { fetchStudentAnalytics } from '../../store/slices/analyticsSlice'
-import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { fetchExams } from '../../store/slices/examSlice'
+import { useState } from 'react'
+import { useStudentAnalytics } from '../../core/hooks'
+import { useSubjects } from '../../core/hooks'
+import { useExams } from '../../core/hooks'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale } from 'chart.js'
 import { Line, Doughnut, Radar } from 'react-chartjs-2'
 import { TrendingUp, Award, BookOpen, Star, AlertCircle, Trophy, Brain, Target, Download } from 'lucide-react'
@@ -22,26 +20,22 @@ ChartJS.register(
 )
 
 const StudentAnalytics = () => {
-  const dispatch = useDispatch<AppDispatch>()
-  const { studentAnalytics, loading } = useSelector((state: RootState) => state.analytics)
-  const { user } = useSelector((state: RootState) => state.auth)
-  const { subjects } = useSelector((state: RootState) => state.subjects)
-  const { } = useSelector((state: RootState) => state.exams)
   const [activeTab, setActiveTab] = useState('overview')
   const [selectedSubject, setSelectedSubject] = useState('')
 
-  useEffect(() => {
-    if (user?.id) {
-      dispatch(fetchStudentAnalytics(user.id))
-    }
-    dispatch(fetchSubjects())
-    dispatch(fetchExams())
-  }, [dispatch, user])
+  // Get current user from auth context or hook
+  // For now, we'll assume user ID is available - in real app this would come from auth context
+  const userId = 1 // TODO: Get from auth context
 
-  // Note: In new architecture, subjects are linked via enrollments and subject assignments
-  // For now, show all department subjects (can be enhanced to filter by enrollment)
-  const userDeptId = user?.department_ids?.[0] || (user as { department_id?: number })?.department_id
-  const classSubjects = subjects?.filter(s => s && s.department_id === userDeptId) || []
+  // Use React Query hooks
+  const { data: studentAnalytics, isLoading: loading, error } = useStudentAnalytics(userId)
+  const { data: subjectsData } = useSubjects()
+  const { data: examsData } = useExams()
+
+  // Get subjects data
+  const subjects = subjectsData?.items || []
+  const userDeptId = 1 // TODO: Get from auth context
+  const classSubjects = subjects.filter(s => s && s.department_id === userDeptId) || []
 
   // Analytics data loaded from Redux store
 

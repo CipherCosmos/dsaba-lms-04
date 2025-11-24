@@ -7,22 +7,10 @@ import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { analyticsAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale } from 'chart.js'
-import { Bar, Doughnut } from 'react-chartjs-2'
-import { Users, BookOpen, TrendingUp, Award, Target, AlertTriangle, CheckCircle, Star, Download, Filter, Clock } from 'lucide-react'
+import AnalyticsChart from '../../components/shared/AnalyticsChart'
+import DataExport from '../../components/shared/DataExport'
+import { Users, BookOpen, TrendingUp, Award, Target, AlertTriangle, CheckCircle, Star, Filter, Clock } from 'lucide-react'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  PointElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  RadialLinearScale
-)
 
 const HODAnalytics = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -63,6 +51,7 @@ const HODAnalytics = () => {
   }, [dispatch, user])
 
   const department = departments.find(d => d.id === user?.department_id)
+
 
   // Analytics data loaded from Redux store
   if (loading && !hodAnalytics) {
@@ -142,6 +131,7 @@ const HODAnalytics = () => {
     labels: ['Excellent (80%+)', 'Good (70-79%)', 'Average (60-69%)', 'Below Average (<60%)'],
     datasets: [
       {
+        label: 'Subjects',
         data: [
           hodAnalytics.subject_performance.filter(s => s.average_percentage >= 80).length,
           hodAnalytics.subject_performance.filter(s => s.average_percentage >= 70 && s.average_percentage < 80).length,
@@ -229,10 +219,19 @@ const HODAnalytics = () => {
             <Filter size={18} />
             <span>Filter</span>
           </button>
-          <button className="btn-secondary flex items-center space-x-2">
-            <Download size={18} />
-            <span>Export Report</span>
-          </button>
+          <DataExport
+            data={{
+              headers: ['Subject', 'Average Performance (%)', 'Pass Rate (%)', 'Students'],
+              rows: hodAnalytics.subject_performance.map(subject => [
+                subject.subject_name,
+                subject.average_percentage,
+                subject.pass_rate,
+                'N/A'
+              ])
+            }}
+            filename={`department-analytics-${new Date().toISOString().split('T')[0]}.csv`}
+            buttonText="Export Report"
+          />
         </div>
       </div>
 
@@ -364,27 +363,25 @@ const HODAnalytics = () => {
         <div className="space-y-6">
           {/* Performance Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Subject Performance Overview</h3>
-              <div className="h-80">
-                <Bar data={departmentPerformanceData} options={chartOptions} />
-              </div>
-            </div>
+            <AnalyticsChart
+              type="bar"
+              title="Subject Performance Overview"
+              data={departmentPerformanceData}
+              options={chartOptions}
+            />
 
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Distribution</h3>
-              <div className="h-80">
-                <Doughnut data={performanceDistribution} options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: 'bottom' as const,
-                    }
+            <AnalyticsChart
+              type="doughnut"
+              title="Performance Distribution"
+              data={performanceDistribution}
+              options={{
+                plugins: {
+                  legend: {
+                    position: 'bottom' as const,
                   }
-                }} />
-              </div>
-            </div>
+                }
+              }}
+            />
           </div>
 
           {/* Key Insights */}
@@ -526,12 +523,12 @@ const HODAnalytics = () => {
       {activeTab === 'faculty' && (
         <div className="space-y-6">
           {/* Teacher Performance Chart */}
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Faculty Performance Overview</h3>
-            <div className="h-80">
-              <Bar data={teacherPerformanceData} options={chartOptions} />
-            </div>
-          </div>
+          <AnalyticsChart
+            type="bar"
+            title="Faculty Performance Overview"
+            data={teacherPerformanceData}
+            options={chartOptions}
+          />
 
           {/* Faculty Analysis */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -849,10 +846,17 @@ const HODAnalytics = () => {
             ) : (
               <div className="space-y-4">
                 {nbaCompliance?.alerts?.length > 0 ? (
-                  nbaCompliance.alerts.map((alert: any, index: number) => (
+                  /**
+                   * NBA compliance alerts structure:
+                   * - type: Alert type ('success', 'warning', 'error')
+                   * - message: Alert message
+                   * - priority: Alert priority level
+                   * - details?: Optional additional details
+                   */
+                  nbaCompliance.alerts.map((alert: { type: 'success' | 'warning' | 'error'; message: string; priority: string }, index: number) => (
                     <div key={index} className={`flex items-center justify-between p-4 ${
-                      alert.type === 'success' ? 'bg-green-50 border-green-200' : 
-                      alert.type === 'warning' ? 'bg-yellow-50 border-yellow-200' : 
+                      alert.type === 'success' ? 'bg-green-50 border-green-200' :
+                      alert.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
                       'bg-red-50 border-red-200'
                     } border rounded-lg`}>
                       <div className="flex items-center space-x-3">
@@ -865,15 +869,15 @@ const HODAnalytics = () => {
                         )}
                         <div>
                           <p className={`font-medium ${
-                            alert.type === 'success' ? 'text-green-900' : 
-                            alert.type === 'warning' ? 'text-yellow-900' : 
+                            alert.type === 'success' ? 'text-green-900' :
+                            alert.type === 'warning' ? 'text-yellow-900' :
                             'text-red-900'
                           }`}>
                             {alert.message}
                           </p>
                           <p className={`text-sm ${
-                            alert.type === 'success' ? 'text-green-700' : 
-                            alert.type === 'warning' ? 'text-yellow-700' : 
+                            alert.type === 'success' ? 'text-green-700' :
+                            alert.type === 'warning' ? 'text-yellow-700' :
                             'text-red-700'
                           }`}>
                             Priority: {alert.priority}
@@ -881,12 +885,12 @@ const HODAnalytics = () => {
                         </div>
                       </div>
                       <span className={`font-medium ${
-                        alert.type === 'success' ? 'text-green-600' : 
-                        alert.type === 'warning' ? 'text-yellow-600' : 
+                        alert.type === 'success' ? 'text-green-600' :
+                        alert.type === 'warning' ? 'text-yellow-600' :
                         'text-red-600'
                       }`}>
-                        {alert.type === 'success' ? 'Complete' : 
-                         alert.type === 'warning' ? 'In Progress' : 
+                        {alert.type === 'success' ? 'Complete' :
+                         alert.type === 'warning' ? 'In Progress' :
                          'Needs Attention'}
                       </span>
                     </div>

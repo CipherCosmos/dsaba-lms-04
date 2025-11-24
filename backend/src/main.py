@@ -16,11 +16,12 @@ from src.infrastructure.database.session import verify_database_connection, crea
 # Import database module to ensure relationships are configured
 from src.infrastructure.database import models as _  # noqa: F401
 from src.infrastructure.database.role_initializer import ensure_roles_exist
-from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks, batch_instances
+from src.api.v1 import auth, users, profile, departments, exams, marks, academic_structure, subjects, analytics, reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks, batch_instances, indirect_attainment, backup, monitoring
 from src.api.middleware.error_handler import setup_error_handlers
 from src.api.middleware.security_headers import add_security_headers
 from src.api.middleware.logging import setup_logging
 from src.api.middleware.rate_limiting import setup_rate_limiting
+from src.api.middleware.audit_middleware import setup_audit_middleware
 
 # Setup logging
 setup_logging()
@@ -105,6 +106,9 @@ app.middleware("http")(add_security_headers)
 # Rate limiting middleware (if enabled)
 if settings.RATE_LIMIT_ENABLED:
     setup_rate_limiting(app)
+
+# Audit middleware
+setup_audit_middleware(app)
 
 # Health check endpoint
 @app.get("/health", tags=["System"])
@@ -252,6 +256,18 @@ app.include_router(
 )
 app.include_router(
     batch_instances.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    indirect_attainment.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    backup.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    monitoring.router,
     prefix=settings.api_prefix,
 )
 

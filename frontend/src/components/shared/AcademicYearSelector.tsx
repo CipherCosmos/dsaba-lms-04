@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAcademicYears, useCurrentAcademicYear } from '../../core/hooks'
 import { useAcademicYearContext } from '../../contexts/AcademicYearContext'
+import type { AcademicYear } from '../../core/types/api'
 
 interface AcademicYearSelectorProps {
   value?: number | null
@@ -56,7 +57,7 @@ export const AcademicYearSelector: React.FC<AcademicYearSelectorProps> = ({
         disabled={disabled}
       >
         <option value="">Select Academic Year</option>
-        {academicYears.map((ay: any) => (
+        {academicYears.map((ay: AcademicYear) => (
           <option key={ay.id} value={ay.id}>
             {ay.display_name}
             {showCurrentBadge && ay.is_current && ' (Current)'}

@@ -50,13 +50,13 @@ class BatchYearCreateRequest(BaseModel):
     start_year: int = Field(..., ge=2000)
     end_year: int = Field(..., ge=2000)
     is_current: bool = False
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "batch_id": 1,
-                "start_year": 2023,
-                "end_year": 2027,
+                "start_year": 2024,
+                "end_year": 2028,
                 "is_current": True
             }
         }
@@ -68,10 +68,9 @@ class BatchYearResponse(BaseModel):
     batch_id: int
     start_year: int
     end_year: int
-    display_name: str
     is_current: bool
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -87,16 +86,16 @@ class BatchYearListResponse(BaseModel):
 # Semester DTOs
 class SemesterCreateRequest(BaseModel):
     """Create semester request DTO"""
-    batch_year_id: int = Field(..., gt=0)
+    batch_instance_id: int = Field(..., gt=0)
     semester_no: int = Field(..., ge=1, le=12)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_current: bool = False
-    
+
     class Config:
         json_schema_extra = {
             "example": {
-                "batch_year_id": 1,
+                "batch_instance_id": 1,
                 "semester_no": 1,
                 "start_date": "2024-01-01",
                 "end_date": "2024-06-30",

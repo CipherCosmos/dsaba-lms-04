@@ -8,23 +8,7 @@ import { useSelector } from 'react-redux'
 import { RootState } from '../../store/store'
 import { useInternalMarks, useStudentEnrollments, useCurrentAcademicYear } from '../../core/hooks'
 import { LoadingFallback } from '../../modules/shared/components/LoadingFallback'
-
-interface InternalMark {
-  id: number
-  student_id: number
-  subject_assignment_id: number
-  semester_id: number
-  academic_year_id: number
-  component_type: string
-  marks_obtained: number
-  max_marks: number
-  workflow_state: string
-  notes?: string
-  subject?: {
-    name: string
-    code: string
-  }
-}
+import type { StudentEnrollment, InternalMark } from '../../core/types/api'
 
 const COMPONENT_LABELS: Record<string, string> = {
   ia1: 'IA1',
@@ -98,7 +82,7 @@ const StudentResults: React.FC = () => {
     maxTotal: number
   }
 
-  const marksBySubject = marks.reduce((acc: Record<number, SubjectMarksData>, mark: InternalMark) => {
+  const marksBySubject = marks.reduce((acc: Record<number, SubjectMarksData>, mark: InternalMark & { subject?: { name: string; code: string } }) => {
     const key = mark.subject_assignment_id
     if (!acc[key]) {
       acc[key] = {
@@ -116,12 +100,12 @@ const StudentResults: React.FC = () => {
 
   // Get unique academic years from enrollments
   const academicYears: number[] = Array.from(
-    new Set(enrollments.map((e: any) => e.academic_year_id).filter((id: any): id is number => Boolean(id)))
+    new Set(enrollments.map((e: StudentEnrollment) => e.academic_year_id).filter((id: number | undefined): id is number => Boolean(id)))
   ) as number[]
 
   // Get unique semesters from enrollments
   const semesters: number[] = Array.from(
-    new Set(enrollments.map((e: any) => e.semester_id).filter((id: any): id is number => Boolean(id)))
+    new Set(enrollments.map((e: StudentEnrollment) => e.semester_id).filter((id: number | undefined): id is number => Boolean(id)))
   ) as number[]
 
   return (

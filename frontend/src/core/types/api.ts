@@ -515,6 +515,22 @@ export interface Department {
   hod?: User
 }
 
+export interface DepartmentCreateRequest {
+  name: string
+  code: string
+  description?: string
+  hod_id?: number
+  is_active?: boolean
+}
+
+export interface DepartmentUpdateRequest {
+  name?: string
+  code?: string
+  description?: string
+  hod_id?: number
+  is_active?: boolean
+}
+
 export interface Batch {
   id: number
   name: string
@@ -542,6 +558,27 @@ export interface User {
   primary_role?: string
 }
 
+export interface UserCreateRequest {
+  username: string
+  email: string
+  password: string
+  first_name?: string
+  last_name?: string
+  roles: Array<{
+    role: string
+    department_id?: number
+  }>
+  is_active?: boolean
+}
+
+export interface UserUpdateRequest {
+  username?: string
+  email?: string
+  first_name?: string
+  last_name?: string
+  is_active?: boolean
+}
+
 export interface UserRole {
   role: string
   department_id?: number
@@ -563,6 +600,21 @@ export interface Subject {
   // Populated fields
   department?: Department
 }
+
+export interface SubjectCreateRequest {
+  code: string
+  name: string
+  description?: string
+  department_id: number
+  credits: number
+  max_internal: number
+  max_external: number
+  is_active?: boolean
+  semester_id?: number
+  academic_year_id?: number
+}
+
+export type SubjectUpdateRequest = Partial<SubjectCreateRequest>
 
 export interface SubjectAssignment {
   id: number
@@ -642,7 +694,20 @@ export interface Exam {
   updated_at: string
   // Populated fields
   subject_assignment?: SubjectAssignment
+  questions?: Question[]
 }
+
+export interface ExamCreateRequest {
+  name: string
+  exam_type: 'internal1' | 'internal2' | 'external' | 'assignment'
+  subject_assignment_id: number
+  total_marks: number
+  exam_date?: string
+  duration_minutes?: number
+  instructions?: string
+}
+
+export type ExamUpdateRequest = Partial<ExamCreateRequest>
 
 export interface Question {
   id: number
@@ -663,6 +728,20 @@ export interface Question {
   }>
 }
 
+export interface QuestionCreateRequest {
+  exam_id: number
+  question_no: string
+  question_text: string
+  section: 'A' | 'B' | 'C'
+  marks_per_question: number
+  required_count?: number
+  optional_count?: number
+  blooms_level: 1 | 2 | 3 | 4 | 5 | 6
+  difficulty: 'easy' | 'medium' | 'hard'
+}
+
+export type QuestionUpdateRequest = Partial<QuestionCreateRequest>
+
 export interface Mark {
   id: number
   student_id: number
@@ -676,6 +755,14 @@ export interface Mark {
   student?: Student
   exam?: Exam
   question?: Question
+}
+
+export interface MarkCreateRequest {
+  student_id: number
+  exam_id: number
+  question_id?: number
+  marks_obtained: number
+  max_marks: number
 }
 
 export interface InternalMark {
@@ -765,6 +852,31 @@ export interface COPOMapping {
   po?: ProgramOutcome
 }
 
+export interface EvidenceItem {
+  type: 'exam' | 'assignment' | 'project' | 'quiz'
+  id: number
+  name: string
+  date: string
+  marks_obtained: number
+  max_marks: number
+  percentage: number
+}
+
+export interface QuestionAnalysisItem {
+  question_id: number
+  question_no: string
+  marks: number
+  bloom_level: 1 | 2 | 3 | 4 | 5 | 6
+  difficulty: 'easy' | 'medium' | 'hard'
+  avg_marks_obtained: number
+  success_rate: number
+  co_mappings: Array<{
+    co_id: number
+    co_code: string
+    weight_pct: number
+  }>
+}
+
 // ============================================
 // RESPONSE WRAPPER TYPES
 // ============================================
@@ -805,7 +917,7 @@ export interface FilterParams {
   academic_year_id?: number
   batch_instance_id?: number
   subject_id?: number
-  [key: string]: any
+  [key: string]: string | number | boolean | undefined
 }
 
 export interface SortParams {
@@ -813,5 +925,29 @@ export interface SortParams {
   sort_order?: 'asc' | 'desc'
 }
 
+export interface QueryParams {
+  skip?: number
+  limit?: number
+  [key: string]: string | number | boolean | undefined
+}
+
 export type APIParams = PaginationParams & FilterParams & SortParams
+
+// Export all new DTO types
+export type {
+  DepartmentCreateRequest,
+  DepartmentUpdateRequest,
+  SubjectCreateRequest,
+  SubjectUpdateRequest,
+  UserCreateRequest,
+  UserUpdateRequest,
+  ExamCreateRequest,
+  ExamUpdateRequest,
+  QuestionCreateRequest,
+  QuestionUpdateRequest,
+  MarkCreateRequest,
+  EvidenceItem,
+  QuestionAnalysisItem,
+  QueryParams,
+}
 

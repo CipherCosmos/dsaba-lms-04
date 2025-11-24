@@ -141,12 +141,17 @@ async def get_current_academic_year(
     current_user: User = Depends(get_current_user)
 ):
     """Get current active academic year"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"User {current_user.username} requesting current academic year")
     academic_year = await service.get_current_academic_year()
     if not academic_year:
+        logger.warning("No current academic year found in database")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No current academic year found"
         )
+    logger.info(f"Found current academic year: {academic_year.display_name}")
     return AcademicYearResponse(**academic_year.to_dict())
 
 

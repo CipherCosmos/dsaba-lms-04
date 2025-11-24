@@ -1,38 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, memo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../store/store'
 import { fetchUsers } from '../../store/slices/userSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchExams } from '../../store/slices/examSlice'
-import { subjectAssignmentAPI } from '../../services/api'
+import { subjectAssignmentAPI, marksAPI } from '../../services/api'
 import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
-import { Bar, Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { useMarksByExam } from '../../core/hooks/useMarks'
+import AnalyticsChart from '../../components/shared/AnalyticsChart'
+import DataExport from '../../components/shared/DataExport'
+import AnalyticsFilters from '../../components/shared/AnalyticsFilters'
+import { TrendingUp, Users, Award, Target } from 'lucide-react'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  LineElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-)
-import { TrendingUp, Users, Award, Target, Download, Search } from 'lucide-react'
-
-const HODStudentAnalytics: React.FC = () => {
+const HODStudentAnalytics: React.FC = memo(() => {
   const dispatch = useDispatch<AppDispatch>()
   const { user } = useSelector((state: RootState) => state.auth)
   const { users } = useSelector((state: RootState) => state.users)
@@ -41,14 +22,46 @@ const HODStudentAnalytics: React.FC = () => {
   const { exams } = useSelector((state: RootState) => state.exams)
 
   const [selectedSubject, setSelectedSubject] = useState<number | null>(null)
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [marksData, setMarksData] = useState<any[]>([])
   // Note: selectedClass removed - analytics now based on department/semester/enrollment
 
   useEffect(() => {
-    dispatch(fetchUsers())
-    dispatch(fetchSubjects())
-    dispatch(fetchClasses())
-    dispatch(fetchExams())
+    const loadData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        // Load basic data
+        await Promise.all([
+          dispatch(fetchUsers()),
+          dispatch(fetchSubjects()),
+          dispatch(fetchClasses()),
+          dispatch(fetchExams())
+        ])
+
+        // Fetch marks for all department exams
+        const allMarks: any[] = []
+        for (const exam of exams) {
+          try {
+            const examMarks = await marksAPI.getByExam(exam.id, 0, 1000)
+            allMarks.push(...(examMarks.items || []))
+          } catch (err) {
+            console.warn(`Failed to fetch marks for exam ${exam.id}:`, err)
+          }
+        }
+        setMarksData(allMarks)
+        setLoading(false)
+      } catch (err) {
+        console.error('Failed to load data:', err)
+        setError('Failed to load analytics data. Please try again.')
+        setLoading(false)
+      }
+    }
+
+    loadData()
   }, [dispatch])
 
   // Filter data for HOD's department
@@ -60,7 +73,7 @@ const HODStudentAnalytics: React.FC = () => {
     return (u as any).department_id === userDeptId
   })
   // Subjects belong to departments directly
-  const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id)
+  const departmentSubjects = subjects.filter(s => s.department_id === user?.department_id && (!selectedSemester || (s as any).semester === selectedSemester))
   // Get subject assignments for exams
   const { getSubjectForExam } = useExamSubjectAssignments(exams)
   
@@ -79,27 +92,62 @@ const HODStudentAnalytics: React.FC = () => {
     student.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+
   // Note: Removed exam-class mapping - analytics now based on subject/department associations
 
-  // Calculate performance data based on department exams
+  // Calculate performance data based on actual student marks
   const performanceData = useMemo(() => {
     return filteredStudents.map(student => {
-      // Get student's department exams
-      const studentExams = departmentExams
+      // Get all marks for this student from department exams
+      const studentMarks = marksData.filter(mark => mark.student_id === student.id)
 
-      // Calculate average based on exam total marks (placeholder - actual marks from MarkModel)
-      const totalMarks = studentExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-      const averagePercentage = studentExams.length > 0 ? (totalMarks / studentExams.length) : 0
+      if (studentMarks.length === 0) {
+        return {
+          name: `${student.first_name} ${student.last_name}`,
+          class: 'Department Student',
+          percentage: 0,
+          exams: 0,
+          status: 'No Data'
+        }
+      }
+
+      // Calculate total marks obtained and total possible marks
+      let totalObtained = 0
+      let totalPossible = 0
+
+      // Group marks by exam to calculate percentage per exam
+      const examMarksMap = new Map<number, { obtained: number; possible: number }>()
+
+      studentMarks.forEach(mark => {
+        const exam = departmentExams.find(e => e.id === mark.exam_id)
+        if (exam) {
+          const examTotal = exam.total_marks || 100 // fallback to 100 if not set
+          if (!examMarksMap.has(mark.exam_id)) {
+            examMarksMap.set(mark.exam_id, { obtained: 0, possible: examTotal })
+          }
+          examMarksMap.get(mark.exam_id)!.obtained += mark.marks_obtained
+        }
+      })
+
+      // Calculate weighted average percentage
+      examMarksMap.forEach(({ obtained, possible }) => {
+        if (possible > 0) {
+          totalObtained += obtained
+          totalPossible += possible
+        }
+      })
+
+      const averagePercentage = totalPossible > 0 ? (totalObtained / totalPossible) * 100 : 0
 
       return {
         name: `${student.first_name} ${student.last_name}`,
-        class: 'Department Student', // Legacy class field deprecated
+        class: 'Department Student',
         percentage: Math.round(averagePercentage),
-        exams: studentExams.length,
+        exams: examMarksMap.size,
         status: averagePercentage >= 80 ? 'Excellent' : averagePercentage >= 60 ? 'Good' : 'Needs Improvement'
       }
     })
-  }, [filteredStudents, departmentExams])
+  }, [filteredStudents, departmentExams, marksData])
 
   // Subject-based performance data (replacing legacy class performance)
   const classPerformanceData = useMemo(() => {
@@ -109,17 +157,46 @@ const HODStudentAnalytics: React.FC = () => {
         return examSubject?.id === subject.id
       })
 
-      const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-      const averagePercentage = subjectExams.length > 0 ? (totalMarks / subjectExams.length) : 0
+      // Calculate average performance for this subject based on actual marks
+      let totalPercentage = 0
+      let studentCount = 0
+
+      students.forEach(student => {
+        const studentSubjectMarks = marksData.filter(mark => {
+          const exam = departmentExams.find(e => e.id === mark.exam_id)
+          const examSubject = exam ? getSubjectForExam(exam) : null
+          return mark.student_id === student.id && examSubject?.id === subject.id
+        })
+
+        if (studentSubjectMarks.length > 0) {
+          let studentTotalObtained = 0
+          let studentTotalPossible = 0
+
+          studentSubjectMarks.forEach(mark => {
+            const exam = departmentExams.find(e => e.id === mark.exam_id)
+            const examTotal = exam?.total_marks || 100
+            studentTotalObtained += mark.marks_obtained
+            studentTotalPossible += examTotal
+          })
+
+          if (studentTotalPossible > 0) {
+            const studentPercentage = (studentTotalObtained / studentTotalPossible) * 100
+            totalPercentage += studentPercentage
+            studentCount++
+          }
+        }
+      })
+
+      const averagePercentage = studentCount > 0 ? totalPercentage / studentCount : 0
 
       return {
         class: subject.name, // Using subject name for chart labels
-        students: students.length,
+        students: studentCount,
         average: Math.round(averagePercentage),
         semester: 'N/A'
       }
     })
-  }, [departmentSubjects, students, departmentExams, getSubjectForExam])
+  }, [departmentSubjects, students, departmentExams, getSubjectForExam, marksData])
 
   // Subject performance data based on department
   const subjectPerformanceData = useMemo(() => {
@@ -129,18 +206,47 @@ const HODStudentAnalytics: React.FC = () => {
         return examSubject?.id === subject.id
       })
 
-      const totalMarks = subjectExams.reduce((sum, exam) => sum + (exam.total_marks || 0), 0)
-      const averagePercentage = subjectExams.length > 0 ? (totalMarks / subjectExams.length) : 0
+      // Calculate average performance for this subject based on actual marks
+      let totalPercentage = 0
+      let studentCount = 0
+
+      students.forEach(student => {
+        const studentSubjectMarks = marksData.filter(mark => {
+          const exam = departmentExams.find(e => e.id === mark.exam_id)
+          const examSubject = exam ? getSubjectForExam(exam) : null
+          return mark.student_id === student.id && examSubject?.id === subject.id
+        })
+
+        if (studentSubjectMarks.length > 0) {
+          let studentTotalObtained = 0
+          let studentTotalPossible = 0
+
+          studentSubjectMarks.forEach(mark => {
+            const exam = departmentExams.find(e => e.id === mark.exam_id)
+            const examTotal = exam?.total_marks || 100
+            studentTotalObtained += mark.marks_obtained
+            studentTotalPossible += examTotal
+          })
+
+          if (studentTotalPossible > 0) {
+            const studentPercentage = (studentTotalObtained / studentTotalPossible) * 100
+            totalPercentage += studentPercentage
+            studentCount++
+          }
+        }
+      })
+
+      const averagePercentage = studentCount > 0 ? totalPercentage / studentCount : 0
 
       return {
         subject: subject.name,
         code: subject.code,
         average: Math.round(averagePercentage),
-        students: students.length, // All department students
+        students: studentCount,
         exams: subjectExams.length
       }
     })
-  }, [departmentSubjects, departmentExams, students, getSubjectForExam])
+  }, [departmentSubjects, departmentExams, students, getSubjectForExam, marksData])
 
   // Grade distribution
   const gradeDistribution = [
@@ -152,7 +258,6 @@ const HODStudentAnalytics: React.FC = () => {
     { name: 'F (<50)', value: performanceData.filter(p => p.percentage < 50).length, color: '#DC2626' }
   ]
 
-  const COLORS = ['#10B981', '#34D399', '#FBBF24', '#F59E0B', '#EF4444', '#DC2626']
 
   return (
     <div className="p-6">
@@ -161,40 +266,72 @@ const HODStudentAnalytics: React.FC = () => {
         <p className="text-gray-600">Comprehensive analysis of student performance in your department</p>
       </div>
 
-      {/* Filters */}
-      <div className="card mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Search students..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          
-          <select
-            value={selectedSubject || ''}
-            onChange={(e) => setSelectedSubject(e.target.value ? Number(e.target.value) : null)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Subjects</option>
-            {departmentSubjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.name} ({subject.code})
-              </option>
-            ))}
-          </select>
-
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center">
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </button>
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600">Loading analytics data...</p>
         </div>
+      ) : error ? (
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button onClick={() => window.location.reload()} className="btn-primary">Retry</button>
+        </div>
+      ) : students.length === 0 ? (
+        <div className="text-center">
+          <p className="text-gray-500">No students found in your department.</p>
+        </div>
+      ) : (
+        <>
+
+      <AnalyticsFilters
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search students..."
+        filters={{
+          subject: {
+            value: selectedSubject,
+            options: [
+              { value: '', label: 'All Subjects' },
+              ...departmentSubjects.map(subject => ({
+                value: subject.id,
+                label: `${subject.name} (${subject.code})`
+              }))
+            ],
+            placeholder: 'All Subjects',
+            onChange: (value) => setSelectedSubject(value as number | null)
+          },
+          semester: {
+            value: selectedSemester,
+            options: [
+              { value: '', label: 'All Semesters' },
+              { value: 1, label: 'Semester 1' },
+              { value: 2, label: 'Semester 2' },
+              { value: 3, label: 'Semester 3' },
+              { value: 4, label: 'Semester 4' },
+              { value: 5, label: 'Semester 5' },
+              { value: 6, label: 'Semester 6' },
+              { value: 7, label: 'Semester 7' },
+              { value: 8, label: 'Semester 8' }
+            ],
+            placeholder: 'All Semesters',
+            onChange: (value) => setSelectedSemester(value as number | null)
+          }
+        }}
+      />
+
+      <div className="mb-6 flex justify-end">
+        <DataExport
+          data={{
+            headers: ['Student Name', 'Performance (%)', 'Status', 'Exams Taken'],
+            rows: performanceData.map(student => [
+              student.name,
+              student.percentage,
+              student.status,
+              student.exams
+            ])
+          }}
+          filename={`student-analytics-${new Date().toISOString().split('T')[0]}.csv`}
+        />
       </div>
 
       {/* Stats Cards */}
@@ -250,106 +387,72 @@ const HODStudentAnalytics: React.FC = () => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Class Performance */}
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Class Performance</h3>
-          <div className="h-80">
-            <Bar
-              data={{
-                labels: classPerformanceData.map(item => item.class),
-                datasets: [
-                  {
-                    label: 'Average Performance (%)',
-                    data: classPerformanceData.map(item => item.average),
-                    backgroundColor: '#3B82F6',
-                    borderColor: '#3B82F6',
-                    borderWidth: 1,
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false,
-                  },
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    max: 100,
-                  },
-                },
-              }}
-            />
-          </div>
-        </div>
+        <AnalyticsChart
+          type="bar"
+          title="Class Performance"
+          data={{
+            labels: classPerformanceData.map(item => item.class),
+            datasets: [
+              {
+                label: 'Average Performance (%)',
+                data: classPerformanceData.map(item => item.average),
+                backgroundColor: '#3B82F6',
+                borderColor: '#3B82F6',
+                borderWidth: 1,
+              },
+            ],
+          }}
+          options={{
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100,
+              },
+            },
+          }}
+        />
 
-        {/* Grade Distribution */}
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Grade Distribution</h3>
-          <div className="h-80">
-            <Doughnut
-              data={{
-                labels: gradeDistribution.map(item => item.name),
-                datasets: [
-                  {
-                    data: gradeDistribution.map(item => item.value),
-                    backgroundColor: COLORS,
-                    borderWidth: 1,
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: 'bottom',
-                  },
-                },
-              }}
-            />
-          </div>
-        </div>
+        <AnalyticsChart
+          type="doughnut"
+          title="Grade Distribution"
+          data={{
+            labels: gradeDistribution.map(item => item.name),
+            datasets: [
+              {
+                label: 'Students',
+                data: gradeDistribution.map(item => item.value),
+                backgroundColor: ['#10B981', '#34D399', '#FBBF24', '#F59E0B', '#EF4444', '#DC2626'],
+                borderWidth: 1,
+              },
+            ],
+          }}
+        />
       </div>
 
-      {/* Subject Performance */}
-      <div className="card mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Subject Performance</h3>
-        <div className="h-80">
-          <Bar
-            data={{
-              labels: subjectPerformanceData.map(item => item.code),
-              datasets: [
-                {
-                  label: 'Average Performance (%)',
-                  data: subjectPerformanceData.map(item => item.average),
-                  backgroundColor: '#10B981',
-                  borderColor: '#10B981',
-                  borderWidth: 1,
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  display: false,
-                },
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  max: 100,
-                },
-              },
-            }}
-          />
-        </div>
-      </div>
+      <AnalyticsChart
+        type="bar"
+        title="Subject Performance"
+        data={{
+          labels: subjectPerformanceData.map(item => item.code),
+          datasets: [
+            {
+              label: 'Average Performance (%)',
+              data: subjectPerformanceData.map(item => item.average),
+              backgroundColor: '#10B981',
+              borderColor: '#10B981',
+              borderWidth: 1,
+            },
+          ],
+        }}
+        options={{
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+            },
+          },
+        }}
+      />
 
       {/* Student Performance Table */}
       <div className="card">
@@ -416,8 +519,12 @@ const HODStudentAnalytics: React.FC = () => {
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
-}
+})
+
+HODStudentAnalytics.displayName = 'HODStudentAnalytics'
 
 export default HODStudentAnalytics

@@ -37,8 +37,8 @@ class TestAcademicStructureEndpoints:
         )
         assert response.status_code == 200
         data = response.json()
-        assert "batches" in data
-        assert len(data["batches"]) > 0
+        assert "items" in data
+        assert len(data["items"]) > 0
     
     @pytest.mark.asyncio
     async def test_get_batch(self, async_client: AsyncClient, admin_token, batch):

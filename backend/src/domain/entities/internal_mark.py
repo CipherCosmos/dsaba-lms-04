@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from src.domain.entities.base import Entity, AggregateRoot
 from src.infrastructure.database.models import MarksWorkflowState, MarkComponentType
+from src.domain.services.marks_validation_service import MarksValidationService
 
 
 class InternalMark(AggregateRoot):
@@ -103,14 +104,11 @@ class InternalMark(AggregateRoot):
     
     def _validate(self) -> None:
         """Validate internal mark data"""
-        if self._marks_obtained < 0:
-            raise ValueError("Marks obtained cannot be negative")
-        
-        if self._marks_obtained > self._max_marks:
-            raise ValueError("Marks obtained cannot exceed maximum marks")
-        
-        if self._max_marks <= 0:
-            raise ValueError("Maximum marks must be greater than zero")
+        MarksValidationService.validate_mark_obtained(
+            float(self._marks_obtained),
+            float(self._max_marks)
+        )
+        MarksValidationService.validate_max_marks(float(self._max_marks))
     
     @property
     def student_id(self) -> int:
@@ -146,24 +144,33 @@ class InternalMark(AggregateRoot):
     
     def submit(self, submitted_by: int) -> None:
         """Submit marks for HOD approval"""
-        if self._workflow_state != MarksWorkflowState.DRAFT:
-            raise ValueError(f"Cannot submit marks in {self._workflow_state.value} state")
+        MarksValidationService.validate_workflow_state_transition(
+            self._workflow_state.value,
+            MarksWorkflowState.SUBMITTED.value,
+            "submit"
+        )
         self._workflow_state = MarksWorkflowState.SUBMITTED
         self._submitted_at = datetime.utcnow()
         self._submitted_by = submitted_by
     
     def approve(self, approved_by: int) -> None:
         """Approve marks (HOD)"""
-        if self._workflow_state != MarksWorkflowState.SUBMITTED:
-            raise ValueError(f"Cannot approve marks in {self._workflow_state.value} state")
+        MarksValidationService.validate_workflow_state_transition(
+            self._workflow_state.value,
+            MarksWorkflowState.APPROVED.value,
+            "approve"
+        )
         self._workflow_state = MarksWorkflowState.APPROVED
         self._approved_at = datetime.utcnow()
         self._approved_by = approved_by
     
     def reject(self, rejected_by: int, reason: str) -> None:
         """Reject marks (HOD)"""
-        if self._workflow_state != MarksWorkflowState.SUBMITTED:
-            raise ValueError(f"Cannot reject marks in {self._workflow_state.value} state")
+        MarksValidationService.validate_workflow_state_transition(
+            self._workflow_state.value,
+            MarksWorkflowState.REJECTED.value,
+            "reject"
+        )
         self._workflow_state = MarksWorkflowState.REJECTED
         self._rejected_at = datetime.utcnow()
         self._rejected_by = rejected_by
@@ -171,8 +178,11 @@ class InternalMark(AggregateRoot):
     
     def reset_to_draft(self) -> None:
         """Reset rejected marks to draft"""
-        if self._workflow_state != MarksWorkflowState.REJECTED:
-            raise ValueError(f"Cannot reset marks in {self._workflow_state.value} state")
+        MarksValidationService.validate_workflow_state_transition(
+            self._workflow_state.value,
+            MarksWorkflowState.DRAFT.value,
+            "reset"
+        )
         self._workflow_state = MarksWorkflowState.DRAFT
         self._rejected_at = None
         self._rejected_by = None
@@ -180,25 +190,34 @@ class InternalMark(AggregateRoot):
     
     def freeze(self, frozen_by: int) -> None:
         """Freeze marks (Principal)"""
-        if self._workflow_state != MarksWorkflowState.APPROVED:
-            raise ValueError(f"Cannot freeze marks in {self._workflow_state.value} state")
+        MarksValidationService.validate_workflow_state_transition(
+            self._workflow_state.value,
+            MarksWorkflowState.FROZEN.value,
+            "freeze"
+        )
         self._workflow_state = MarksWorkflowState.FROZEN
         self._frozen_at = datetime.utcnow()
         self._frozen_by = frozen_by
     
     def publish(self) -> None:
         """Publish marks (HOD/Principal)"""
+        # Allow publishing from approved or frozen states
         if self._workflow_state not in [MarksWorkflowState.APPROVED, MarksWorkflowState.FROZEN]:
-            raise ValueError(f"Cannot publish marks in {self._workflow_state.value} state")
+            MarksValidationService.validate_workflow_state_transition(
+                self._workflow_state.value,
+                MarksWorkflowState.PUBLISHED.value,
+                "publish"
+            )
         self._workflow_state = MarksWorkflowState.PUBLISHED
         self._published_at = datetime.utcnow()
     
     def update_marks(self, marks_obtained: Decimal) -> None:
         """Update marks (only in DRAFT or REJECTED state)"""
-        if self._workflow_state not in [MarksWorkflowState.DRAFT, MarksWorkflowState.REJECTED]:
-            raise ValueError(f"Cannot update marks in {self._workflow_state.value} state")
-        if marks_obtained < 0 or marks_obtained > self._max_marks:
-            raise ValueError("Marks must be between 0 and max_marks")
+        MarksValidationService.validate_marks_update_permission(self._workflow_state.value)
+        MarksValidationService.validate_mark_obtained(
+            float(marks_obtained),
+            float(self._max_marks)
+        )
         self._marks_obtained = marks_obtained
     
     def to_dict(self) -> dict:

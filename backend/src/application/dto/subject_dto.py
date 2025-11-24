@@ -77,6 +77,43 @@ class SubjectResponse(BaseModel):
         }
 
 
+class BulkSubjectCreateRequest(BaseModel):
+    """Bulk create subjects request DTO"""
+    subjects: List[SubjectCreateRequest] = Field(..., min_items=1, max_items=1000)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "subjects": [
+                    {
+                        "code": "CS101",
+                        "name": "Introduction to Computer Science",
+                        "department_id": 1,
+                        "credits": 3.0,
+                        "max_internal": 40.0,
+                        "max_external": 60.0
+                    },
+                    {
+                        "code": "CS102",
+                        "name": "Data Structures",
+                        "department_id": 1,
+                        "credits": 4.0,
+                        "max_internal": 40.0,
+                        "max_external": 60.0
+                    }
+                ]
+            }
+        }
+
+
+class BulkSubjectCreateResponse(BaseModel):
+    """Bulk create subjects response DTO"""
+    created: int
+    failed: int
+    errors: List[dict]
+    subjects: List[SubjectResponse]
+
+
 class SubjectListResponse(BaseModel):
     """Subject list response DTO"""
     items: List[SubjectResponse]

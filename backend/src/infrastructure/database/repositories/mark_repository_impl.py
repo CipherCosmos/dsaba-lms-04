@@ -10,7 +10,7 @@ from src.domain.repositories.mark_repository import IMarkRepository
 from src.domain.entities.mark import Mark
 from src.domain.exceptions import EntityNotFoundError
 
-from ..models import MarkModel
+from ..models import MarkModel, StudentModel
 
 
 class MarkRepository(IMarkRepository):
@@ -77,7 +77,7 @@ class MarkRepository(IMarkRepository):
         from sqlalchemy.orm import joinedload
         models = self.db.query(MarkModel).options(
             joinedload(MarkModel.exam),
-            joinedload(MarkModel.student).joinedload("user")
+            joinedload(MarkModel.student).joinedload(StudentModel.user)
         ).filter(
             MarkModel.exam_id == exam_id
         ).offset(skip).limit(limit).all()

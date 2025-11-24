@@ -169,6 +169,31 @@ Semester → academic_year_id → AcademicYear
 ✅ **Redux State Clean**  
 ✅ **API Layer Modernized**
 
+## Backend Legacy Status
+
+### Models Still Present (Deprecated)
+
+While frontend has fully migrated to BatchInstance, backend retains legacy models:
+
+- **ClassModel** (`backend/src/infrastructure/database/models.py`): Table definition exists,
+  marked with `DeprecationWarning`. Used only for backward compatibility queries.
+- **BatchYearModel**: Same status as ClassModel.
+- **class_id fields**: Present in `StudentModel`, `SubjectAssignmentModel` as nullable FKs.
+
+### Why Not Removed?
+
+1. **Data Integrity**: Existing production records may still reference these tables
+2. **SQLAlchemy Relationships**: Removing model classes breaks relationship back_populates
+3. **API Compatibility**: Some analytics endpoints still accept `class_id` for legacy clients
+
+### Migration Path
+
+1. ✅ Mark all legacy code with deprecation warnings (this phase)
+2. ⏳ Monitor usage via warnings in logs
+3. ⏳ Migrate remaining production data to BatchInstance
+4. ⏳ Remove deprecated endpoints (with sunset dates)
+5. ⏳ Drop tables via Alembic migration
+
 ## Conclusion
 
 The frontend application has been successfully refactored to remove all legacy `class_id` and `batch_year` dependencies, with the exception of valid usages in `SubjectAssignments` and backwards-compatible analytics filters. The application now fully aligns with the new `BatchInstance` and `AcademicYear` architecture, providing a cleaner, more maintainable codebase ready for production deployment.

@@ -11,6 +11,7 @@ import {
 } from '../../store/slices/copoSlice'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { logger } from '../../core/utils/logger'
+import type { ProgramOutcome } from '../../core/types/api'
 
 const POManagement: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -71,7 +72,7 @@ const POManagement: React.FC = () => {
     }
   }
 
-  const handleEdit = (po: any) => {
+  const handleEdit = (po: ProgramOutcome) => {
     setEditingPO(po)
     setFormData({
       code: po.code,

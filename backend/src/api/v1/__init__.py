@@ -30,7 +30,8 @@ from src.api.v1 import (
     co_po_attainment,
     smart_marks,
     bulk_uploads,
-    audit
+    audit,
+    monitoring
 )
 
 # Create main API router
@@ -65,3 +66,4 @@ router.include_router(co_po_attainment.router)
 router.include_router(smart_marks.router)
 router.include_router(bulk_uploads.router)
 router.include_router(audit.router)
+router.include_router(monitoring.router)

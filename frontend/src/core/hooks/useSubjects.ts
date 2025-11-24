@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { subjectAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
+import type { SubjectUpdateRequest } from '../types/api'
 
 /**
  * Hook to fetch all subjects
@@ -50,7 +52,7 @@ export function useCreateSubject() {
       queryClient.invalidateQueries({ queryKey: queryKeys.subjects.lists() })
       toast.success('Subject created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to create subject')
     },
   })
@@ -63,13 +65,13 @@ export function useUpdateSubject() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => subjectAPI.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: SubjectUpdateRequest }) => subjectAPI.update(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subjects.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.subjects.lists() })
       toast.success('Subject updated successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to update subject')
     },
   })

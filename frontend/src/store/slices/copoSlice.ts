@@ -10,6 +10,7 @@ import {
   attainmentAuditAPI,
   attainmentAnalyticsAPI
 } from '../../services/api'
+import type { EvidenceItem, QuestionAnalysisItem } from '../../core/types/api'
 
 // Types
 export interface CODefinition {
@@ -98,11 +99,17 @@ export interface COAttainmentDetail {
   level: string
   gap: number
   coverage: number
-  evidence: any[]
+  /**
+   * Evidence items supporting the CO attainment
+   */
+  evidence: EvidenceItem[]
   performance_trend: Array<{ period: string; attainment: number }>
   difficulty_analysis: { easy: number; medium: number; hard: number }
   blooms_taxonomy: Record<string, number>
-  question_analysis: any[]
+  /**
+   * Analysis of questions mapped to this CO
+   */
+  question_analysis: QuestionAnalysisItem[]
   student_performance: {
     total_students: number
     passing_students: number

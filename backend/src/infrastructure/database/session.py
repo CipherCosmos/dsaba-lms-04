@@ -7,10 +7,11 @@ from sqlalchemy import create_engine, event, Engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import Pool
-from typing import Generator
+from typing import Generator, Dict, Any
 import logging
 
 from src.config import settings
+from .monitoring import db_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,9 @@ def create_db_engine() -> Engine:
 
 # Create the engine
 engine = create_db_engine()
+
+# Enable database monitoring
+db_monitor.enable_query_monitoring(engine)
 
 # Create session factory
 SessionLocal = sessionmaker(
@@ -187,9 +191,39 @@ def drop_tables() -> None:
 def get_engine() -> Engine:
     """
     Get the database engine
-    
+
     Returns:
         SQLAlchemy engine instance
     """
     return engine
+
+
+def get_database_performance_stats() -> Dict[str, Any]:
+    """
+    Get comprehensive database performance statistics
+
+    Returns:
+        Dictionary with performance metrics
+    """
+
+    stats = {
+        'query_stats': db_monitor.get_query_stats(),
+        'connection_pool': db_monitor.get_connection_pool_stats(engine),
+        'engine_info': {
+            'pool_size': getattr(settings, 'DB_POOL_SIZE', 20),
+            'max_overflow': getattr(settings, 'DB_MAX_OVERFLOW', 40),
+            'pool_timeout': getattr(settings, 'DB_POOL_TIMEOUT', 30),
+            'pool_recycle': getattr(settings, 'DB_POOL_RECYCLE', 3600),
+            'pool_pre_ping': getattr(settings, 'DB_POOL_PRE_PING', True)
+        }
+    }
+
+    return stats
+
+
+def log_performance_report() -> None:
+    """
+    Log current performance report
+    """
+    db_monitor.log_performance_report()
 

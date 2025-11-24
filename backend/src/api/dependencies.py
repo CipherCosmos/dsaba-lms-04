@@ -120,7 +120,7 @@ async def get_current_user(
             )
         
         return user
-        
+
     except TokenExpiredError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -147,4 +147,42 @@ async def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+# Optional authentication dependency
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    user_repo: UserRepository = Depends(get_user_repository)
+):
+    """
+    Get current authenticated user (optional)
+
+    This dependency validates the JWT token and returns the user entity if valid,
+    otherwise returns None. Useful for endpoints that work with or without authentication.
+
+    Returns:
+        User entity if token is valid, None otherwise
+    """
+    try:
+        # Extract token
+        token = credentials.credentials
+
+        # Decode and validate
+        payload = jwt_handler.decode_token(token)
+
+        # Get username from token
+        username = payload.get("sub")
+        if not username:
+            return None
+
+        # Get user from database
+        user = await user_repo.get_by_username(username)
+        if not user or not user.is_active:
+            return None
+
+        return user
+
+    except Exception:
+        # Return None for any authentication failure
+        return None
 

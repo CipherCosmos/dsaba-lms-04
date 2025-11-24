@@ -3,6 +3,7 @@ Audit Trail API Endpoints
 Audit logs for mark changes and system actions
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional, List
 from datetime import datetime
@@ -128,17 +129,21 @@ async def get_system_audit_logs(
 ):
     """
     Get system audit logs
-    
+
     - **user_id**: Optional user ID filter
     - **action**: Optional action filter
     - **resource**: Optional resource filter
     - **skip**: Number of records to skip
     - **limit**: Maximum number of records
-    
+
     Returns system-wide audit trail
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"get_system_audit_logs called by user {current_user.id} with role {current_user.role.value}")
+
     # Only Admin and Principal can view system audit logs
     if current_user.role.value not in ['admin', 'principal']:
+        logger.warning(f"Access denied for user {current_user.id} with role {current_user.role.value}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only Admin and Principal can view system audit logs"

@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { marksAPI, examAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
+import type { MarkCreateRequest, Mark } from '../types/api'
 
 /**
  * Hook to fetch marks by exam
@@ -47,8 +49,8 @@ export function useCreateMark() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (data: any) => marksAPI.create(data),
-    onSuccess: (data: any) => {
+    mutationFn: (data: MarkCreateRequest) => marksAPI.create(data),
+    onSuccess: (data: Mark) => {
       const examId = data.exam_id
       if (examId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.marks.byExam(examId) })
@@ -58,7 +60,7 @@ export function useCreateMark() {
       }
       toast.success('Marks saved successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to save marks')
     },
   })

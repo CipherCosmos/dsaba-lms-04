@@ -38,10 +38,11 @@ from src.main import app
 from src.infrastructure.database.session import Base, get_db, create_tables
 from src.infrastructure.database.models import (
     UserModel, DepartmentModel, RoleModel, UserRoleModel,
-    ClassModel, BatchModel, BatchYearModel, SemesterModel,
+    SectionModel, BatchModel, SemesterModel,
     SubjectModel, SubjectAssignmentModel, ExamModel,
     QuestionModel, SubQuestionModel, MarkModel, FinalMarkModel,
-    CourseOutcomeModel, ProgramOutcomeModel, COPOMappingModel
+    CourseOutcomeModel, ProgramOutcomeModel, COPOMappingModel,
+    BatchInstanceModel
 )
 from src.infrastructure.security.password_hasher import PasswordHasher
 from src.infrastructure.security.jwt_handler import JWTHandler
@@ -257,21 +258,37 @@ def teacher_user(test_db_session, password_hasher, department):
 
 
 @pytest.fixture
-def student_user(test_db_session, password_hasher, class_obj, department, batch_year):
+def batch_instance(test_db_session, department, batch, academic_year):
+    """Create a test batch instance"""
+    batch_instance = BatchInstanceModel(
+        academic_year_id=academic_year.id,
+        department_id=department.id,
+        batch_id=batch.id,
+        admission_year=2024,
+        current_semester=1
+    )
+    test_db_session.add(batch_instance)
+    test_db_session.commit()
+    test_db_session.refresh(batch_instance)
+    return batch_instance
+
+
+@pytest.fixture
+def student_user(test_db_session, password_hasher, batch_instance, department):
     """Create a student user for testing"""
     from src.infrastructure.database.models import StudentModel
-    
+
     # Create student role
     student_role = test_db_session.query(RoleModel).filter(
         RoleModel.name == UserRole.STUDENT.value
     ).first()
-    
+
     if not student_role:
         student_role = RoleModel(name=UserRole.STUDENT.value, description="Student")
         test_db_session.add(student_role)
         test_db_session.commit()
         test_db_session.refresh(student_role)
-    
+
     # Create student user
     student = UserModel(
         username="student",
@@ -285,23 +302,22 @@ def student_user(test_db_session, password_hasher, class_obj, department, batch_
     test_db_session.add(student)
     test_db_session.commit()
     test_db_session.refresh(student)
-    
+
     # Create student profile
     student_profile = StudentModel(
         user_id=student.id,
         roll_no="ST001",
         department_id=department.id,
-        batch_year_id=batch_year.id,
-        class_id=class_obj.id
+        batch_instance_id=batch_instance.id
     )
     test_db_session.add(student_profile)
     test_db_session.commit()
-    
+
     # Assign student role
     user_role = UserRoleModel(user_id=student.id, role_id=student_role.id)
     test_db_session.add(user_role)
     test_db_session.commit()
-    
+
     return student
 
 
@@ -430,18 +446,18 @@ def batch(test_db_session):
     return batch
 
 
-@pytest.fixture
-def batch_year(test_db_session, batch):
-    """Create a test batch year"""
-    batch_year = BatchYearModel(
-        batch_id=batch.id,
-        start_year=2024,
-        end_year=2025
-    )
-    test_db_session.add(batch_year)
-    test_db_session.commit()
-    test_db_session.refresh(batch_year)
-    return batch_year
+# @pytest.fixture
+# def batch_year(test_db_session, batch):
+#     """Create a test batch year"""
+#     batch_year = BatchYearModel(
+#         batch_id=batch.id,
+#         start_year=2024,
+#         end_year=2025
+#     )
+#     test_db_session.add(batch_year)
+#     test_db_session.commit()
+#     test_db_session.refresh(batch_year)
+#     return batch_year
 
 
 @pytest.fixture
@@ -464,11 +480,11 @@ def academic_year(test_db_session):
 
 
 @pytest.fixture
-def semester(test_db_session, batch_year, academic_year, department):
+def semester(test_db_session, batch_instance, academic_year, department):
     """Create a test semester"""
     from datetime import date
     semester = SemesterModel(
-        batch_year_id=batch_year.id,
+        batch_instance_id=batch_instance.id,
         semester_no=1,
         start_date=date.today(),
         end_date=date.today() + timedelta(days=180),
@@ -482,18 +498,17 @@ def semester(test_db_session, batch_year, academic_year, department):
 
 
 @pytest.fixture
-def class_obj(test_db_session, department, semester):
-    """Create a test class"""
-    class_obj = ClassModel(
-        name="CSE-A",
-        department_id=department.id,
-        semester_id=semester.id,
-        section="A"
+def section(test_db_session, department, semester):
+    """Create a test section"""
+    section = SectionModel(
+        section_name="A",
+        batch_instance_id=None,  # Will be set by batch_instance fixture
+        capacity=60
     )
-    test_db_session.add(class_obj)
+    test_db_session.add(section)
     test_db_session.commit()
-    test_db_session.refresh(class_obj)
-    return class_obj
+    test_db_session.refresh(section)
+    return section
 
 
 @pytest.fixture
@@ -512,18 +527,17 @@ def subject(test_db_session, department):
 
 
 @pytest.fixture
-def subject_assignment(test_db_session, subject, teacher_user, class_obj, semester):
+def subject_assignment(test_db_session, subject, teacher_user, batch_instance, semester):
     """Create a test subject assignment"""
     # Get teacher profile ID
     from src.infrastructure.database.models import TeacherModel
     teacher_profile = test_db_session.query(TeacherModel).filter(
         TeacherModel.user_id == teacher_user.id
     ).first()
-    
+
     assignment = SubjectAssignmentModel(
         subject_id=subject.id,
         teacher_id=teacher_profile.id,
-        class_id=class_obj.id,
         semester_id=semester.id,
         academic_year=2024
     )

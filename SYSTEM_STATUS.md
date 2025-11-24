@@ -36,11 +36,25 @@
 8. ✅ All type safety issues fixed
 
 ### Legacy Code Status
-- `ClassModel` - DEPRECATED (kept for backward compatibility)
-- `BatchYearModel` - DEPRECATED (kept for backward compatibility)
-- `class_id` fields - Optional/legacy (kept for existing data)
+- `ClassModel` - **DEPRECATED** (table exists for backward compatibility, marked with warnings)
+- `BatchYearModel` - **DEPRECATED** (table exists for backward compatibility, marked with warnings)
+- `class_id` fields - **Optional/Legacy** (nullable, marked deprecated in all DTOs and entities)
+- `BatchYearRepository` - **DEPRECATED** (implementation exists for old data migration only)
+- Analytics endpoints `/analytics/class/{id}` - **DEPRECATED** (marked in OpenAPI spec)
 
 **All new operations use BatchInstance architecture.**
+
+### Deprecation Strategy
+
+Legacy models are **not removed** to maintain data integrity for existing records.
+Instead, they are:
+- Marked with Python `DeprecationWarning` in model `__init__` methods
+- Documented as deprecated in all docstrings and comments
+- Flagged as `deprecated=True` in FastAPI endpoints
+- Excluded from new feature development
+
+**Migration Timeline**: Once all production data is migrated to BatchInstance,
+tables can be dropped via Alembic migration (target: Q2 2025).
 
 ---
 

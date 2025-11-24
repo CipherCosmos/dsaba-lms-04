@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
@@ -9,17 +9,7 @@ import {
   Eye, EyeOff, Share2, Archive, Building2, GraduationCap,
   UserCheck, BookOpen, TrendingDown, AlertTriangle, CheckCircle
 } from 'lucide-react'
-
-interface ReportTemplate {
-  id: string
-  name: string
-  description: string
-  category: 'department' | 'teacher' | 'student' | 'attainment' | 'strategic' | 'accreditation'
-  format: 'pdf' | 'excel' | 'json' | 'csv'
-  icon: any
-  color: string
-  roles: string[]
-}
+import type { ReportTemplate } from '../../core/types'
 
 const HODReportManagement = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -59,7 +49,7 @@ const HODReportManagement = () => {
 
   // Icon mapping for report templates
   const getIcon = (category: string) => {
-    const iconMap: { [key: string]: any } = {
+    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
       department: Building2,
       teacher: UserCheck,
       student: GraduationCap,

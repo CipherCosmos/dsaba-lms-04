@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { userAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
+import type { UserUpdateRequest } from '../types/api'
 
 /**
  * Hook to fetch all users
@@ -38,7 +40,7 @@ export function useCreateUser() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() })
       toast.success('User created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to create user')
     },
   })
@@ -51,13 +53,13 @@ export function useUpdateUser() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => userAPI.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: UserUpdateRequest }) => userAPI.update(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() })
       toast.success('User updated successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to update user')
     },
   })

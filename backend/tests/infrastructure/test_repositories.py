@@ -28,6 +28,7 @@ class TestUserRepository:
             last_name="User",
             hashed_password=password_hasher.hash("password123")
         )
+        user.add_role(UserRole.STUDENT)
         
         created = await repo.create(user)
         assert created.id is not None
@@ -90,6 +91,7 @@ class TestUserRepository:
             last_name="Delete",
             hashed_password=password_hasher.hash("password123")
         )
+        user.add_role(UserRole.STUDENT)
         
         created = await repo.create(user)
         await repo.delete(created.id)

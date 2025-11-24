@@ -31,7 +31,7 @@ const Sidebar = () => {
           ...baseItems,
           // System Management
           { name: 'Departments', href: '/admin/departments', icon: Building, section: 'system' },
-          { name: 'Classes', href: '/admin/classes', icon: Users, section: 'system' },
+          { name: 'Classes (Batch Instances)', href: '/admin/classes', icon: Users, section: 'system' },
           { name: 'Subjects', href: '/admin/subjects', icon: BookOpen, section: 'system' },
           { name: 'Users', href: '/admin/users', icon: GraduationCap, section: 'system' },
           // Academic Management
@@ -41,8 +41,8 @@ const Sidebar = () => {
           { name: 'PO Management', href: '/admin/po-management', icon: Layers, section: 'academic' },
           { name: 'CO Targets', href: '/admin/co-targets', icon: Gauge, section: 'academic' },
           // Analytics & Reports
-          { name: 'Analytics', href: '/admin/analytics', icon: BarChart3, section: 'analytics' },
-          { name: 'Reports', href: '/admin/reports', icon: FileText, section: 'analytics' },
+          { name: 'Analytics', href: '/hod/analytics', icon: BarChart3, section: 'analytics' },
+          { name: 'Reports', href: '/hod/reports', icon: FileText, section: 'analytics' },
         ]
       
       case 'hod':
@@ -50,7 +50,6 @@ const Sidebar = () => {
           ...baseItems,
           // Department Management
           { name: 'Department Users', href: '/hod/users', icon: UserCheck, section: 'department' },
-          { name: 'Department Classes', href: '/hod/classes', icon: Users, section: 'department' },
           { name: 'Department Subjects', href: '/hod/subjects', icon: BookMarked, section: 'department' },
           // Academic Management
           { name: 'Batch Instances', href: '/admin/batch-instances', icon: Users, section: 'academic' },
@@ -78,7 +77,6 @@ const Sidebar = () => {
           // Analytics & Insights
           { name: 'Analytics', href: '/teacher/analytics', icon: PieChart, section: 'analytics' },
           { name: 'Attainment Analytics', href: '/teacher/attainment-analytics', icon: BarChart3, section: 'analytics' },
-          { name: 'Comprehensive Analytics', href: '/teacher/comprehensive-analytics', icon: TrendingUp, section: 'analytics' },
           { name: 'Bloom\'s Analysis', href: '/teacher/blooms-analytics', icon: Brain, section: 'analytics' },
           // Reports
           { name: 'Report Management', href: '/teacher/reports', icon: FileText, section: 'reports' },
@@ -88,24 +86,15 @@ const Sidebar = () => {
         return [
           ...baseItems,
           // Institution Management
-          { name: 'Departments', href: '/principal/departments', icon: Building, section: 'institution' },
-          { name: 'Academic Years', href: '/principal/academic-years', icon: Calendar, section: 'institution' },
           { name: 'Batch Instances', href: '/admin/batch-instances', icon: Users, section: 'institution' },
-          { name: 'Users', href: '/principal/users', icon: Users, section: 'institution' },
           // Marks Management
           { name: 'Freeze Marks', href: '/principal/marks-freeze', icon: Lock, section: 'marks' },
           // Analytics & Reports
-          { name: 'Reports', href: '/principal/reports', icon: FileText, section: 'analytics' },
-          { name: 'Audit Trail', href: '/principal/audit-trail', icon: Shield, section: 'analytics' },
+          { name: 'Audit Trail', href: '/hod/audit-trail', icon: Shield, section: 'analytics' },
         ]
       
       case 'student':
-        return [
-          ...baseItems,
-          // Student Tools
-          { name: 'My Analytics', href: '/student/analytics', icon: TrendingUp, section: 'student' },
-          { name: 'Progress Tracking', href: '/student/progress', icon: Award, section: 'student' },
-        ]
+        return baseItems
       
       default:
         return baseItems

@@ -35,7 +35,7 @@ export interface TableState {
   pageSize: number
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
-  filters?: Record<string, any>
+  filters?: FilterParams
 }
 
 // Component props types
@@ -120,7 +120,7 @@ export interface APIError {
   message: string
   code?: string
   field?: string
-  details?: any
+  details?: Record<string, unknown> | string | null
 }
 
 export interface ValidationError {
@@ -243,8 +243,84 @@ export interface BatchResult {
   successful: number
   failed: number
   errors: Array<{
-    item: any
+    item: unknown
     error: string
   }>
+}
+
+interface AxiosErrorResponse {
+  response?: {
+    status: number
+    data: {
+      detail: string | ValidationErrorDetail[]
+    }
+  }
+  message: string
+  config?: unknown
+}
+
+interface ValidationErrorDetail {
+  loc: string[]
+  msg: string
+  type: string
+}
+
+interface FormattedValidationError {
+  field: string
+  message: string
+  type: string
+}
+
+type MutationErrorHandler = (error: AxiosErrorResponse) => void
+
+export interface ChartDataPoint {
+  label: string
+  value: number
+  color?: string
+  metadata?: Record<string, string | number>
+}
+
+interface TimeSeriesDataPoint {
+  timestamp: string
+  value: number
+  label?: string
+}
+
+interface BarChartData {
+  labels: string[]
+  datasets: ChartSeries[]
+}
+
+interface ReportTemplate {
+  id: string
+  name: string
+  description: string
+  category: 'academic' | 'performance' | 'attainment' | 'comprehensive' | 'department' | 'teacher' | 'student' | 'strategic' | 'accreditation'
+  format: ExportFormat
+  icon: React.ComponentType<{ className?: string }>
+  color: string
+  roles?: string[]
+}
+
+interface ReportGenerationParams {
+  template_id: string
+  filters: FilterParams
+  format: ExportFormat
+  include_charts?: boolean
+  include_raw_data?: boolean
+}
+
+type LoggerArgs = Array<string | number | boolean | object | null | undefined>
+
+export type {
+  AxiosErrorResponse,
+  ValidationErrorDetail,
+  FormattedValidationError,
+  MutationErrorHandler,
+  TimeSeriesDataPoint,
+  BarChartData,
+  ReportTemplate,
+  ReportGenerationParams,
+  LoggerArgs
 }
 

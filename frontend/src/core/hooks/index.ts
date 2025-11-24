@@ -122,6 +122,17 @@ export {
   useCOAttainment,
   usePOAttainment,
   useStrategicDashboard,
+  // Enhanced Analytics hooks
+  useBloomsTaxonomyAnalysis,
+  usePerformanceTrends,
+  useDepartmentComparison,
+  useStudentPerformanceAnalytics,
+  useTeacherPerformanceAnalytics,
+  useClassPerformanceAnalytics,
+  useSubjectAnalyticsEnhanced,
+  useDepartmentAnalytics,
+  useNBAAccreditationData,
+  useCOPOAttainmentSummary,
 } from './useAnalytics'
 
 // Batch Instance hooks

@@ -7,15 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 
 from src.application.services.final_mark_service import FinalMarkService
-from src.application.services.grading_service import GradingService
 from src.application.dto.final_mark_dto import (
     CreateFinalMarkRequest,
     UpdateFinalMarkRequest,
     FinalMarkResponse,
-    FinalMarkListResponse,
-    CalculateSGPARequest,
-    CalculateCGPARequest,
-    GPAResponse
+    FinalMarkListResponse
 )
 from src.api.dependencies import get_current_user
 from src.domain.entities.user import User
@@ -26,21 +22,40 @@ from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
 
 
+def _final_mark_to_response(final_mark) -> FinalMarkResponse:
+    """Convert FinalMark entity to FinalMarkResponse DTO"""
+    return FinalMarkResponse(
+        id=final_mark.id,
+        student_id=final_mark.student_id,
+        subject_assignment_id=final_mark.subject_assignment_id,
+        semester_id=final_mark.semester_id,
+        internal_1=float(final_mark.internal_1),
+        internal_2=float(final_mark.internal_2),
+        best_internal=float(final_mark.best_internal),
+        external=float(final_mark.external),
+        total=float(final_mark.total),
+        percentage=float(final_mark.percentage),
+        grade=final_mark.grade,
+        sgpa=float(final_mark.sgpa) if final_mark.sgpa else None,
+        cgpa=float(final_mark.cgpa) if final_mark.cgpa else None,
+        co_attainment=final_mark.co_attainment,
+        status=final_mark.status,
+        is_published=final_mark.is_published,
+        published_at=final_mark.published_at,
+        editable_until=final_mark.editable_until,
+        created_at=final_mark.created_at,
+        updated_at=final_mark.updated_at
+    )
+
+
 def get_final_mark_service(
     db: Session = Depends(get_db)
 ) -> FinalMarkService:
     """Get final mark service instance"""
     final_mark_repo = FinalMarkRepository(db)
-    return FinalMarkService(final_mark_repo)
+    return FinalMarkService(final_mark_repo, db)
 
 
-def get_grading_service(
-    db: Session = Depends(get_db)
-) -> GradingService:
-    """Get grading service instance"""
-    final_mark_repo = FinalMarkRepository(db)
-    subject_repo = SubjectRepository(db)
-    return GradingService(final_mark_repo, subject_repo)
 
 
 # Create router
@@ -87,29 +102,8 @@ async def create_or_update_final_mark(
             max_internal=request.max_internal,
             max_external=request.max_external
         )
-        
-        return FinalMarkResponse(
-            id=final_mark.id,
-            student_id=final_mark.student_id,
-            subject_assignment_id=final_mark.subject_assignment_id,
-            semester_id=final_mark.semester_id,
-            internal_1=float(final_mark.internal_1),
-            internal_2=float(final_mark.internal_2),
-            best_internal=float(final_mark.best_internal),
-            external=float(final_mark.external),
-            total=float(final_mark.total),
-            percentage=float(final_mark.percentage),
-            grade=final_mark.grade,
-            sgpa=float(final_mark.sgpa) if final_mark.sgpa else None,
-            cgpa=float(final_mark.cgpa) if final_mark.cgpa else None,
-            co_attainment=final_mark.co_attainment,
-            status=final_mark.status,
-            is_published=final_mark.is_published,
-            published_at=final_mark.published_at,
-            editable_until=final_mark.editable_until,
-            created_at=final_mark.created_at,
-            updated_at=final_mark.updated_at
-        )
+
+        return _final_mark_to_response(final_mark)
     except EntityNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -135,29 +129,8 @@ async def get_final_mark(
     """
     try:
         final_mark = await service.get_final_mark(final_mark_id)
-        
-        return FinalMarkResponse(
-            id=final_mark.id,
-            student_id=final_mark.student_id,
-            subject_assignment_id=final_mark.subject_assignment_id,
-            semester_id=final_mark.semester_id,
-            internal_1=float(final_mark.internal_1),
-            internal_2=float(final_mark.internal_2),
-            best_internal=float(final_mark.best_internal),
-            external=float(final_mark.external),
-            total=float(final_mark.total),
-            percentage=float(final_mark.percentage),
-            grade=final_mark.grade,
-            sgpa=float(final_mark.sgpa) if final_mark.sgpa else None,
-            cgpa=float(final_mark.cgpa) if final_mark.cgpa else None,
-            co_attainment=final_mark.co_attainment,
-            status=final_mark.status,
-            is_published=final_mark.is_published,
-            published_at=final_mark.published_at,
-            editable_until=final_mark.editable_until,
-            created_at=final_mark.created_at,
-            updated_at=final_mark.updated_at
-        )
+
+        return _final_mark_to_response(final_mark)
     except EntityNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -190,31 +163,7 @@ async def get_final_marks_by_student_semester(
             limit=limit
         )
         
-        items = [
-            FinalMarkResponse(
-                id=fm.id,
-                student_id=fm.student_id,
-                subject_assignment_id=fm.subject_assignment_id,
-                semester_id=fm.semester_id,
-                internal_1=float(fm.internal_1),
-                internal_2=float(fm.internal_2),
-                best_internal=float(fm.best_internal),
-                external=float(fm.external),
-                total=float(fm.total),
-                percentage=float(fm.percentage),
-                grade=fm.grade,
-                sgpa=float(fm.sgpa) if fm.sgpa else None,
-                cgpa=float(fm.cgpa) if fm.cgpa else None,
-                co_attainment=fm.co_attainment,
-                status=fm.status,
-                is_published=fm.is_published,
-                published_at=fm.published_at,
-                editable_until=fm.editable_until,
-                created_at=fm.created_at,
-                updated_at=fm.updated_at
-            )
-            for fm in final_marks
-        ]
+        items = [_final_mark_to_response(fm) for fm in final_marks]
         
         return FinalMarkListResponse(
             items=items,
@@ -242,29 +191,8 @@ async def publish_final_mark(
     """
     try:
         final_mark = await service.publish_final_mark(final_mark_id)
-        
-        return FinalMarkResponse(
-            id=final_mark.id,
-            student_id=final_mark.student_id,
-            subject_assignment_id=final_mark.subject_assignment_id,
-            semester_id=final_mark.semester_id,
-            internal_1=float(final_mark.internal_1),
-            internal_2=float(final_mark.internal_2),
-            best_internal=float(final_mark.best_internal),
-            external=float(final_mark.external),
-            total=float(final_mark.total),
-            percentage=float(final_mark.percentage),
-            grade=final_mark.grade,
-            sgpa=float(final_mark.sgpa) if final_mark.sgpa else None,
-            cgpa=float(final_mark.cgpa) if final_mark.cgpa else None,
-            co_attainment=final_mark.co_attainment,
-            status=final_mark.status,
-            is_published=final_mark.is_published,
-            published_at=final_mark.published_at,
-            editable_until=final_mark.editable_until,
-            created_at=final_mark.created_at,
-            updated_at=final_mark.updated_at
-        )
+
+        return _final_mark_to_response(final_mark)
     except EntityNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -290,29 +218,8 @@ async def lock_final_mark(
     """
     try:
         final_mark = await service.lock_final_mark(final_mark_id)
-        
-        return FinalMarkResponse(
-            id=final_mark.id,
-            student_id=final_mark.student_id,
-            subject_assignment_id=final_mark.subject_assignment_id,
-            semester_id=final_mark.semester_id,
-            internal_1=float(final_mark.internal_1),
-            internal_2=float(final_mark.internal_2),
-            best_internal=float(final_mark.best_internal),
-            external=float(final_mark.external),
-            total=float(final_mark.total),
-            percentage=float(final_mark.percentage),
-            grade=final_mark.grade,
-            sgpa=float(final_mark.sgpa) if final_mark.sgpa else None,
-            cgpa=float(final_mark.cgpa) if final_mark.cgpa else None,
-            co_attainment=final_mark.co_attainment,
-            status=final_mark.status,
-            is_published=final_mark.is_published,
-            published_at=final_mark.published_at,
-            editable_until=final_mark.editable_until,
-            created_at=final_mark.created_at,
-            updated_at=final_mark.updated_at
-        )
+
+        return _final_mark_to_response(final_mark)
     except EntityNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -320,75 +227,4 @@ async def lock_final_mark(
         )
 
 
-@router.post("/calculate-sgpa", response_model=GPAResponse)
-async def calculate_sgpa(
-    request: CalculateSGPARequest,
-    grading_service: GradingService = Depends(get_grading_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Calculate Semester GPA (SGPA) for a student
-    
-    - **student_id**: Student ID
-    - **semester_id**: Semester ID
-    """
-    try:
-        sgpa = await grading_service.calculate_sgpa(
-            student_id=request.student_id,
-            semester_id=request.semester_id
-        )
-        
-        # Update SGPA in all final marks
-        await grading_service.update_sgpa_for_semester(
-            student_id=request.student_id,
-            semester_id=request.semester_id
-        )
-        
-        return GPAResponse(
-            student_id=request.student_id,
-            semester_id=request.semester_id,
-            gpa=float(sgpa),
-            type="SGPA"
-        )
-    except EntityNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-
-
-@router.post("/calculate-cgpa", response_model=GPAResponse)
-async def calculate_cgpa(
-    request: CalculateCGPARequest,
-    grading_service: GradingService = Depends(get_grading_service),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Calculate Cumulative GPA (CGPA) for a student
-    
-    - **student_id**: Student ID
-    - **up_to_semester_id**: Optional semester ID to calculate up to
-    """
-    try:
-        cgpa = await grading_service.calculate_cgpa(
-            student_id=request.student_id,
-            up_to_semester_id=request.up_to_semester_id
-        )
-        
-        # Update CGPA in all final marks
-        await grading_service.update_cgpa_for_student(
-            student_id=request.student_id
-        )
-        
-        return GPAResponse(
-            student_id=request.student_id,
-            semester_id=request.up_to_semester_id,
-            gpa=float(cgpa),
-            type="CGPA"
-        )
-    except EntityNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
 

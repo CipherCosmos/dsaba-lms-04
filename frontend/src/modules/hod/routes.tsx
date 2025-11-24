@@ -6,13 +6,13 @@ import { UserRole, Permission } from '../../core/types/permissions'
 // Lazy load HOD pages for code splitting
 const HODAnalytics = lazy(() => import('../../pages/HOD/HODAnalytics'))
 const HODUsers = lazy(() => import('../../pages/HOD/HODUsers'))
-const HODClasses = lazy(() => import('../../pages/HOD/HODClasses'))
 const HODSubjects = lazy(() => import('../../pages/HOD/HODSubjects'))
 const HODStudentAnalytics = lazy(() => import('../../pages/HOD/HODStudentAnalytics'))
 const HODTeacherAnalytics = lazy(() => import('../../pages/HOD/HODTeacherAnalytics'))
 const Reports = lazy(() => import('../../pages/HOD/Reports'))
 const HODReportManagement = lazy(() => import('../../pages/HOD/HODReportManagement'))
 const StrategicDashboard = lazy(() => import('../../pages/HOD/StrategicDashboard'))
+const EnhancedAnalyticsDashboard = lazy(() => import('../../pages/HOD/EnhancedAnalyticsDashboard'))
 const SemesterPublishing = lazy(() => import('../../pages/HOD/SemesterPublishing'))
 const MultiDimensionalAnalytics = lazy(() => import('../../pages/HOD/MultiDimensionalAnalytics'))
 const AuditTrail = lazy(() => import('../../pages/HOD/AuditTrail'))
@@ -57,18 +57,6 @@ export const HODRoutes = () => {
           requiredPermissions={[Permission.USER_READ]}
         >
           <HODUsers />
-        </RoleGuard>
-      }
-    />,
-    <Route
-      key="hod-classes"
-      path="/hod/classes"
-      element={
-        <RoleGuard
-          allowedRoles={[UserRole.HOD, UserRole.ADMIN]}
-          requiredPermissions={[Permission.SUBJECT_READ]}
-        >
-          <HODClasses />
         </RoleGuard>
       }
     />,
@@ -165,6 +153,18 @@ export const HODRoutes = () => {
           requiredPermissions={[Permission.ANALYTICS_VIEW]}
         >
           <MultiDimensionalAnalytics />
+        </RoleGuard>
+      }
+    />,
+    <Route
+      key="hod-enhanced-analytics"
+      path="/hod/enhanced-analytics"
+      element={
+        <RoleGuard
+          allowedRoles={[UserRole.HOD, UserRole.ADMIN]}
+          requiredPermissions={[Permission.ANALYTICS_VIEW]}
+        >
+          <EnhancedAnalyticsDashboard />
         </RoleGuard>
       }
     />,

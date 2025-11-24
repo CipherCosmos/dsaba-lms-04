@@ -3,7 +3,9 @@
  * HOD can enroll students in semesters for academic years
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { useSelector } from 'react-redux'
+import { RootState } from '../../store/store'
 import {
   useStudentEnrollments,
   useCreateStudentEnrollment,
@@ -16,6 +18,7 @@ import { AcademicYearSelector } from '../../components/shared/AcademicYearSelect
 import { logger } from '../../core/utils/logger'
 import { Plus, Search, X, Users, GraduationCap, ArrowRight, Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../../core/types'
 
 interface Enrollment {
   id: number
@@ -44,7 +47,8 @@ interface Semester {
   academic_year_id: number
 }
 
-const StudentEnrollment: React.FC = () => {
+const StudentEnrollment: React.FC = memo(() => {
+  const { user } = useSelector((state: RootState) => state.auth)
   const [semesters, setSemesters] = useState<Semester[]>([])
   const [showModal, setShowModal] = useState(false)
   const [showPromoteModal, setShowPromoteModal] = useState(false)
@@ -63,6 +67,9 @@ const StudentEnrollment: React.FC = () => {
   const [promotionType, setPromotionType] = useState<'regular' | 'lateral' | 'failed' | 'retained'>('regular')
   const [promotionNotes, setPromotionNotes] = useState('')
   const [nextRollNo, setNextRollNo] = useState('')
+
+  // Get HOD's department for scoping
+  const userDeptId = user?.department_ids?.[0] || (user as { department_id?: number })?.department_id
 
   // React Query hooks
   const { data: academicYearsData } = useAcademicYears(0, 100)
@@ -85,33 +92,37 @@ const StudentEnrollment: React.FC = () => {
   // Filter enrollments - memoized for performance
   const filteredEnrollments = useMemo(() => {
     return allEnrollments.filter((enrollment: Enrollment) => {
-      const matchesSearch = 
+      // Department scoping: only show enrollments in HOD's department
+      const semester = semesters.find(s => s.id === enrollment.semester_id)
+      const matchesDepartment = semester?.department_id === userDeptId
+
+      const matchesSearch =
         enrollment.student_id.toString().includes(searchTerm) ||
         enrollment.roll_no.toLowerCase().includes(searchTerm.toLowerCase())
-      
-      const matchesStatus = statusFilter === 'all' || 
+
+      const matchesStatus = statusFilter === 'all' ||
         (statusFilter === 'active' && enrollment.is_active) ||
         (statusFilter === 'inactive' && !enrollment.is_active)
-      
-      const matchesPromotion = promotionFilter === 'all' || 
+
+      const matchesPromotion = promotionFilter === 'all' ||
         enrollment.promotion_status === promotionFilter
-      
-      return matchesSearch && matchesStatus && matchesPromotion
+
+      return matchesDepartment && matchesSearch && matchesStatus && matchesPromotion
     })
-  }, [allEnrollments, searchTerm, statusFilter, promotionFilter])
+  }, [allEnrollments, semesters, userDeptId, searchTerm, statusFilter, promotionFilter])
 
   // Calculate stats - memoized for performance
   const stats = useMemo(() => {
     return {
-      total: allEnrollments.length,
-      active: allEnrollments.filter((e: Enrollment) => e.is_active).length,
-      inactive: allEnrollments.filter((e: Enrollment) => !e.is_active).length,
-      pending: allEnrollments.filter((e: Enrollment) => e.promotion_status === 'pending').length,
-      promoted: allEnrollments.filter((e: Enrollment) => e.promotion_status === 'promoted').length,
-      retained: allEnrollments.filter((e: Enrollment) => e.promotion_status === 'retained').length,
-      failed: allEnrollments.filter((e: Enrollment) => e.promotion_status === 'failed').length,
+      total: filteredEnrollments.length,
+      active: filteredEnrollments.filter((e: Enrollment) => e.is_active).length,
+      inactive: filteredEnrollments.filter((e: Enrollment) => !e.is_active).length,
+      pending: filteredEnrollments.filter((e: Enrollment) => e.promotion_status === 'pending').length,
+      promoted: filteredEnrollments.filter((e: Enrollment) => e.promotion_status === 'promoted').length,
+      retained: filteredEnrollments.filter((e: Enrollment) => e.promotion_status === 'retained').length,
+      failed: filteredEnrollments.filter((e: Enrollment) => e.promotion_status === 'failed').length,
     }
-  }, [allEnrollments])
+  }, [filteredEnrollments])
 
   // Set default academic year
   useEffect(() => {
@@ -157,6 +168,14 @@ const StudentEnrollment: React.FC = () => {
       toast.error('Please select academic year and semester')
       return
     }
+
+    // Validate that selected semester belongs to HOD's department
+    const selectedSem = semesters.find(s => s.id === selectedSemester)
+    if (!selectedSem || selectedSem.department_id !== userDeptId) {
+      toast.error('You can only enroll students in semesters within your department')
+      return
+    }
+
     createMutation.mutate({
       student_id: parseInt(formData.student_id),
       semester_id: selectedSemester,
@@ -238,6 +257,13 @@ const StudentEnrollment: React.FC = () => {
       return
     }
 
+    // Validate that selected semester belongs to HOD's department
+    const selectedSem = semesters.find(s => s.id === selectedSemester)
+    if (!selectedSem || selectedSem.department_id !== userDeptId) {
+      toast.error('You can only enroll students in semesters within your department')
+      return
+    }
+
     try {
       // Read CSV/Excel file
       const text = await file.text()
@@ -284,7 +310,7 @@ const StudentEnrollment: React.FC = () => {
       
       // Invalidate queries to refresh
       setTimeout(() => window.location.reload(), 1000)
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       const errorMessage = error.response?.data?.detail || error.message
       logger.error('Bulk enrollment failed', error)
       toast.error(`Error during bulk enrollment: ${errorMessage}`)
@@ -444,11 +470,13 @@ const StudentEnrollment: React.FC = () => {
               disabled={!selectedAcademicYear}
             >
               <option value="">All Semesters</option>
-              {semesters.map((sem) => (
-                <option key={sem.id} value={sem.id}>
-                  Semester {sem.semester_no}
-                </option>
-              ))}
+              {semesters
+                .filter((sem) => sem.department_id === userDeptId)
+                .map((sem) => (
+                  <option key={sem.id} value={sem.id}>
+                    Semester {sem.semester_no}
+                  </option>
+                ))}
             </select>
             <select
               value={statusFilter}
@@ -607,11 +635,13 @@ const StudentEnrollment: React.FC = () => {
                   disabled={!selectedAcademicYear}
                 >
                   <option value="">Select Semester</option>
-                  {semesters.map((sem) => (
-                    <option key={sem.id} value={sem.id}>
-                      Semester {sem.semester_no}
-                    </option>
-                  ))}
+                  {semesters
+                    .filter((sem) => sem.department_id === userDeptId)
+                    .map((sem) => (
+                      <option key={sem.id} value={sem.id}>
+                        Semester {sem.semester_no}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="mb-4">
@@ -797,7 +827,8 @@ const StudentEnrollment: React.FC = () => {
       )}
     </div>
   )
-}
+})
+
+StudentEnrollment.displayName = 'StudentEnrollment'
 
 export default StudentEnrollment
-

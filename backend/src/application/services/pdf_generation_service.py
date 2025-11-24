@@ -89,10 +89,18 @@ class PDFGenerationService:
         story.append(Paragraph(f"<b>{exam.name}</b>", title_style))
         story.append(Spacer(1, 0.2*inch))
         
-        # Exam details
+        # Exam details with proper date formatting
+        from datetime import datetime, timezone
+        
+        exam_date_str = "Not Scheduled"
+        if exam.exam_date:
+            # Handle timezone consistency - convert to UTC and format
+            exam_datetime = datetime.combine(exam.exam_date, datetime.min.time())
+            exam_date_str = exam_datetime.strftime('%B %d, %Y (%Z)')
+        
         exam_details = [
             f"<b>Exam Type:</b> {exam.exam_type.upper()}",
-            f"<b>Date:</b> {exam.exam_date.strftime('%B %d, %Y') if exam.exam_date else 'TBD'}",
+            f"<b>Date:</b> {exam_date_str}",
             f"<b>Duration:</b> {exam.duration_minutes} minutes" if exam.duration_minutes else "",
             f"<b>Total Marks:</b> {exam.total_marks}"
         ]

@@ -98,7 +98,7 @@ class TestAcademicYearService:
         
         # Create two academic years
         ay1 = await service.create_academic_year(start_year=2023, end_year=2024)
-        ay2 = await service.create_academic_year(start_year=2024, end_year=2025)
+        ay2 = await service.create_academic_year(start_year=2025, end_year=2026)
         
         # Activate first one
         await service.activate_academic_year(ay1.id)
@@ -122,6 +122,7 @@ class TestAcademicYearService:
         service = AcademicYearService(repo)
         
         ay = await service.create_academic_year(start_year=2023, end_year=2024)
+        await service.activate_academic_year(ay.id)
         await service.archive_academic_year(ay.id)
         
         archived = await service.get_academic_year(ay.id)
@@ -135,9 +136,9 @@ class TestAcademicYearService:
         service = AcademicYearService(repo)
         
         # Create multiple academic years
-        await service.create_academic_year(start_year=2022, end_year=2023)
-        await service.create_academic_year(start_year=2023, end_year=2024)
-        await service.create_academic_year(start_year=2024, end_year=2025)
+        await service.create_academic_year(start_year=2026, end_year=2027)
+        await service.create_academic_year(start_year=2027, end_year=2028)
+        await service.create_academic_year(start_year=2028, end_year=2029)
         
         years = await service.list_academic_years(skip=0, limit=10)
         

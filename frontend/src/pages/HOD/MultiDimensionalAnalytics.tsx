@@ -37,8 +37,13 @@ const MultiDimensionalAnalytics: React.FC = () => {
     }
   }
 
+  /**
+   * Structure of multi-dimensional analytics data:
+   * Each item in analyticsData.data has optional properties: year, semester, subject_name, class_name, teacher_name
+   * and required: avg_total, count
+   */
   const chartData = analyticsData ? {
-    labels: analyticsData.data.map((item: any) => {
+    labels: analyticsData.data.map((item: { year?: number; semester?: number; subject_name?: string; class_name?: string; teacher_name?: string }) => {
       if (dimension === 'year') return item.year
       if (dimension === 'semester') return `Semester ${item.semester}`
       if (dimension === 'subject') return item.subject_name
@@ -49,7 +54,7 @@ const MultiDimensionalAnalytics: React.FC = () => {
     datasets: [
       {
         label: 'Average Total Marks',
-        data: analyticsData.data.map((item: any) => item.avg_total),
+        data: analyticsData.data.map((item: { avg_total: number }) => item.avg_total),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderColor: 'rgba(59, 130, 246, 1)',
         borderWidth: 2,

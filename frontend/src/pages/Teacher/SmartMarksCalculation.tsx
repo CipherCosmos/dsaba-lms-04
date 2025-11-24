@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Calculator, TrendingUp, Award, RefreshCw, Download } from 'lucide-react'
 import { smartMarksAPI, studentEnrollmentAPI, subjectAssignmentAPI } from '../../services/api'
 import { SmartMarksCalculation, SGPACalculation, GradingScale } from '../../core/types'
+import type { StudentEnrollment, Semester, SubjectAssignment } from '../../core/types/api'
 
 interface StudentMarks {
   student_id: number
@@ -24,8 +25,8 @@ export default function SmartMarksCalculationPage() {
   const [gradingScale, setGradingScale] = useState<GradingScale[]>([])
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
-  const [semesters, setSemesters] = useState<any[]>([])
-  const [subjects, setSubjects] = useState<any[]>([])
+  const [semesters, setSemesters] = useState<Semester[]>([])
+  const [subjects, setSubjects] = useState<SubjectAssignment[]>([])
 
   useEffect(() => {
     loadGradingScale()
@@ -77,9 +78,9 @@ export default function SmartMarksCalculationPage() {
         semester_id: selectedSemester
       })
       
-      const studentData: StudentMarks[] = enrollmentResponse.items.map((enrollment: any) => ({
-        student_id: enrollment.student.id,
-        student_name: enrollment.student.user?.full_name || 'Unknown',
+      const studentData: StudentMarks[] = enrollmentResponse.items.map((enrollment: StudentEnrollment) => ({
+        student_id: enrollment.student_id,
+        student_name: (enrollment.student?.user?.full_name) || 'Unknown',
         roll_no: enrollment.roll_no
       }))
       
@@ -144,7 +145,7 @@ export default function SmartMarksCalculationPage() {
     }
   }
 
-  const updateMarks = (index: number, field: keyof StudentMarks, value: any) => {
+  const updateMarks = (index: number, field: keyof StudentMarks, value: string | number) => {
     const updatedStudents = [...students]
     updatedStudents[index] = {
       ...updatedStudents[index],

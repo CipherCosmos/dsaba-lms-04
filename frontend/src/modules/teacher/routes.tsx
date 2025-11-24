@@ -9,9 +9,8 @@ const ExamConfiguration = lazy(() => import('../../pages/Teacher/ExamConfigurati
 const InternalMarksEntry = lazy(() => import('../../pages/Teacher/InternalMarksEntry'))
 const TeacherAnalytics = lazy(() => import('../../pages/Teacher/TeacherAnalytics'))
 const AttainmentAnalytics = lazy(() => import('../../pages/Teacher/AttainmentAnalytics'))
-const ComprehensiveAnalytics = lazy(() => import('../../pages/Teacher/ComprehensiveAnalytics'))
 const ReportManagement = lazy(() => import('../../pages/Teacher/ReportManagement'))
-const BloomsAnalytics = lazy(() => import('../../pages/Teacher/BloomsAnalytics'))
+const BloomsTaxonomyAnalytics = lazy(() => import('../../pages/Teacher/BloomsTaxonomyAnalytics'))
 const TeacherDashboard = lazy(() => import('../../components/Dashboard/TeacherDashboard'))
 
 /**
@@ -79,18 +78,6 @@ export const TeacherRoutes = () => {
       }
     />,
     <Route
-      key="teacher-comprehensive-analytics"
-      path="/teacher/comprehensive-analytics"
-      element={
-        <RoleGuard
-          allowedRoles={[UserRole.TEACHER]}
-          requiredPermissions={[Permission.ANALYTICS_VIEW]}
-        >
-          <ComprehensiveAnalytics />
-        </RoleGuard>
-      }
-    />,
-    <Route
       key="teacher-reports"
       path="/teacher/reports"
       element={
@@ -110,19 +97,7 @@ export const TeacherRoutes = () => {
           allowedRoles={[UserRole.TEACHER]}
           requiredPermissions={[Permission.ANALYTICS_VIEW]}
         >
-          <BloomsAnalytics />
-        </RoleGuard>
-      }
-    />,
-    <Route
-      key="teacher-internal-marks"
-      path="/teacher/internal-marks"
-      element={
-        <RoleGuard
-          allowedRoles={[UserRole.TEACHER, UserRole.ADMIN]}
-          requiredPermissions={[Permission.MARKS_WRITE]}
-        >
-          <InternalMarksEntry />
+          <BloomsTaxonomyAnalytics />
         </RoleGuard>
       }
     />,

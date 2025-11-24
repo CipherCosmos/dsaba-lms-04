@@ -18,7 +18,7 @@ class TestFinalMarkService:
         """Test creating a final mark"""
         from src.infrastructure.database.models import StudentModel
         repo = FinalMarkRepository(test_db_session)
-        service = FinalMarkService(repo)
+        service = FinalMarkService(repo, test_db_session)
         
         student_profile = test_db_session.query(StudentModel).filter(
             StudentModel.user_id == student_user.id
@@ -41,7 +41,7 @@ class TestFinalMarkService:
     async def test_get_final_mark(self, test_db_session):
         """Test getting a final mark"""
         repo = FinalMarkRepository(test_db_session)
-        service = FinalMarkService(repo)
+        service = FinalMarkService(repo, test_db_session)
         
         with pytest.raises(Exception):  # EntityNotFoundError
             await service.get_final_mark(99999)

@@ -2,7 +2,6 @@ import { configureStore } from '@reduxjs/toolkit'
 import authReducer from './slices/authSlice'
 import departmentReducer from './slices/departmentSlice'
 import userReducer from './slices/userSlice'
-import classReducer from './slices/classSlice'
 import subjectReducer from './slices/subjectSlice'
 import examReducer from './slices/examSlice'
 import marksReducer from './slices/marksSlice'
@@ -14,7 +13,6 @@ export const store = configureStore({
     auth: authReducer,
     departments: departmentReducer,
     users: userReducer,
-    classes: classReducer,
     subjects: subjectReducer,
     exams: examReducer,
     marks: marksReducer,

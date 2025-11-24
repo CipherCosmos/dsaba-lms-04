@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { batchInstanceAPI } from '../../services/api'
 import { logger } from '../utils/logger'
+import type { AxiosErrorResponse } from '../types'
 
 export interface BatchInstance {
   id: number
@@ -87,7 +88,7 @@ export const useCreateBatchInstance = () => {
       queryClient.invalidateQueries({ queryKey: ['batch-instances'] })
       logger.info('Batch instance created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       logger.error('Failed to create batch instance:', error)
       throw error
     },
@@ -168,7 +169,7 @@ export const useCreateSection = () => {
       queryClient.invalidateQueries({ queryKey: ['batch-instances'] })
       logger.info('Section created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       logger.error('Failed to create section:', error)
       throw error
     },
@@ -196,7 +197,7 @@ export const useUpdateSection = () => {
       queryClient.invalidateQueries({ queryKey: ['batch-instances'] })
       logger.info('Section updated successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       logger.error('Failed to update section:', error)
       throw error
     },

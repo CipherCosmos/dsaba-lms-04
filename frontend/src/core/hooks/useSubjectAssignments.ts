@@ -7,6 +7,7 @@ import { useSelector } from 'react-redux'
 import { RootState } from '../../store/store'
 import { subjectAssignmentAPI } from '../../services/api'
 import { logger } from '../utils/logger'
+import type { Exam } from '../types/api'
 
 interface SubjectAssignment {
   id: number
@@ -22,7 +23,7 @@ interface SubjectAssignment {
  * Hook to fetch and cache subject assignments for exams
  * Returns a map of exam_id -> subject assignment
  */
-export function useExamSubjectAssignments(exams: any[]) {
+export function useExamSubjectAssignments(exams: Exam[]) {
   const [assignmentMap, setAssignmentMap] = useState<Map<number, SubjectAssignment>>(new Map())
   const [loading, setLoading] = useState(false)
   const { subjects } = useSelector((state: RootState) => state.subjects)
@@ -85,9 +86,11 @@ export function useExamSubjectAssignments(exams: any[]) {
 
   /**
    * Get subject for an exam
+   * Retrieves the subject associated with the given exam by looking up its subject assignment
+   * and finding the matching subject in the subjects list.
    */
   const getSubjectForExam = useMemo(() => {
-    return (exam: any) => {
+    return (exam: Exam) => {
       const assignment = assignmentMap.get(exam.id)
       if (!assignment) return null
       return subjects.find(s => s.id === assignment.subject_id) || null
@@ -96,9 +99,17 @@ export function useExamSubjectAssignments(exams: any[]) {
 
   /**
    * Get class_id for an exam
+   *
+   * @deprecated LEGACY-COMPATIBLE: Backend analytics/reporting still supports class_id
+   * but new flows should prefer semester_id/subject_assignment_id based analytics.
+   * This helper is kept for backward compatibility only.
+   *
+   * TODO: Remove when all analytics/reporting endpoints fully migrate to
+   * semester/subject_assignment based queries. Use getAssignmentForExam() instead
+   * to access semester_id and subject_assignment_id directly.
    */
   const getClassIdForExam = useMemo(() => {
-    return (exam: any) => {
+    return (exam: Exam) => {
       const assignment = assignmentMap.get(exam.id)
       return assignment?.class_id || null
     }
@@ -106,9 +117,11 @@ export function useExamSubjectAssignments(exams: any[]) {
 
   /**
    * Get assignment for an exam
+   * Retrieves the subject assignment associated with the given exam, providing access
+   * to semester_id, subject_id, and other assignment details.
    */
   const getAssignmentForExam = useMemo(() => {
-    return (exam: any) => {
+    return (exam: Exam) => {
       return assignmentMap.get(exam.id) || null
     }
   }, [assignmentMap])

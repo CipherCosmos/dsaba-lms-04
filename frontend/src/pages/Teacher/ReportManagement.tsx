@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
@@ -9,16 +9,7 @@ import {
   Eye, EyeOff, Share2, Archive
 } from 'lucide-react'
 import { logger } from '../../core/utils/logger'
-
-interface ReportTemplate {
-  id: string
-  name: string
-  description: string
-  category: 'academic' | 'performance' | 'attainment' | 'comprehensive'
-  format: 'pdf' | 'excel' | 'json' | 'csv'
-  icon: any
-  color: string
-}
+import type { ReportTemplate } from '../../core/types'
 
 const ReportManagement = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -32,7 +23,8 @@ const ReportManagement = () => {
     dateRange: 'all',
     includeCharts: true,
     includeDetails: true,
-    includeRecommendations: true
+    includeRecommendations: true,
+    supportsClassReports: false // LEGACY: Will be true if backend supports class_id filters
   })
   const [generating, setGenerating] = useState(false)
   const [generatedReports, setGeneratedReports] = useState<any[]>([])
@@ -50,7 +42,7 @@ const ReportManagement = () => {
 
   // Icon mapping for report templates
   const getTemplateIcon = (templateId: string) => {
-    const iconMap: { [key: string]: any } = {
+    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
       'student_performance': Users,
       'co_po_attainment': Target,
       'teacher_performance': Award,
@@ -91,14 +83,21 @@ const ReportManagement = () => {
         id: template.id,
         name: template.name,
         description: template.description,
-        category: template.category || (template.id.includes('attainment') ? 'attainment' : 
-                 template.id.includes('performance') ? 'performance' : 'academic'),
+        category: template.category || (template.id.includes('attainment') ? 'attainment' :
+                  template.id.includes('performance') ? 'performance' : 'academic'),
         format: template.format || (template.id.includes('raw') ? 'json' : 'pdf'),
         icon: getTemplateIcon(template.id),
         color: getTemplateColor(template.id),
         filters: template.filters || []
       }))
       setReportTemplates(formattedTemplates)
+
+      // Check if backend supports class-based reports (legacy compatibility)
+      const supportsClassReports = formattedTemplates.some((template: any) =>
+        template.filters && template.filters.includes('class_id')
+      )
+      // Store this for UI conditional rendering
+      setReportFilters(prev => ({ ...prev, supportsClassReports }))
     } catch (error) {
       logger.error('Error fetching report templates:', error)
     } finally {
@@ -185,10 +184,22 @@ const ReportManagement = () => {
       // Use appropriate report endpoint based on report type
       let blob
       if (report.template.id.includes('student')) {
-        blob = await reportsAPI.getStudentReport(report.studentId || report.filters?.student_id, report.subjectId, 'pdf')
+        const studentId = Number(report.studentId || report.filters?.student_id)
+        const subjectId = report.subjectId ? Number(report.subjectId) : undefined
+        const semesterId = report.semesterId ? Number(report.semesterId) : undefined
+        blob = await reportsAPI.getStudentReport(studentId, subjectId, semesterId, 'pdf')
       } else if (report.template.id.includes('class')) {
-        // Note: Legacy class_id usage - should migrate to semester/subject_assignment based reports
-        blob = await reportsAPI.getClassReport(report.classId || report.filters?.class_id, report.subjectId, 'pdf')
+        // LEGACY-COMPATIBLE: Class-based reports migrated to subject-based CO-PO reports
+        // Backend supports subject-based CO-PO attainment reports which provide comprehensive analytics
+        // Class-level filters are hidden in UI unless backend explicitly supports class_id reports
+        // TODO: Remove when all class-based report dependencies are eliminated
+        if (report.subjectId) {
+          blob = await reportsAPI.getCOPOReport(report.subjectId, 'pdf')
+        } else {
+          // Fallback to generate report if no subject_id available
+          const result = await reportsAPI.generateReport(report.template.id, report.filters, 'pdf')
+          blob = result
+        }
       } else if (report.template.id.includes('co-po')) {
         blob = await reportsAPI.getCOPOReport(report.subjectId, 'pdf')
       } else {

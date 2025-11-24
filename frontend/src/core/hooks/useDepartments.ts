@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { departmentAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
+import type { DepartmentUpdateRequest } from '../types/api'
 
 /**
  * Hook to fetch all departments
@@ -38,7 +40,7 @@ export function useCreateDepartment() {
       queryClient.invalidateQueries({ queryKey: queryKeys.departments.lists() })
       toast.success('Department created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to create department')
     },
   })
@@ -51,13 +53,13 @@ export function useUpdateDepartment() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => departmentAPI.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: DepartmentUpdateRequest }) => departmentAPI.update(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.departments.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.departments.lists() })
       toast.success('Department updated successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to update department')
     },
   })

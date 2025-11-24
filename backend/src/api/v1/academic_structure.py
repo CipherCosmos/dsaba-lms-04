@@ -3,6 +3,7 @@ Academic Structure API Endpoints
 Batch, BatchYear, and Semester management
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional, List
 
@@ -11,9 +12,9 @@ from src.application.dto.academic_structure_dto import (
     BatchCreateRequest,
     BatchResponse,
     BatchListResponse,
-    BatchYearCreateRequest,
-    BatchYearResponse,
-    BatchYearListResponse,
+    # BatchYearCreateRequest,
+    # BatchYearResponse,
+    # BatchYearListResponse,
     SemesterCreateRequest,
     SemesterUpdateDatesRequest,
     SemesterResponse,
@@ -28,7 +29,7 @@ from src.domain.exceptions import (
 )
 from src.infrastructure.database.repositories.academic_structure_repository_impl import (
     BatchRepository,
-    BatchYearRepository,
+    # BatchYearRepository,
     SemesterRepository
 )
 from src.infrastructure.database.session import get_db
@@ -41,7 +42,8 @@ def get_academic_structure_service(
 ) -> AcademicStructureService:
     """Get academic structure service instance"""
     batch_repo = BatchRepository(db)
-    batch_year_repo = BatchYearRepository(db)
+    # Temporarily disabled BatchYear functionality
+    batch_year_repo = None  # BatchYearRepository(db)
     semester_repo = SemesterRepository(db)
     return AcademicStructureService(batch_repo, batch_year_repo, semester_repo)
 
@@ -140,51 +142,51 @@ async def deactivate_batch(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-# BatchYear endpoints
-@router.post("/batch-years", response_model=BatchYearResponse, status_code=status.HTTP_201_CREATED)
-async def create_batch_year(
-    request: BatchYearCreateRequest,
-    service: AcademicStructureService = Depends(get_academic_structure_service),
-    current_user: User = Depends(get_current_user)
-):
-    """Create a new batch year"""
-    try:
-        batch_year = await service.create_batch_year(
-            batch_id=request.batch_id,
-            start_year=request.start_year,
-            end_year=request.end_year,
-            is_current=request.is_current
-        )
-        return BatchYearResponse(**batch_year.to_dict())
-    except EntityNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except EntityAlreadyExistsError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+# BatchYear endpoints - Temporarily disabled
+# @router.post("/batch-years", response_model=BatchYearResponse, status_code=status.HTTP_201_CREATED)
+# async def create_batch_year(
+#     request: BatchYearCreateRequest,
+#     service: AcademicStructureService = Depends(get_academic_structure_service),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Create a new batch year"""
+#     try:
+#         batch_year = await service.create_batch_year(
+#             batch_id=request.batch_id,
+#             start_year=request.start_year,
+#             end_year=request.end_year,
+#             is_current=request.is_current
+#         )
+#         return BatchYearResponse(**batch_year.to_dict())
+#     except EntityNotFoundError as e:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+#     except EntityAlreadyExistsError as e:
+#         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 
-@router.get("/batches/{batch_id}/batch-years", response_model=List[BatchYearResponse])
-async def get_batch_years(
-    batch_id: int,
-    service: AcademicStructureService = Depends(get_academic_structure_service),
-    current_user: User = Depends(get_current_user)
-):
-    """Get all batch years for a batch"""
-    batch_years = await service.get_batch_years_by_batch(batch_id)
-    return [BatchYearResponse(**by.to_dict()) for by in batch_years]
+# @router.get("/batches/{batch_id}/batch-years", response_model=List[BatchYearResponse])
+# async def get_batch_years(
+#     batch_id: int,
+#     service: AcademicStructureService = Depends(get_academic_structure_service),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Get all batch years for a batch"""
+#     batch_years = await service.get_batch_years_by_batch(batch_id)
+#     return [BatchYearResponse(**by.to_dict()) for by in batch_years]
 
 
-@router.post("/batch-years/{batch_year_id}/mark-current", response_model=BatchYearResponse)
-async def mark_batch_year_current(
-    batch_year_id: int,
-    service: AcademicStructureService = Depends(get_academic_structure_service),
-    current_user: User = Depends(get_current_user)
-):
-    """Mark batch year as current"""
-    try:
-        batch_year = await service.mark_batch_year_as_current(batch_year_id)
-        return BatchYearResponse(**batch_year.to_dict())
-    except EntityNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"BatchYear {batch_year_id} not found")
+# @router.post("/batch-years/{batch_year_id}/mark-current", response_model=BatchYearResponse)
+# async def mark_batch_year_current(
+#     batch_year_id: int,
+#     service: AcademicStructureService = Depends(get_academic_structure_service),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Mark batch year as current"""
+#     try:
+#         batch_year = await service.mark_batch_year_as_current(batch_year_id)
+#         return BatchYearResponse(**batch_year.to_dict())
+#     except EntityNotFoundError:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"BatchYear {batch_year_id} not found")
 
 
 # Semester endpoints
@@ -213,7 +215,7 @@ async def create_semester(
 @router.get("/semesters", response_model=SemesterListResponse)
 async def list_semesters(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=1000),
     batch_year_id: Optional[int] = Query(None, gt=0),
     is_current: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
@@ -221,52 +223,67 @@ async def list_semesters(
     current_user: User = Depends(get_current_user)
 ):
     """List all semesters with optional filters"""
-    from src.infrastructure.database.models import FinalMarkModel
-    
-    semesters = await service.list_semesters(
-        skip=skip,
-        limit=limit,
-        batch_year_id=batch_year_id,
-        is_current=is_current
-    )
-    
-    # Check published status for each semester
-    semester_responses = []
-    for s in semesters:
-        semester_dict = s.to_dict()
-        
-        # Check if semester is published (all final_marks are published)
-        final_marks_count = db.query(FinalMarkModel).filter(
-            FinalMarkModel.semester_id == s.id
-        ).count()
-        
-        published_count = db.query(FinalMarkModel).filter(
-            FinalMarkModel.semester_id == s.id,
-            FinalMarkModel.is_published == True
-        ).count()
-        
-        # Semester is published if it has final_marks and all are published
-        semester_dict['is_published'] = final_marks_count > 0 and published_count == final_marks_count
-        
-        semester_responses.append(SemesterResponse(**semester_dict))
-    
-    return SemesterListResponse(
-        items=semester_responses,
-        total=len(semester_responses),
-        skip=skip,
-        limit=limit
-    )
+    logger = logging.getLogger(__name__)
+    logger.info(f"list_semesters called with skip={skip}, limit={limit}, batch_year_id={batch_year_id}, is_current={is_current}")
+
+    try:
+        from src.infrastructure.database.models import FinalMarkModel
+
+        semesters = await service.list_semesters(
+            skip=skip,
+            limit=limit,
+            batch_year_id=batch_year_id,
+            is_current=is_current
+        )
+        logger.info(f"Retrieved {len(semesters)} semesters from service")
+
+        # Check published status for each semester
+        semester_responses = []
+        for s in semesters:
+            semester_dict = s.to_dict()
+
+            try:
+                # Check if semester is published (all final_marks are published)
+                final_marks_count = db.query(FinalMarkModel).filter(
+                    FinalMarkModel.semester_id == s.id
+                ).count()
+
+                published_count = db.query(FinalMarkModel).filter(
+                    FinalMarkModel.semester_id == s.id,
+                    FinalMarkModel.is_published == True
+                ).count()
+
+                # Semester is published if it has final_marks and all are published
+                semester_dict['is_published'] = final_marks_count > 0 and published_count == final_marks_count
+                logger.debug(f"Semester {s.id}: final_marks={final_marks_count}, published={published_count}, is_published={semester_dict['is_published']}")
+
+            except Exception as e:
+                logger.error(f"Error checking published status for semester {s.id}: {str(e)}")
+                semester_dict['is_published'] = False
+
+            semester_responses.append(SemesterResponse(**semester_dict))
+
+        logger.info(f"Returning {len(semester_responses)} semester responses")
+        return SemesterListResponse(
+            items=semester_responses,
+            total=len(semester_responses),
+            skip=skip,
+            limit=limit
+        )
+    except Exception as e:
+        logger.error(f"Error in list_semesters: {str(e)}", exc_info=True)
+        raise
 
 
-@router.get("/batch-years/{batch_year_id}/semesters", response_model=List[SemesterResponse])
-async def get_semesters(
-    batch_year_id: int,
-    service: AcademicStructureService = Depends(get_academic_structure_service),
-    current_user: User = Depends(get_current_user)
-):
-    """Get all semesters for a batch year"""
-    semesters = await service.get_semesters_by_batch_year(batch_year_id)
-    return [SemesterResponse(**s.to_dict()) for s in semesters]
+# @router.get("/batch-years/{batch_year_id}/semesters", response_model=List[SemesterResponse])
+# async def get_semesters(
+#     batch_year_id: int,
+#     service: AcademicStructureService = Depends(get_academic_structure_service),
+#     current_user: User = Depends(get_current_user)
+# ):
+#     """Get all semesters for a batch year"""
+#     semesters = await service.get_semesters_by_batch_year(batch_year_id)
+#     return [SemesterResponse(**s.to_dict()) for s in semesters]
 
 
 @router.post("/semesters/{semester_id}/mark-current", response_model=SemesterResponse)

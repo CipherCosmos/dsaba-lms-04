@@ -169,8 +169,18 @@ const TeacherDashboard = () => {
   }, [teacherSubjects, teacherExams, getAssignmentForExam, dashboardStats])
 
   // Calculate at-risk students based on real performance data
+  /**
+   * Structure of at-risk student data:
+   * - student: Full name of the student
+   * - average: Average percentage across subjects
+   * - subjects: Array of subject objects with id, name, and code, or string names for struggling subjects
+   * - riskLevel: 'high' or 'medium' based on performance
+   * - name: Alias for student name
+   * - percentage: Alias for average
+   * - class: Semester/class information
+   */
   const atRiskStudents = React.useMemo(() => {
-    const atRisk: Array<{student: string, average: number, subjects: any[], riskLevel: string, name: string, percentage: number, class: string}> = []
+    const atRisk: Array<{student: string, average: number, subjects: Array<{ id: number; name: string; code: string }>, riskLevel: string, name: string, percentage: number, class: string}> = []
     
     // Get all students in department (proxy, since class linkage is deprecated)
     const allStudents = users.filter(u => u.role === 'student')
@@ -345,7 +355,7 @@ const TeacherDashboard = () => {
                 </div>
                 <p className="text-xs text-gray-600 mb-2">{student.class}</p>
                 <div className="space-y-1">
-                  {student.subjects && student.subjects.length > 0 && student.subjects.map((subject: any, idx: number) => (
+                  {student.subjects && student.subjects.length > 0 && student.subjects.map((subject: { id?: number; name?: string; code?: string } | string, idx: number) => (
                     <span key={idx} className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded mr-1">
                       {typeof subject === 'string' ? subject : subject.name || 'Unknown'}
                     </span>

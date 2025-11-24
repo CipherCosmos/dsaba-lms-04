@@ -29,7 +29,8 @@ from src.domain.enums.user_role import UserRole
 from src.domain.exceptions import (
     EntityNotFoundError,
     EntityAlreadyExistsError,
-    ValidationError
+    ValidationError,
+    BusinessRuleViolationError
 )
 from src.infrastructure.database.repositories.user_repository_impl import UserRepository
 from src.application.services.auth_service import AuthService
@@ -67,62 +68,33 @@ async def create_user(
     """
     # Check if user has admin role
     if UserRole.ADMIN not in current_user.roles:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can create users"
-        )
+        raise BusinessRuleViolationError("Only administrators can create users")
+
+    # Validate roles
+    if not request.roles or len(request.roles) == 0:
+        raise ValidationError("At least one role is required", field="roles")
+
+    # Convert role strings to enums
     try:
-        # Validate roles
-        if not request.roles or len(request.roles) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="At least one role is required"
-            )
-        
-        # Convert role strings to enums
-        try:
-            roles = [UserRole(role) for role in request.roles]
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid role: {str(e)}"
-            )
-        
-        user = await user_service.create_user(
-            username=request.username,
-            email=request.email,
-            first_name=request.first_name,
-            last_name=request.last_name,
-            password=request.password,
-            roles=roles,
-            department_ids=request.department_ids
-        )
-        
-        user_dict = user.to_dict()
-        # Add role field for backward compatibility
-        if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
-            user_dict["role"] = user_dict["roles"][0]
-        return UserResponse(**user_dict)
-        
-    except EntityAlreadyExistsError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e)
-        )
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e)
-        )
-    except Exception as e:
-        # Log unexpected errors
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Unexpected error creating user: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred while creating the user: {str(e)}"
-        )
+        roles = [UserRole(role) for role in request.roles]
+    except ValueError as e:
+        raise ValidationError(f"Invalid role: {str(e)}", field="roles")
+
+    user = await user_service.create_user(
+        username=request.username,
+        email=request.email,
+        first_name=request.first_name,
+        last_name=request.last_name,
+        password=request.password,
+        roles=roles,
+        department_ids=request.department_ids
+    )
+
+    user_dict = user.to_dict()
+    # Add role field for backward compatibility
+    if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
+        user_dict["role"] = user_dict["roles"][0]
+    return UserResponse(**user_dict)
 
 
 @router.get("", response_model=UserListResponse)

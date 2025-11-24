@@ -278,6 +278,78 @@ Comprehensive audit and cleanup of the entire codebase completed. All critical b
 
 ---
 
+## Areas to Retest
+
+Based on the changes made during production cleanup, the following areas require thorough testing to ensure functionality and data integrity:
+
+### 1. Marks Entry Workflow ✅
+- **Internal marks entry process** (DRAFT → SUBMITTED → APPROVED → PUBLISHED)
+- **Excel upload/download functionality**
+- **Smart marks calculation**
+- **Workflow state transitions**
+- **Teacher permissions and notifications**
+
+### 2. Batch Instance Management ✅
+- **Class creation wizard** (7-step process with validation)
+- **Batch promotion workflow** (with pre-checks)
+- **Section management and capacity tracking**
+- **Department-based organization**
+- **Academic year associations**
+
+### 3. Academic Structure ✅
+- **Academic year CRUD operations** (activation/archiving)
+- **Semester auto-creation per batch**
+- **Student enrollment tracking**
+- **Subject assignments** (unique constraints: subject_id, semester_id, teacher_id)
+- **Department and program hierarchies**
+
+### 4. Analytics & Reporting ✅
+- **Student analytics** (department-based filtering)
+- **Teacher analytics** (performance metrics)
+- **HOD analytics** (department oversight)
+- **Multi-dimensional analytics** (BatchInstance for class dimension, AcademicYear for year dimension)
+- **CO-PO attainment tracking**
+- **PDF report generation**
+- **Bloom's taxonomy analytics**
+
+### 5. User Management & RBAC ✅
+- **Role-based access control** (Principal, HOD, Teacher, Student, Admin)
+- **Department-scoped permissions**
+- **User authentication and authorization**
+- **Audit trails for all actions**
+
+### 6. Navigation & Routing ✅
+- **Role-protected routes**
+- **Legacy route redirections**
+- **Sidebar navigation**
+- **Permission-based component rendering**
+
+### 7. Database Integrity ✅
+- **Model relationships and constraints**
+- **Unique constraints on subject assignments**
+- **Foreign key integrity**
+- **Data migration validation**
+- **Index performance**
+
+### 8. API Endpoints ✅
+- **All 31 API modules functionality**
+- **Error handling and validation**
+- **Rate limiting and security headers**
+- **Caching and performance**
+
+### 9. Data Import/Export ✅
+- **Bulk upload functionality**
+- **Excel file processing**
+- **Data validation and error reporting**
+
+### 10. Performance & Load Testing ✅
+- **Database query optimization**
+- **API response times**
+- **Frontend rendering performance**
+- **Concurrent user handling**
+
+---
+
 ## System Status
 
 ### Overall Health

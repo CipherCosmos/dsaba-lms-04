@@ -56,32 +56,44 @@ class StudentEnrollmentRepository(IStudentEnrollmentRepository):
     async def get_by_student(
         self,
         student_id: int,
-        academic_year_id: Optional[int] = None
+        academic_year_id: Optional[int] = None,
+        skip: int = 0,
+        limit: Optional[int] = None
     ) -> List[StudentEnrollment]:
         """Get all enrollments for a student"""
         query = self.db.query(StudentEnrollmentModel).filter(
             StudentEnrollmentModel.student_id == student_id
         )
-        
+
         if academic_year_id:
             query = query.filter(StudentEnrollmentModel.academic_year_id == academic_year_id)
-        
-        models = query.order_by(StudentEnrollmentModel.enrollment_date.desc()).all()
+
+        query = query.order_by(StudentEnrollmentModel.enrollment_date.desc())
+
+        if limit:
+            query = query.offset(skip).limit(limit)
+
+        models = query.all()
         return [self._to_entity(model) for model in models]
-    
+
     async def get_by_semester(
         self,
         semester_id: int,
-        academic_year_id: Optional[int] = None
+        academic_year_id: Optional[int] = None,
+        skip: int = 0,
+        limit: Optional[int] = None
     ) -> List[StudentEnrollment]:
         """Get all enrollments for a semester"""
         query = self.db.query(StudentEnrollmentModel).filter(
             StudentEnrollmentModel.semester_id == semester_id
         )
-        
+
         if academic_year_id:
             query = query.filter(StudentEnrollmentModel.academic_year_id == academic_year_id)
-        
+
+        if limit:
+            query = query.offset(skip).limit(limit)
+
         models = query.all()
         return [self._to_entity(model) for model in models]
     

@@ -34,8 +34,8 @@ async def add_security_headers(request: Request, call_next):
     # Content Security Policy
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "  # Allow for Swagger UI
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self' https://cdn.jsdelivr.net 'sha256-QOOQu4W1oxGqd2nbXbxiA1Di6OHQOLQD+o+G9oWL8YY='; "  # Allow for Swagger UI
+        "style-src 'self' https://cdn.jsdelivr.net; "
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
         "connect-src 'self' http://localhost:* ws://localhost:* https://cdn.jsdelivr.net; "  # Allow for development and source maps

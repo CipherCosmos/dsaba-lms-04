@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { academicYearAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
 
 /**
  * Hook to fetch all academic years
@@ -45,6 +46,7 @@ export function useAcademicYear(id: number) {
 
 /**
  * Hook to create academic year
+ * Error handling: Displays toast with API error detail or generic message on failure
  */
 export function useCreateAcademicYear() {
   const queryClient = useQueryClient()
@@ -65,6 +67,7 @@ export function useCreateAcademicYear() {
 
 /**
  * Hook to update academic year
+ * Error handling: Displays toast with API error detail or generic message on failure
  */
 export function useUpdateAcademicYear() {
   const queryClient = useQueryClient()
@@ -86,6 +89,7 @@ export function useUpdateAcademicYear() {
 
 /**
  * Hook to activate academic year
+ * Error handling: Displays toast with API error detail or generic message on failure
  */
 export function useActivateAcademicYear() {
   const queryClient = useQueryClient()
@@ -97,7 +101,7 @@ export function useActivateAcademicYear() {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.current() })
       toast.success('Academic year activated successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to activate academic year')
     },
   })
@@ -105,6 +109,7 @@ export function useActivateAcademicYear() {
 
 /**
  * Hook to archive academic year
+ * Error handling: Displays toast with API error detail or generic message on failure
  */
 export function useArchiveAcademicYear() {
   const queryClient = useQueryClient()
@@ -115,9 +120,8 @@ export function useArchiveAcademicYear() {
       queryClient.invalidateQueries({ queryKey: queryKeys.academicYears.all })
       toast.success('Academic year archived successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to archive academic year')
     },
   })
 }
-

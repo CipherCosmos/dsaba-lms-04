@@ -96,17 +96,42 @@ export const queryKeys = {
   // Analytics
   analytics: {
     all: ['analytics'] as const,
-    student: (studentId: number) => [...queryKeys.analytics.all, 'student', studentId] as const,
-    teacher: (teacherId: number) => [...queryKeys.analytics.all, 'teacher', teacherId] as const,
-    class: (classId: number) => [...queryKeys.analytics.all, 'class', classId] as const,
-    subject: (subjectId: number) => [...queryKeys.analytics.all, 'subject', subjectId] as const,
-    hod: (departmentId: number) => [...queryKeys.analytics.all, 'hod', 'department', departmentId] as const,
-    coAttainment: (subjectId: number, examType?: string) => 
-      [...queryKeys.analytics.all, 'co-attainment', subjectId, examType] as const,
-    poAttainment: (departmentId: number, subjectId?: number) => 
-      [...queryKeys.analytics.all, 'po-attainment', 'department', departmentId, subjectId] as const,
-    strategicDashboard: (departmentId: number) => 
+    student: (studentId: number, academicYearId?: number) => [...queryKeys.analytics.all, 'student', studentId, academicYearId] as const,
+    teacher: (teacherId: number, academicYearId?: number, semesterId?: number) => [...queryKeys.analytics.all, 'teacher', teacherId, academicYearId, semesterId] as const,
+    class: (batchInstanceId: number, semesterId?: number, subjectId?: number) => [...queryKeys.analytics.all, 'class', batchInstanceId, semesterId, subjectId] as const,
+    subject: (subjectId: number, semesterId?: number, batchInstanceId?: number, includeBloomAnalysis?: boolean) => [...queryKeys.analytics.all, 'subject', subjectId, semesterId, batchInstanceId, includeBloomAnalysis] as const,
+    hod: (departmentId: number, academicYearId?: number) => [...queryKeys.analytics.all, 'hod', 'department', departmentId, academicYearId] as const,
+    coAttainment: (subjectId: number, examType?: string, semesterId?: number, academicYearId?: number) =>
+      [...queryKeys.analytics.all, 'co-attainment', subjectId, examType, semesterId, academicYearId] as const,
+    poAttainment: (departmentId: number, subjectId?: number, academicYearId?: number, semesterId?: number) =>
+      [...queryKeys.analytics.all, 'po-attainment', 'department', departmentId, subjectId, academicYearId, semesterId] as const,
+    strategicDashboard: (departmentId: number) =>
       [...queryKeys.analytics.all, 'strategic', 'department', departmentId] as const,
+    // Enhanced Analytics
+    bloomsTaxonomy: (subjectId?: number, departmentId?: number, semesterId?: number, examId?: number) =>
+      [...queryKeys.analytics.all, 'enhanced', 'blooms-taxonomy', subjectId, departmentId, semesterId, examId] as const,
+    performanceTrends: (studentId?: number, subjectId?: number, departmentId?: number, months?: number) =>
+      [...queryKeys.analytics.all, 'enhanced', 'performance-trends', studentId, subjectId, departmentId, months] as const,
+    departmentComparison: (academicYearId?: number, semesterId?: number) =>
+      [...queryKeys.analytics.all, 'enhanced', 'department-comparison', academicYearId, semesterId] as const,
+    studentPerformanceAnalytics: (studentId: number, academicYearId?: number) =>
+      [...queryKeys.analytics.all, 'enhanced', 'student', studentId, 'performance', academicYearId] as const,
+    teacherPerformanceAnalytics: (teacherId: number, academicYearId?: number, semesterId?: number) =>
+      [...queryKeys.analytics.all, 'enhanced', 'teacher', teacherId, 'performance', academicYearId, semesterId] as const,
+    classPerformanceAnalytics: (batchInstanceId: number, semesterId?: number, subjectId?: number) =>
+      [...queryKeys.analytics.all, 'enhanced', 'class', batchInstanceId, 'performance', semesterId, subjectId] as const,
+    subjectAnalytics: (subjectId: number, semesterId?: number, batchInstanceId?: number, includeBloomAnalysis?: boolean) =>
+      [...queryKeys.analytics.all, 'enhanced', 'subject', subjectId, semesterId, batchInstanceId, includeBloomAnalysis] as const,
+    departmentAnalytics: (departmentId: number, academicYearId?: number, includePOAttainment?: boolean, includeTrends?: boolean) =>
+      [...queryKeys.analytics.all, 'enhanced', 'department', departmentId, academicYearId, includePOAttainment, includeTrends] as const,
+    nbaAccreditationData: (departmentId: number, academicYearId: number, includeIndirectAttainment?: boolean) =>
+      [...queryKeys.analytics.all, 'enhanced', 'nba', departmentId, academicYearId, includeIndirectAttainment] as const,
+    coPoAttainmentSummary: (departmentId: number, academicYearId?: number, semesterId?: number, includeTrends?: boolean) =>
+      [...queryKeys.analytics.all, 'co-po-attainment', 'summary', departmentId, academicYearId, semesterId, includeTrends] as const,
+    coAttainmentTrends: (subjectId: number, startSemesterId?: number, endSemesterId?: number) =>
+      [...queryKeys.analytics.all, 'co-attainment', 'trends', subjectId, startSemesterId, endSemesterId] as const,
+    poAttainmentTrends: (departmentId: number, startYear?: number, endYear?: number) =>
+      [...queryKeys.analytics.all, 'po-attainment', 'trends', departmentId, startYear, endYear] as const,
   },
 
   // Academic Structure

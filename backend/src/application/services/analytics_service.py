@@ -4,6 +4,7 @@ Business logic for analytics and CO/PO attainment calculations
 """
 
 from typing import Dict, Any, List, Optional
+import warnings
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
@@ -20,6 +21,7 @@ from src.infrastructure.database.models import (
 )
 from src.infrastructure.cache.redis_client import CacheService
 from src.shared.constants import CACHE_KEYS
+from src.application.services.co_po_attainment_service import COPOAttainmentService
 
 
 class AnalyticsService:
@@ -45,6 +47,7 @@ class AnalyticsService:
         self.subject_repository = subject_repository
         self.user_repository = user_repository
         self.cache_service = cache_service
+        self.co_po_attainment_service = COPOAttainmentService(db)
     
     async def get_student_analytics(
         self,
@@ -232,7 +235,7 @@ class AnalyticsService:
         return {
             "teacher_id": teacher_id,
             "total_subjects": len(set(a.subject_id for a in assignments)),
-            "total_classes": len(set(a.class_id for a in assignments)),
+            "total_classes": len(set(a.class_id for a in assignments)),  # DEPRECATED: Uses legacy class_id
             "total_exams": len(exams),
             "total_marks_entered": len(marks),
             "class_statistics": class_stats,
@@ -245,6 +248,8 @@ class AnalyticsService:
         subject_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
+        DEPRECATED: Use batch instance or semester-based analytics. This method is kept for backward compatibility with existing API clients.
+        
         Get analytics for a class
         
         Args:
@@ -254,6 +259,12 @@ class AnalyticsService:
         Returns:
             Dict with class performance metrics
         """
+        warnings.warn(
+            "get_class_analytics is deprecated. Use batch_instance_id or semester_id based analytics instead. "
+            "This method queries legacy class_id field and will be removed in future versions.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         # Get students in class
         students = self.db.query(StudentModel).filter(
             StudentModel.class_id == class_id
@@ -329,6 +340,7 @@ class AnalyticsService:
         )
         
         if class_id:
+            # DEPRECATED: class_id filter for backward compatibility
             assignments_query = assignments_query.filter(
                 SubjectAssignmentModel.class_id == class_id
             )
@@ -433,7 +445,7 @@ class AnalyticsService:
         return {
             "department_id": department_id,
             "total_subjects": len(subjects),
-            "total_classes": len(set(a.class_id for a in assignments)),
+            "total_classes": len(set(a.class_id for a in assignments)),  # DEPRECATED: Uses legacy class_id
             "total_exams": len(exams),
             "total_marks_entries": len(marks),
             "department_average": round(avg_marks, 2),
@@ -447,90 +459,40 @@ class AnalyticsService:
     ) -> Dict[str, Any]:
         """
         Calculate CO (Course Outcome) attainment for a subject
-        
+
         Args:
             subject_id: Subject ID
-            exam_type: Optional exam type filter
-        
+            exam_type: Optional exam type filter (deprecated - use academic_year_id/semester_id instead)
+
         Returns:
             Dict with CO attainment percentages
         """
-        # Get subject
+        # Get subject for metadata
         subject = await self.subject_repository.get_by_id(subject_id)
         if not subject:
             raise EntityNotFoundError("Subject", subject_id)
-        
-        # Get COs for subject
-        cos = self.db.query(CourseOutcomeModel).filter(
-            CourseOutcomeModel.subject_id == subject_id
-        ).all()
-        
-        # Get assignments
-        assignments = self.db.query(SubjectAssignmentModel).filter(
-            SubjectAssignmentModel.subject_id == subject_id
-        ).all()
-        assignment_ids = [a.id for a in assignments]
-        
-        # Get exams
-        exams_query = self.db.query(ExamModel).filter(
-            ExamModel.subject_assignment_id.in_(assignment_ids)
+
+        # Use COPOAttainmentService for calculation
+        co_attainment_data = await self.co_po_attainment_service.calculate_co_attainment(
+            subject_id=subject_id
+            # Note: COPOAttainmentService uses academic_year_id/semester_id instead of exam_type
         )
-        
-        if exam_type:
-            exams_query = exams_query.filter(ExamModel.exam_type == exam_type)
-        
-        exams = exams_query.all()
-        exam_ids = [e.id for e in exams]
-        
-        # Get questions with CO mappings
-        questions = self.db.query(QuestionModel).filter(
-            QuestionModel.exam_id.in_(exam_ids)
-        ).all()
-        
-        question_ids = [q.id for q in questions]
-        
-        # Get question-CO mappings
-        question_co_mappings = self.db.query(QuestionCOMappingModel).filter(
-            QuestionCOMappingModel.question_id.in_(question_ids)
-        ).all()
-        
-        # Get marks
-        marks = self.db.query(MarkModel).filter(
-            MarkModel.question_id.in_(question_ids)
-        ).all()
-        
-        # Calculate CO attainment
+
+        # Transform to legacy format for backward compatibility
         co_attainment = {}
-        for co in cos:
-            # Get questions mapped to this CO
-            co_question_ids = [
-                qcm.question_id for qcm in question_co_mappings
-                if qcm.co_id == co.id
-            ]
-            
-            # Get marks for these questions
-            co_marks = [m for m in marks if m.question_id in co_question_ids]
-            
-            if co_marks:
-                # Calculate total marks obtained vs total possible
-                total_obtained = sum(float(m.marks_obtained) for m in co_marks)
-                
-                # Get question max marks
-                co_questions = [q for q in questions if q.id in co_question_ids]
-                total_possible = sum(float(q.marks_per_question) for q in co_questions)
-                
-                if total_possible > 0:
-                    attainment_pct = (total_obtained / total_possible) * 100
-                    co_attainment[co.code] = {
-                        "code": co.code,
-                        "title": co.title,
-                        "attainment_percentage": round(attainment_pct, 2),
-                        "target_attainment": float(co.target_attainment),
-                        "status": "achieved" if attainment_pct >= float(co.target_attainment) else "not_achieved",
-                        "total_obtained": round(total_obtained, 2),
-                        "total_possible": round(total_possible, 2)
-                    }
-        
+        for co_id, co_data in co_attainment_data.items():
+            co_attainment[co_data["co_code"]] = {
+                "code": co_data["co_code"],
+                "title": co_data["co_title"],
+                "attainment_percentage": co_data["actual_attainment"],
+                "target_attainment": co_data["target_attainment"],
+                "status": "achieved" if co_data["attained"] else "not_achieved",
+                "total_students": co_data["total_students"],
+                "level_1_percentage": co_data.get("level_1_percentage", 0),
+                "level_2_percentage": co_data.get("level_2_percentage", 0),
+                "level_3_percentage": co_data.get("level_3_percentage", 0)
+            }
+
         return {
             "subject_id": subject_id,
             "subject_code": subject.code,
@@ -541,65 +503,34 @@ class AnalyticsService:
     async def calculate_po_attainment(
         self,
         department_id: int,
-        subject_id: Optional[int] = None
+        subject_id: Optional[int] = None,
+        academic_year_id: Optional[int] = None,
+        semester_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Calculate PO (Program Outcome) attainment for a department
-        
+
         Args:
             department_id: Department ID
             subject_id: Optional subject filter
-        
+            academic_year_id: Optional academic year filter
+            semester_id: Optional semester filter
+
         Returns:
-            Dict with PO attainment percentages
+            Dict with PO attainment data including detailed CO contributions
         """
-        # Get POs for department
-        pos = self.db.query(ProgramOutcomeModel).filter(
-            ProgramOutcomeModel.department_id == department_id
-        ).all()
-        
-        # Get subjects
-        if subject_id:
-            subjects = [await self.subject_repository.get_by_id(subject_id)]
-        else:
-            subjects = await self.subject_repository.get_by_department(department_id)
-        
-        subject_ids = [s.id for s in subjects]
-        
-        # Get COs for these subjects
-        cos = self.db.query(CourseOutcomeModel).filter(
-            CourseOutcomeModel.subject_id.in_(subject_ids)
-        ).all()
-        co_ids = [co.id for co in cos]
-        
-        # Get CO-PO mappings
-        co_po_mappings = self.db.query(COPOMappingModel).filter(
-            COPOMappingModel.co_id.in_(co_ids)
-        ).all()
-        
-        # Calculate PO attainment from CO attainments
-        po_attainment = {}
-        for po in pos:
-            # Get COs mapped to this PO
-            po_co_ids = [
-                cpm.co_id for cpm in co_po_mappings
-                if cpm.po_id == po.id
-            ]
-            
-            # Get CO attainments (simplified - would need full calculation)
-            po_attainment[po.code] = {
-                "code": po.code,
-                "title": po.title,
-                "type": po.type,
-                "target_attainment": float(po.target_attainment),
-                "mapped_cos_count": len(po_co_ids),
-                "attainment_percentage": 0.0,  # Would calculate from CO attainments
-                "status": "pending"
-            }
-        
+        # Use COPOAttainmentService for calculation
+        po_attainment_data = await self.co_po_attainment_service.calculate_po_attainment(
+            department_id=department_id,
+            academic_year_id=academic_year_id,
+            semester_id=semester_id
+        )
+
         return {
             "department_id": department_id,
             "subject_id": subject_id,
-            "po_attainment": po_attainment
+            "academic_year_id": academic_year_id,
+            "semester_id": semester_id,
+            "po_attainment": po_attainment_data
         }
 

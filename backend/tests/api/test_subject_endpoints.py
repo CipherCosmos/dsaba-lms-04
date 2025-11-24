@@ -67,9 +67,9 @@ class TestSubjectEndpoints:
         
         assert response.status_code == 200
         data = response.json()
-        assert "subjects" in data
-        assert isinstance(data["subjects"], list)
-        assert len(data["subjects"]) > 0
+        assert "items" in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) > 0
         assert "total" in data
     
     @pytest.mark.api

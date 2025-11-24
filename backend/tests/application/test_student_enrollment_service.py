@@ -20,7 +20,7 @@ class TestStudentEnrollmentService:
         repo = StudentEnrollmentRepository(test_db_session)
         service = StudentEnrollmentService(repo)
         
-        enrollment = await service.create_enrollment(
+        enrollment = await service.enroll_student(
             student_id=student_user.id,
             semester_id=semester.id,
             academic_year_id=academic_year.id,
@@ -43,20 +43,22 @@ class TestStudentEnrollmentService:
         service = StudentEnrollmentService(repo)
         
         # Create first enrollment
-        await service.create_enrollment(
+        await service.enroll_student(
             student_id=student_user.id,
             semester_id=semester.id,
             academic_year_id=academic_year.id,
-            roll_no="CS2024001"
+            roll_no="CS2024001",
+            enrollment_date=date.today()
         )
-        
+
         # Try to create duplicate
         with pytest.raises(EntityAlreadyExistsError):
-            await service.create_enrollment(
+            await service.enroll_student(
                 student_id=student_user.id,
                 semester_id=semester.id,
                 academic_year_id=academic_year.id,
-                roll_no="CS2024002"
+                roll_no="CS2024002",
+                enrollment_date=date.today()
             )
     
     @pytest.mark.integration
@@ -66,11 +68,12 @@ class TestStudentEnrollmentService:
         repo = StudentEnrollmentRepository(test_db_session)
         service = StudentEnrollmentService(repo)
         
-        created = await service.create_enrollment(
+        created = await service.enroll_student(
             student_id=student_user.id,
             semester_id=semester.id,
             academic_year_id=academic_year.id,
-            roll_no="CS2024001"
+            roll_no="CS2024001",
+            enrollment_date=date.today()
         )
         
         retrieved = await service.get_enrollment(created.id)
@@ -87,11 +90,12 @@ class TestStudentEnrollmentService:
         service = StudentEnrollmentService(repo)
         
         # Create enrollment
-        await service.create_enrollment(
+        await service.enroll_student(
             student_id=student_user.id,
             semester_id=semester.id,
             academic_year_id=academic_year.id,
-            roll_no="CS2024001"
+            roll_no="CS2024001",
+            enrollment_date=date.today()
         )
         
         enrollments = await service.get_student_enrollments(
@@ -110,11 +114,12 @@ class TestStudentEnrollmentService:
         service = StudentEnrollmentService(repo)
         
         # Create enrollment
-        await service.create_enrollment(
+        await service.enroll_student(
             student_id=student_user.id,
             semester_id=semester.id,
             academic_year_id=academic_year.id,
-            roll_no="CS2024001"
+            roll_no="CS2024001",
+            enrollment_date=date.today()
         )
         
         enrollments = await service.get_semester_enrollments(
@@ -145,9 +150,9 @@ class TestStudentEnrollmentService:
             academic_year_id=academic_year.id,
             enrollments=enrollments_data
         )
-        
-        assert result["enrolled"] == 1
-        assert len(result["enrollments"]) == 1
+
+        assert len(result) == 1
+        assert result[0].student_id == student_user.id
     
     @pytest.mark.integration
     @pytest.mark.service
@@ -157,18 +162,18 @@ class TestStudentEnrollmentService:
         service = StudentEnrollmentService(repo)
         
         # Create enrollment
-        enrollment = await service.create_enrollment(
+        enrollment = await service.enroll_student(
             student_id=student_user.id,
             semester_id=semester.id,
             academic_year_id=academic_year.id,
-            roll_no="CS2024001"
+            roll_no="CS2024001",
+            enrollment_date=date.today()
         )
         
         # Create next semester (assuming semester_no + 1)
         from src.infrastructure.database.models import SemesterModel
         next_semester = SemesterModel(
             semester_no=semester.semester_no + 1,
-            display_name=f"Semester {semester.semester_no + 1}",
             department_id=semester.department_id,
             academic_year_id=academic_year.id
         )
@@ -179,7 +184,8 @@ class TestStudentEnrollmentService:
         # Promote student
         promoted = await service.promote_student(
             enrollment_id=enrollment.id,
-            next_semester_id=next_semester.id
+            next_semester_id=next_semester.id,
+            promoted_by=1
         )
         
         assert promoted.promotion_status == "promoted"

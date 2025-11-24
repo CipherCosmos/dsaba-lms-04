@@ -50,6 +50,7 @@ class StudentEnrollmentService:
         if existing:
             raise EntityAlreadyExistsError(
                 "StudentEnrollment",
+                "enrollment",
                 f"student_id={student_id}, semester_id={semester_id}, academic_year_id={academic_year_id}"
             )
         
@@ -76,18 +77,22 @@ class StudentEnrollmentService:
     async def get_student_enrollments(
         self,
         student_id: int,
-        academic_year_id: Optional[int] = None
+        academic_year_id: Optional[int] = None,
+        skip: int = 0,
+        limit: Optional[int] = None
     ) -> List[StudentEnrollment]:
         """Get all enrollments for a student"""
-        return await self.repository.get_by_student(student_id, academic_year_id)
-    
+        return await self.repository.get_by_student(student_id, academic_year_id, skip, limit)
+
     async def get_semester_enrollments(
         self,
         semester_id: int,
-        academic_year_id: Optional[int] = None
+        academic_year_id: Optional[int] = None,
+        skip: int = 0,
+        limit: Optional[int] = None
     ) -> List[StudentEnrollment]:
         """Get all enrollments for a semester"""
-        return await self.repository.get_by_semester(semester_id, academic_year_id)
+        return await self.repository.get_by_semester(semester_id, academic_year_id, skip, limit)
     
     async def promote_student(
         self,
@@ -171,6 +176,7 @@ class StudentEnrollmentService:
         if existing_next:
             raise EntityAlreadyExistsError(
                 "StudentEnrollment",
+                "enrollment",
                 f"student_id={current_enrollment.student_id}, semester_id={next_semester_id}, academic_year_id={next_academic_year_id}"
             )
         

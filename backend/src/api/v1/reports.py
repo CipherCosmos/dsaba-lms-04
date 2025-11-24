@@ -28,6 +28,7 @@ from src.infrastructure.database.repositories.user_repository_impl import UserRe
 from src.infrastructure.database.repositories.subject_repository_impl import SubjectRepository
 from src.infrastructure.database.session import get_db
 from src.infrastructure.cache.redis_client import get_cache_service
+from src.api.middleware.rate_limiting import limiter
 from sqlalchemy.orm import Session
 
 
@@ -97,6 +98,7 @@ async def generate_report(
             if "student_id" not in filters:
                 raise ValidationError("student_id is required", field="filters.student_id")
         elif request.report_type == "class_analysis":
+            # DEPRECATED: class_id validation for backward compatibility
             if "class_id" not in filters:
                 raise ValidationError("class_id is required", field="filters.class_id")
         elif request.report_type == "co_po_attainment":
@@ -140,7 +142,7 @@ async def generate_report(
             )
         elif request.report_type == "class_analysis":
             report = await reports_service.generate_class_analysis_report(
-                class_id=filters["class_id"],
+                class_id=filters["class_id"],  # DEPRECATED parameter
                 subject_id=filters.get("subject_id"),
                 format_type=request.format
             )
@@ -212,20 +214,18 @@ async def generate_student_report(
         )
 
 
-@router.get("/class/{class_id}", response_model=ReportResponse)
+@router.get("/class/{class_id}", response_model=ReportResponse, deprecated=True)
 async def generate_class_report(
-    class_id: int,
+    class_id: int,  # DEPRECATED parameter
     subject_id: Optional[int] = Query(None, gt=0),
     format: str = Query("json", pattern="^(json|pdf|excel)$"),
     reports_service: ReportsService = Depends(get_reports_service),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Generate class analysis report
+    ⚠️ DEPRECATED: Generate class report (legacy)
     
-    - **class_id**: Class ID
-    - **subject_id**: Optional subject filter
-    - **format**: Output format (json, pdf, excel)
+    Use batch instance or semester-based reports instead.
     """
     try:
         report = await reports_service.generate_class_analysis_report(
@@ -339,4 +339,3 @@ async def get_report_task_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get task status: {str(e)}"
         )
-

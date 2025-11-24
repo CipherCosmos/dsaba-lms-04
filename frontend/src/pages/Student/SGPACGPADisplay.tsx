@@ -3,13 +3,35 @@ import { TrendingUp, Award, BookOpen, Star, BarChart3, Download } from 'lucide-r
 import { smartMarksAPI } from '../../services/api'
 import { SGPACalculation, CGPACalculation } from '../../core/types'
 import { useAuth } from '../../contexts/AuthContext'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
+// @ts-ignore
+import autoTable from 'jspdf-autotable'
 
+/**
+ * SGPA/CGPA Display Page Component
+ *
+ * This component displays a student's SGPA (Semester Grade Point Average) and CGPA (Cumulative Grade Point Average).
+ *
+ * CGPA Data Structure (from smartMarksAPI.calculateCGPA):
+ * - cgpa: number - The overall cumulative GPA
+ * - total_credits: number - Total credits earned across all semesters
+ * - semesters_count: number - Number of semesters completed
+ * - semesters: Array<{ semester_id: number; semester_name: string; sgpa: number; credits: number }> - Details for each semester
+ *
+ * SGPA Data Structure (from smartMarksAPI.calculateSGPA, per semester):
+ * - semester_id: number - The semester's unique ID
+ * - sgpa: number - The semester GPA
+ * - subjects_count: number - Number of subjects in the semester
+ * - subjects: Array<{ subject_id: number; subject_code: string; subject_name: string; credits: number; grade: string; grade_point: number }> - Subject details
+ */
 export default function SGPACGPADisplayPage() {
-  const { user } = useAuth()
-  const [cgpaData, setCgpaData] = useState<CGPACalculation | null>(null)
-  const [sgpaData, setSgpaData] = useState<SGPACalculation[]>([])
-  const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+   const { user } = useAuth()
+   const [cgpaData, setCgpaData] = useState<CGPACalculation | null>(null)
+   const [sgpaData, setSgpaData] = useState<SGPACalculation[]>([])
+   const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
+   const [loading, setLoading] = useState(true)
+   const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     if (user?.student_id) {
@@ -26,7 +48,7 @@ export default function SGPACGPADisplayPage() {
       setCgpaData(cgpa)
       
       // Load SGPA for each semester
-      const sgpaPromises = cgpa.semesters.map((sem: any) =>
+      const sgpaPromises = cgpa.semesters.map((sem: { semester_id: number; semester_name: string; sgpa: number; credits: number }) =>
         smartMarksAPI.calculateSGPA(user.student_id!, sem.semester_id)
       )
       const sgpaResults = await Promise.all(sgpaPromises)
@@ -55,9 +77,148 @@ export default function SGPACGPADisplayPage() {
     return 'Needs Improvement'
   }
 
-  const downloadReport = () => {
-    // Generate PDF report
-    alert('PDF download feature will be implemented')
+  const downloadReport = async () => {
+    if (!cgpaData || !user) return
+
+    setDownloading(true)
+    try {
+      const doc = new jsPDF()
+
+      // Header
+      doc.setFontSize(20)
+      doc.setFont('helvetica', 'bold')
+      doc.text('SGPA/CGPA Report', 105, 20, { align: 'center' })
+
+      // Student Info
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Student ID: ${user.student_id}`, 20, 40)
+      doc.text(`Name: ${user.name || 'N/A'}`, 20, 50)
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 60)
+
+      // CGPA Summary
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('CGPA Summary', 20, 80)
+
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Overall CGPA: ${cgpaData.cgpa.toFixed(2)}`, 20, 95)
+      doc.text(`Total Credits: ${cgpaData.total_credits}`, 20, 105)
+      doc.text(`Semesters Completed: ${cgpaData.semesters_count}`, 20, 115)
+      doc.text(`Performance: ${getPerformanceLabel(cgpaData.cgpa)}`, 20, 125)
+
+      // Semester-wise SGPA Table
+      let yPos = 140
+      const colWidths = [60, 25, 25, 45]
+      const headers = ['Semester', 'SGPA', 'Credits', 'Performance']
+
+      // Header
+      doc.setFillColor(41, 128, 185)
+      doc.rect(20, yPos, 155, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      let xPos = 25
+      headers.forEach((header, idx) => {
+        doc.text(header, xPos, yPos + 7)
+        xPos += colWidths[idx]
+      })
+
+      // Data rows
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      yPos += 10
+      cgpaData.semesters.forEach((sem: { semester_id: number; semester_name: string; sgpa: number; credits: number }, idx: number) => {
+        if (idx % 2 === 0) {
+          doc.setFillColor(245, 245, 245)
+          doc.rect(20, yPos, 155, 8, 'F')
+        }
+        xPos = 25
+        const rowData = [
+          sem.semester_name,
+          sem.sgpa.toFixed(2),
+          sem.credits,
+          getPerformanceLabel(sem.sgpa)
+        ]
+        rowData.forEach((cell, cellIdx) => {
+          doc.text(String(cell), xPos, yPos + 6)
+          xPos += colWidths[cellIdx]
+        })
+        yPos += 8
+      })
+
+      // Subject-wise details if semester selected
+      if (selectedSemester) {
+        const selectedSgpa = sgpaData.find(s => s.semester_id === selectedSemester)
+        const selectedSemesterData = cgpaData.semesters.find(s => s.semester_id === selectedSemester)
+        if (selectedSgpa && selectedSemesterData) {
+          const subjectData = selectedSgpa.subjects.map((subject: any) => [
+            subject.subject_code,
+            subject.subject_name,
+            subject.credits,
+            subject.grade,
+            subject.grade_point
+          ])
+
+          doc.addPage()
+          doc.setFontSize(16)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`Subject Details - ${selectedSemesterData.semester_name}`, 20, 20)
+
+          // Manual table drawing
+          let yPos = 35
+          const colWidths = [30, 70, 20, 20, 25]
+          const headers = ['Code', 'Subject', 'Credits', 'Grade', 'Grade Point']
+
+          // Header
+          doc.setFillColor(52, 152, 219)
+          doc.rect(20, yPos, 165, 10, 'F')
+          doc.setTextColor(255, 255, 255)
+          doc.setFontSize(10)
+          doc.setFont('helvetica', 'bold')
+          let xPos = 25
+          headers.forEach((header, idx) => {
+            doc.text(header, xPos, yPos + 7)
+            xPos += colWidths[idx]
+          })
+
+          // Data rows
+          doc.setTextColor(0, 0, 0)
+          doc.setFont('helvetica', 'normal')
+          yPos += 10
+          subjectData.forEach((row: any[], rowIdx: number) => {
+            if (rowIdx % 2 === 0) {
+              doc.setFillColor(245, 245, 245)
+              doc.rect(20, yPos, 165, 8, 'F')
+            }
+            xPos = 25
+            row.forEach((cell, cellIdx) => {
+              doc.text(String(cell), xPos, yPos + 6)
+              xPos += colWidths[cellIdx]
+            })
+            yPos += 8
+          })
+        }
+      }
+
+      // Footer
+      const pageCount = doc.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.text(`Generated by DSABA LMS - Page ${i} of ${pageCount}`, 105, 285, { align: 'center' })
+      }
+
+      // Save the PDF
+      const fileName = `SGPA_CGPA_Report_${user.student_id}_${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+    } catch (error) {
+      console.error('Failed to generate PDF:', error)
+      alert('Failed to generate PDF report. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   if (loading) {
@@ -95,10 +256,11 @@ export default function SGPACGPADisplayPage() {
         </div>
         <button
           onClick={downloadReport}
-          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          disabled={downloading}
+          className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed"
         >
-          <Download className="h-5 w-5" />
-          Download Report
+          <Download className={`h-5 w-5 ${downloading ? 'animate-pulse' : ''}`} />
+          {downloading ? 'Generating...' : 'Download Report'}
         </button>
       </div>
 

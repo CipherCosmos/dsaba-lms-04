@@ -21,8 +21,8 @@ class TestUserEndpoints:
         
         assert response.status_code == 200
         data = response.json()
-        assert "users" in data
-        assert isinstance(data["users"], list)
+        assert "items" in data
+        assert isinstance(data["items"], list)
         assert "total" in data
     
     @pytest.mark.api

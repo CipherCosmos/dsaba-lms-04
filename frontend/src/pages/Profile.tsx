@@ -8,6 +8,7 @@ import { profileAPI } from '../services/api'
 import { useSelector, useDispatch } from 'react-redux'
 import { RootState, AppDispatch } from '../store/store'
 import { fetchCurrentUser } from '../store/slices/authSlice'
+import type { AxiosErrorResponse } from '../core/types'
 
 const schema = yup.object({
   first_name: yup
@@ -73,7 +74,7 @@ const Profile = () => {
         avatar_url: profile.avatar_url || '',
         bio: profile.bio || '',
       })
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       toast.error(error.response?.data?.detail || 'Failed to load profile')
     } finally {
       setIsLoading(false)
@@ -96,7 +97,7 @@ const Profile = () => {
       await loadProfile()
       // Refresh user state in Redux
       dispatch(fetchCurrentUser())
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       toast.error(error.response?.data?.detail || 'Failed to update profile')
     } finally {
       setIsSubmitting(false)

@@ -14,6 +14,7 @@ import { fetchPODefinitions } from '../../store/slices/copoSlice'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { coPoMatrixAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
+import type { CourseOutcome } from '../../core/types/api'
 import { Target, Edit, Trash2, CheckCircle } from 'lucide-react'
 
 const COManagement: React.FC = () => {
@@ -88,7 +89,7 @@ const COManagement: React.FC = () => {
     }
   }
 
-  const handleEdit = (co: any) => {
+  const handleEdit = (co: CourseOutcome) => {
     setEditingCO(co)
     setFormData({
       code: co.code,
@@ -116,7 +117,7 @@ const COManagement: React.FC = () => {
     dispatch(clearErrors())
   }
 
-  const handleMappingOpen = async (co: any) => {
+  const handleMappingOpen = async (co: CourseOutcome) => {
     setSelectedCO(co)
     setMappingData({
       coId: co.id,

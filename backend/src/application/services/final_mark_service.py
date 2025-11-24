@@ -6,24 +6,29 @@ Business logic for Final Mark management
 from typing import List, Optional
 from decimal import Decimal
 from datetime import date, timedelta
+from sqlalchemy.orm import Session
 
 from src.domain.repositories.final_mark_repository import IFinalMarkRepository
 from src.domain.entities.final_mark import FinalMark
 from src.domain.exceptions import EntityNotFoundError, ValidationError
+from src.application.services.co_po_attainment_service import COPOAttainmentService
 
 
 class FinalMarkService:
     """
     Final Mark service
-    
+
     Handles business logic for Final Mark operations
     """
-    
+
     def __init__(
         self,
-        final_mark_repository: IFinalMarkRepository
+        final_mark_repository: IFinalMarkRepository,
+        db: Optional[Session] = None
     ):
         self.final_mark_repository = final_mark_repository
+        self.db = db
+        self.co_po_attainment_service = COPOAttainmentService(db) if db else None
     
     async def create_or_update_final_mark(
         self,
@@ -38,8 +43,8 @@ class FinalMarkService:
         max_external: Decimal = Decimal("60")
     ) -> FinalMark:
         """
-        Create or update final mark
-        
+        Create or update final mark with CO attainment calculation
+
         Args:
             student_id: Student ID
             subject_assignment_id: Subject assignment ID
@@ -50,17 +55,27 @@ class FinalMarkService:
             best_internal_method: Method for best internal ("best", "avg", "weighted")
             max_internal: Maximum internal marks
             max_external: Maximum external marks
-        
+
         Returns:
             Created or updated Final Mark
         """
+        # Get subject ID from subject assignment
+        from src.infrastructure.database.models import SubjectAssignmentModel
+        if self.db:
+            subject_assignment = self.db.query(SubjectAssignmentModel).filter(
+                SubjectAssignmentModel.id == subject_assignment_id
+            ).first()
+            subject_id = subject_assignment.subject_id if subject_assignment else None
+        else:
+            subject_id = None
+
         # Check if exists
         existing = await self.final_mark_repository.get_by_student_subject(
             student_id=student_id,
             subject_assignment_id=subject_assignment_id,
             semester_id=semester_id
         )
-        
+
         if existing:
             # Update existing
             existing.update_marks(
@@ -69,13 +84,26 @@ class FinalMarkService:
                 external=external or Decimal("0"),
                 best_internal_method=best_internal_method
             )
-            
+
             # Recalculate total and percentage
             max_total = max_internal + max_external
             existing.total = existing.calculate_total(max_internal, max_external)
             existing.percentage = existing.calculate_percentage(max_total)
             existing.grade = existing.assign_grade()
-            
+
+            # Calculate and update CO attainment if service is available
+            if self.co_po_attainment_service and subject_id:
+                try:
+                    co_attainment = self.co_po_attainment_service.calculate_student_co_attainment(
+                        student_id=student_id,
+                        subject_id=subject_id,
+                        semester_id=semester_id
+                    )
+                    existing.update_co_attainment(co_attainment)
+                except Exception as e:
+                    # Log error but don't fail the operation
+                    print(f"Warning: Failed to calculate CO attainment: {e}")
+
             return await self.final_mark_repository.update(existing)
         else:
             # Create new
@@ -88,19 +116,32 @@ class FinalMarkService:
                 internal_2=internal_2 or Decimal("0"),
                 external=external or Decimal("0")
             )
-            
+
             # Calculate best internal
             final_mark.best_internal = final_mark.calculate_best_internal(best_internal_method)
-            
+
             # Calculate total and percentage
             max_total = max_internal + max_external
             final_mark.total = final_mark.calculate_total(max_internal, max_external)
             final_mark.percentage = final_mark.calculate_percentage(max_total)
             final_mark.grade = final_mark.assign_grade()
-            
+
+            # Calculate CO attainment if service is available
+            if self.co_po_attainment_service and subject_id:
+                try:
+                    co_attainment = self.co_po_attainment_service.calculate_student_co_attainment(
+                        student_id=student_id,
+                        subject_id=subject_id,
+                        semester_id=semester_id
+                    )
+                    final_mark.update_co_attainment(co_attainment)
+                except Exception as e:
+                    # Log error but don't fail the operation
+                    print(f"Warning: Failed to calculate CO attainment: {e}")
+
             # Set editable until (7 days from now)
             final_mark.editable_until = date.today() + timedelta(days=7)
-            
+
             return await self.final_mark_repository.create(final_mark)
     
     async def get_final_mark(

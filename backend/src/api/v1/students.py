@@ -16,7 +16,7 @@ from src.application.services.academic_structure_service import AcademicStructur
 from src.application.dto.academic_structure_dto import SemesterListResponse, SemesterResponse
 from src.infrastructure.database.repositories.academic_structure_repository_impl import (
     BatchRepository,
-    BatchYearRepository,
+    # BatchYearRepository,
     SemesterRepository
 )
 from sqlalchemy.orm import Session
@@ -27,7 +27,7 @@ def get_final_mark_service(
 ) -> FinalMarkService:
     """Get final mark service instance"""
     final_mark_repo = FinalMarkRepository(db)
-    return FinalMarkService(final_mark_repo)
+    return FinalMarkService(final_mark_repo, db)
 
 
 # Create router
@@ -146,18 +146,24 @@ async def get_student_semesters(
     if student.batch_instance_id:
         batch_instance_id = student.batch_instance_id
     elif student.batch_year_id:
-        # Legacy support: try to find batch instance from batch_year
-        # This handles old data that hasn't been migrated yet
-        # Note: New students should always use batch_instance_id
-        batch_repo = BatchRepository(db)
-        batch_year_repo = BatchYearRepository(db)
-        semester_repo = SemesterRepository(db)
-        service = AcademicStructureService(batch_repo, batch_year_repo, semester_repo)
-        semesters = await service.get_semesters_by_batch_year(student.batch_year_id)
-        items = [SemesterResponse(**s.to_dict()) for s in semesters]
+        # Legacy support: temporarily disabled
+        # TODO: Implement proper migration path for old batch_year data
+        # batch_repo = BatchRepository(db)
+        # batch_year_repo = BatchYearRepository(db)
+        # semester_repo = SemesterRepository(db)
+        # service = AcademicStructureService(batch_repo, batch_year_repo, semester_repo)
+        # semesters = await service.get_semesters_by_batch_year(student.batch_year_id)
+        # items = [SemesterResponse(**s.to_dict()) for s in semesters]
+        # return SemesterListResponse(
+        #     items=items,
+        #     total=len(items),
+        #     skip=skip,
+        #     limit=limit
+        # )
+        # For now, return empty list for legacy batch_year data
         return SemesterListResponse(
-            items=items,
-            total=len(items),
+            items=[],
+            total=0,
             skip=skip,
             limit=limit
         )

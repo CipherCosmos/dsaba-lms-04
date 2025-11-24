@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Mail, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react'
 import { authAPI } from '../services/api'
+import type { AxiosErrorResponse } from '../core/types'
 
 const schema = yup.object({
   email_or_username: yup
@@ -36,7 +37,7 @@ const ForgotPassword = () => {
       await authAPI.forgotPassword(data.email_or_username)
       setIsSuccess(true)
       toast.success('If the email/username exists, a password reset link has been sent.')
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       toast.error(error.response?.data?.detail || 'Failed to send reset link')
     } finally {
       setIsSubmitting(false)

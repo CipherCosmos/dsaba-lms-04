@@ -3,7 +3,7 @@
 from .base import Entity, AggregateRoot, ValueObject
 from .user import User
 from .department import Department
-from .academic_structure import Batch, BatchYear, Semester
+from .academic_structure import Batch, BatchYear, Semester, BatchInstance, Section
 from .subject import Subject
 from .exam import Exam
 from .mark import Mark
@@ -13,6 +13,8 @@ from .co_po_mapping import COPOMapping
 from .question import Question
 from .sub_question import SubQuestion
 from .final_mark import FinalMark
+from .survey import Survey, SurveyQuestion, SurveyResponse, SurveyWithResponses
+from .exit_exam import ExitExam, ExitExamResult, ExitExamWithResults
 
 __all__ = [
     "Entity",
@@ -23,6 +25,8 @@ __all__ = [
     "Batch",
     "BatchYear",
     "Semester",
+    "BatchInstance",
+    "Section",
     "Subject",
     "Exam",
     "Mark",
@@ -32,5 +36,12 @@ __all__ = [
     "Question",
     "SubQuestion",
     "FinalMark",
+    "Survey",
+    "SurveyQuestion",
+    "SurveyResponse",
+    "SurveyWithResponses",
+    "ExitExam",
+    "ExitExamResult",
+    "ExitExamWithResults",
 ]
 

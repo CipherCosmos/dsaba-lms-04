@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import { logger } from '../../core/utils/logger'
 import { Download, FileText, Filter, Users, BookOpen, Award, BarChart2, BarChart3, Building, TrendingUp, Target, Brain, Gauge, Layers } from 'lucide-react'
 import { format } from 'date-fns'
+import type { AxiosErrorResponse } from '../../core/types'
 
 const Reports = () => {
   const { user } = useSelector((state: RootState) => state.auth)
@@ -209,6 +210,11 @@ const Reports = () => {
     return (u as any).department_id === userDeptId
   })
 
+  // Empty states
+  const hasNoClasses = departmentClasses.length === 0
+  const hasNoSubjects = departmentSubjects.length === 0
+  const hasNoTeachers = departmentTeachers.length === 0
+
   const handleGenerateReport = async () => {
     if (!selectedReportType) {
       toast.error('Please select a report type')
@@ -246,7 +252,7 @@ const Reports = () => {
       window.URL.revokeObjectURL(url)
       
       toast.success('Report generated successfully!')
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       logger.error('Report generation error:', error)
       toast.error(error.response?.data?.detail || error.message || 'Failed to generate report')
     } finally {
@@ -311,6 +317,30 @@ const Reports = () => {
           </select>
         </div>
       </div>
+
+      {/* Empty State Warnings */}
+      {(hasNoClasses || hasNoSubjects || hasNoTeachers) && (
+        <div className="card border-orange-200 bg-orange-50">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-orange-800">Department Data Status</h3>
+              <div className="mt-2 text-sm text-orange-700">
+                <ul className="list-disc list-inside space-y-1">
+                  {hasNoClasses && <li>No classes found in your department</li>}
+                  {hasNoSubjects && <li>No subjects found in your department</li>}
+                  {hasNoTeachers && <li>No teachers found in your department</li>}
+                </ul>
+                <p className="mt-2">Some reports may not be available. Please contact your administrator if this is unexpected.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Reports */}
       <div className="card">
@@ -447,8 +477,11 @@ const Reports = () => {
                     value={filters.class_id}
                     onChange={(e) => setFilters({ ...filters, class_id: e.target.value })}
                     className="input-field w-full"
+                    disabled={hasNoClasses}
                   >
-                    <option value="">All Classes</option>
+                    <option value="">
+                      {hasNoClasses ? 'No classes available' : 'All Classes'}
+                    </option>
                     {departmentClasses.map(cls => (
                       <option key={cls.id} value={cls.id}>
                         {cls.name}
@@ -467,8 +500,11 @@ const Reports = () => {
                     value={filters.subject_id}
                     onChange={(e) => setFilters({ ...filters, subject_id: e.target.value })}
                     className="input-field w-full"
+                    disabled={hasNoSubjects}
                   >
-                    <option value="">All Subjects</option>
+                    <option value="">
+                      {hasNoSubjects ? 'No subjects available' : 'All Subjects'}
+                    </option>
                     {departmentSubjects.map(subject => (
                       <option key={subject.id} value={subject.id}>
                         {subject.name} ({subject.code})
@@ -487,8 +523,11 @@ const Reports = () => {
                     value={filters.teacher_id}
                     onChange={(e) => setFilters({ ...filters, teacher_id: e.target.value })}
                     className="input-field w-full"
+                    disabled={hasNoTeachers}
                   >
-                    <option value="">All Teachers</option>
+                    <option value="">
+                      {hasNoTeachers ? 'No teachers available' : 'All Teachers'}
+                    </option>
                     {departmentTeachers.map(teacher => (
                       <option key={teacher.id} value={teacher.id}>
                         {teacher.first_name} {teacher.last_name}

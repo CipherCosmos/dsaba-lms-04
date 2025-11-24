@@ -12,6 +12,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .session import Base
 import enum
+import warnings
 
 
 # ============================================
@@ -167,7 +168,6 @@ class DepartmentModel(Base):
     
     # Relationships
     hod = relationship("UserModel", foreign_keys=[hod_id], post_update=True)
-    classes = relationship("ClassModel", back_populates="department")
     subjects = relationship("SubjectModel", back_populates="department")
     program_outcomes = relationship("ProgramOutcomeModel", back_populates="department")
     semesters = relationship("SemesterModel", back_populates="department")
@@ -188,30 +188,7 @@ class BatchModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    batch_years = relationship("BatchYearModel", back_populates="batch", cascade="all, delete-orphan")  # Legacy
     batch_instances = relationship("BatchInstanceModel", back_populates="batch", cascade="all, delete-orphan")
-
-
-class BatchYearModel(Base):
-    """Batch Year database model (2023-2027, etc.) - DEPRECATED, use BatchInstanceModel"""
-    __tablename__ = "batch_years"
-    __table_args__ = (
-        UniqueConstraint('batch_id', 'start_year', name='unique_batch_year'),
-        CheckConstraint('end_year > start_year', name='check_year_order'),
-        Index('idx_batch_years_current', 'is_current'),
-    )
-    
-    id = Column(Integer, primary_key=True, index=True)
-    batch_id = Column(Integer, ForeignKey("batches.id", ondelete="CASCADE"), nullable=False)
-    start_year = Column(Integer, nullable=False)
-    end_year = Column(Integer, nullable=False)
-    is_current = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Relationships
-    batch = relationship("BatchModel", back_populates="batch_years")
-    semesters = relationship("SemesterModel", back_populates="batch_year", cascade="all, delete-orphan")
-    students = relationship("StudentModel", back_populates="batch_year")
 
 
 class BatchInstanceModel(Base):
@@ -362,15 +339,13 @@ class SemesterModel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # Keep batch_year_id for backward compatibility (optional)
-    batch_year_id = Column(Integer, ForeignKey("batch_years.id", ondelete="SET NULL"), nullable=True)
+    # Keep batch_year_id for backward compatibility (optional) - FK removed
+    batch_year_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
     
     # Relationships
     batch_instance = relationship("BatchInstanceModel", back_populates="semesters")
     academic_year = relationship("AcademicYearModel", back_populates="semesters")
     department = relationship("DepartmentModel", back_populates="semesters")
-    batch_year = relationship("BatchYearModel", back_populates="semesters")
-    classes = relationship("ClassModel", back_populates="semester")
     student_enrollments = relationship("StudentEnrollmentModel", back_populates="semester", foreign_keys="[StudentEnrollmentModel.semester_id]")
     subjects = relationship("SubjectModel", back_populates="semester")
     final_marks = relationship("FinalMarkModel", back_populates="semester")
@@ -441,28 +416,6 @@ class PromotionHistoryModel(Base):
     to_semester = relationship("SemesterModel", foreign_keys=[to_semester_id])
 
 
-class ClassModel(Base):
-    """Class database model"""
-    __tablename__ = "classes"
-    __table_args__ = (
-        Index('idx_classes_department', 'department_id'),
-        Index('idx_classes_semester', 'semester_id'),
-    )
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), nullable=False)
-    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
-    semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
-    section = Column(String(10), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Relationships
-    department = relationship("DepartmentModel", back_populates="classes")
-    semester = relationship("SemesterModel", back_populates="classes")
-    students = relationship("StudentModel", back_populates="class_obj")
-    subject_assignments = relationship("SubjectAssignmentModel", back_populates="class_obj")
-
-
 # ============================================
 # Profiles Schema - Student & Teacher Profiles
 # ============================================
@@ -472,12 +425,12 @@ class StudentModel(Base):
     __tablename__ = "students"
     __table_args__ = (
         Index('idx_students_dept', 'department_id'),
-        Index('idx_students_batch_year', 'batch_year_id'),  # Keep for backward compatibility
+        Index('idx_students_batch_year', 'batch_year_id'),  # DEPRECATED: Index for legacy batch_year_id queries
         Index('idx_students_batch_instance', 'batch_instance_id'),
         Index('idx_students_section', 'section_id'),
         Index('idx_students_current_semester', 'current_semester_id'),
         Index('idx_students_ay', 'academic_year_id'),
-        Index('idx_students_class', 'class_id'),
+        Index('idx_students_class', 'class_id'),  # DEPRECATED: Index for legacy class_id queries
     )
     
     id = Column(Integer, primary_key=True, index=True)
@@ -493,9 +446,9 @@ class StudentModel(Base):
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="SET NULL"))
     
-    # Legacy fields (keep for backward compatibility)
-    batch_year_id = Column(Integer, ForeignKey("batch_years.id", ondelete="SET NULL"))
-    class_id = Column(Integer, ForeignKey("classes.id", ondelete="SET NULL"))
+    # Legacy fields (keep for backward compatibility) - FKs removed
+    batch_year_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
+    class_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
     
     admission_date = Column(Date)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -506,8 +459,6 @@ class StudentModel(Base):
     batch_instance = relationship("BatchInstanceModel", back_populates="students")
     section = relationship("SectionModel", back_populates="students")
     current_semester = relationship("SemesterModel", foreign_keys=[current_semester_id])
-    batch_year = relationship("BatchYearModel", back_populates="students")  # Legacy
-    class_obj = relationship("ClassModel", back_populates="students")  # Legacy
     marks = relationship("MarkModel", back_populates="student")
     final_marks = relationship("FinalMarkModel", back_populates="student")
     enrollments = relationship("StudentEnrollmentModel", back_populates="student")
@@ -581,7 +532,7 @@ class SubjectAssignmentModel(Base):
         UniqueConstraint('subject_id', 'semester_id', 'teacher_id', name='unique_assignment'),
         Index('idx_assignments_subject', 'subject_id'),
         Index('idx_assignments_teacher', 'teacher_id'),
-        Index('idx_assignments_class', 'class_id'),  # Keep for backward compatibility
+        Index('idx_assignments_class', 'class_id'),  # DEPRECATED: Index for legacy class_id queries
         Index('idx_assignments_semester', 'semester_id'),
         Index('idx_assignments_ay', 'academic_year_id'),
         Index('idx_assignments_composite', 'teacher_id', 'semester_id', 'academic_year_id'),
@@ -590,7 +541,7 @@ class SubjectAssignmentModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
     teacher_id = Column(Integer, ForeignKey("teachers.id", ondelete="CASCADE"), nullable=False)
-    class_id = Column(Integer, ForeignKey("classes.id", ondelete="CASCADE"), nullable=True)  # DEPRECATED: Optional for backward compatibility
+    class_id = Column(Integer, nullable=True)  # DEPRECATED: Kept for backward compatibility only, nullable
     semester_id = Column(Integer, ForeignKey("semesters.id", ondelete="CASCADE"), nullable=False)
     academic_year = Column(Integer, nullable=False)  # Keep for backward compatibility
     academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=True)  # New FK
@@ -599,7 +550,6 @@ class SubjectAssignmentModel(Base):
     # Relationships
     subject = relationship("SubjectModel", back_populates="subject_assignments")
     teacher = relationship("TeacherModel", back_populates="subject_assignments")
-    class_obj = relationship("ClassModel", back_populates="subject_assignments")
     exams = relationship("ExamModel", back_populates="subject_assignment")
     final_marks = relationship("FinalMarkModel", back_populates="subject_assignment")
     academic_year_obj = relationship("AcademicYearModel", back_populates="subject_assignments", foreign_keys=[academic_year_id])
@@ -1000,6 +950,138 @@ class AuditLogModel(Base):
 
 
 # ============================================
+# Indirect Attainment Schema
+# ============================================
+
+class SurveyModel(Base):
+    """Survey database model for indirect attainment"""
+    __tablename__ = "surveys"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'active', 'closed')", name='check_survey_status'),
+        Index('idx_surveys_department', 'department_id'),
+        Index('idx_surveys_academic_year', 'academic_year_id'),
+        Index('idx_surveys_status', 'status'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(20), default='draft', nullable=False)
+    target_audience = Column(String(50), default='students')  # students, alumni, employers
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    department = relationship("DepartmentModel")
+    academic_year = relationship("AcademicYearModel")
+    questions = relationship("SurveyQuestionModel", back_populates="survey", cascade="all, delete-orphan")
+    responses = relationship("SurveyResponseModel", back_populates="survey", cascade="all, delete-orphan")
+
+
+class SurveyQuestionModel(Base):
+    """Survey question database model"""
+    __tablename__ = "survey_questions"
+    __table_args__ = (
+        CheckConstraint("question_type IN ('rating', 'text', 'multiple_choice', 'yes_no')", name='check_question_type'),
+        Index('idx_survey_questions_survey', 'survey_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    question_text = Column(Text, nullable=False)
+    question_type = Column(String(20), nullable=False)
+    options = Column(JSON, nullable=True)  # For multiple choice questions
+    required = Column(Boolean, default=True, nullable=False)
+    order_index = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    survey = relationship("SurveyModel", back_populates="questions")
+    responses = relationship("SurveyResponseModel", back_populates="question", cascade="all, delete-orphan")
+
+
+class SurveyResponseModel(Base):
+    """Survey response database model"""
+    __tablename__ = "survey_responses"
+    __table_args__ = (
+        UniqueConstraint('survey_id', 'respondent_id', name='unique_survey_response'),
+        Index('idx_survey_responses_survey', 'survey_id'),
+        Index('idx_survey_responses_respondent', 'respondent_id'),
+        Index('idx_survey_responses_question', 'question_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    survey_id = Column(Integer, ForeignKey("surveys.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, ForeignKey("survey_questions.id", ondelete="CASCADE"), nullable=False)
+    respondent_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    response_value = Column(Text, nullable=True)  # Text response or selected option
+    rating_value = Column(Integer, nullable=True)  # For rating questions (1-5)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    survey = relationship("SurveyModel", back_populates="responses")
+    question = relationship("SurveyQuestionModel", back_populates="responses")
+    respondent = relationship("UserModel")
+
+
+class ExitExamModel(Base):
+    """Exit exam database model for indirect attainment"""
+    __tablename__ = "exit_exams"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'active', 'completed')", name='check_exit_exam_status'),
+        Index('idx_exit_exams_department', 'department_id'),
+        Index('idx_exit_exams_academic_year', 'academic_year_id'),
+        Index('idx_exit_exams_status', 'status'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(20), default='draft', nullable=False)
+    exam_date = Column(Date, nullable=True)
+    total_questions = Column(Integer, default=0, nullable=False)
+    passing_score = Column(DECIMAL(5, 2), default=50.0, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    department = relationship("DepartmentModel")
+    academic_year = relationship("AcademicYearModel")
+    results = relationship("ExitExamResultModel", back_populates="exit_exam", cascade="all, delete-orphan")
+
+
+class ExitExamResultModel(Base):
+    """Exit exam result database model"""
+    __tablename__ = "exit_exam_results"
+    __table_args__ = (
+        UniqueConstraint('exit_exam_id', 'student_id', name='unique_exit_exam_result'),
+        Index('idx_exit_exam_results_exam', 'exit_exam_id'),
+        Index('idx_exit_exam_results_student', 'student_id'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    exit_exam_id = Column(Integer, ForeignKey("exit_exams.id", ondelete="CASCADE"), nullable=False)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    score = Column(DECIMAL(5, 2), nullable=False)
+    max_score = Column(DECIMAL(5, 2), nullable=False)
+    percentage = Column(DECIMAL(5, 2), nullable=False)
+    passed = Column(Boolean, default=False, nullable=False)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    exit_exam = relationship("ExitExamModel", back_populates="results")
+    student = relationship("StudentModel")
+
+
+# ============================================
 # Department Settings
 # ============================================
 
@@ -1009,7 +1091,7 @@ class DepartmentSettingsModel(Base):
     __table_args__ = (
         CheckConstraint("internal_method IN ('best', 'avg', 'weighted')", name='check_internal_method'),
     )
-    
+
     department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), primary_key=True)
     internal_method = Column(String(20), default='best', nullable=False)
     grading_scale = Column(JSON, default={

@@ -5,6 +5,7 @@ import { queryKeys } from './queryKeys'
 import { login, logout } from '../../store/slices/authSlice'
 import { AppDispatch } from '../../store/store'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
 
 /**
  * Hook to get current user
@@ -34,7 +35,7 @@ export function useLogin() {
       queryClient.setQueryData(queryKeys.auth.me(), response.user)
       toast.success('Login successful')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Login failed')
     },
   })

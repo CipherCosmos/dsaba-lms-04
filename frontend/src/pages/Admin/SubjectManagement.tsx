@@ -12,6 +12,8 @@ import {
   deleteSubject 
 } from '../../store/slices/subjectSlice'
 import type { Subject } from '../../store/slices/subjectSlice'
+import type { SubjectCreateRequest } from '../../core/types/api'
+import type { AxiosErrorResponse } from '../../core/types'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { subjectAPI, academicStructureAPI } from '../../services/api'
 import { useAcademicYears } from '../../core/hooks'
@@ -136,7 +138,7 @@ const SubjectManagement = () => {
 
   const onSubmit = async (data: SubjectForm) => {
     try {
-      const processedData: any = {
+      const processedData: SubjectCreateRequest = {
         name: data.name,
         code: data.code,
         department_id: data.department_id,
@@ -155,7 +157,7 @@ const SubjectManagement = () => {
         toast.success('Subject created successfully!')
       }
       closeModal()
-    } catch (error: any) {
+    } catch (error: AxiosErrorResponse) {
       toast.error(error.message || 'An error occurred')
     }
   }

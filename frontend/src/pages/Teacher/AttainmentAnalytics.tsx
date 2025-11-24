@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, memo } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { RootState, AppDispatch } from '../../store/store'
 import {
@@ -6,13 +6,13 @@ import {
   setSelectedSubject
 } from '../../store/slices/copoSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Target, 
-  Users, 
-  BookOpen, 
-  Award, 
+import {
+  BarChart3,
+  TrendingUp,
+  Target,
+  Users,
+  BookOpen,
+  Award,
   AlertTriangle,
   CheckCircle,
   XCircle,
@@ -23,10 +23,14 @@ import {
   Eye,
   BarChart2,
   PieChart,
-  Activity
+  Activity,
+  Brain
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
-const AttainmentAnalytics: React.FC = () => {
+import type { COAttainment, POAttainment } from '../../core/types/api'
+
+const AttainmentAnalytics: React.FC = memo(() => {
   const dispatch = useDispatch<AppDispatch>()
   const { subjects } = useSelector((state: RootState) => state.subjects)
   const { user } = useSelector((state: RootState) => state.auth)
@@ -551,29 +555,16 @@ const AttainmentAnalytics: React.FC = () => {
           {/* Blooms Taxonomy Analysis */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Blooms Taxonomy</h3>
-            <div className="space-y-3">
-              {blooms_analysis && Object.entries(blooms_analysis).map(([level, data]) => {
-                const count = typeof data === 'object' ? data.count : data;
-                const percentage = typeof data === 'object' ? data.percentage : 0;
-                const totalCount = Object.values(blooms_analysis).reduce((sum, item) => {
-                  return sum + (typeof item === 'object' ? item.count : item);
-                }, 0);
-                
-                return (
-                  <div key={level} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{level}</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-purple-500 h-2 rounded-full"
-                          style={{ width: `${totalCount > 0 ? (count / totalCount) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-900">{count}</span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="text-center py-8">
+              <Brain className="h-12 w-12 text-indigo-400 mx-auto mb-4" />
+              <p className="text-gray-600 mb-4">Detailed Bloom's Taxonomy analysis is available on the dedicated page</p>
+              <Link
+                to="/teacher/blooms-analytics"
+                className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <Brain className="h-4 w-4 mr-2" />
+                View Bloom's Analysis
+              </Link>
             </div>
           </div>
 
@@ -636,23 +627,6 @@ const AttainmentAnalytics: React.FC = () => {
           </div>
         )}
 
-        {/* Blooms Taxonomy Analysis */}
-        {blooms_analysis && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Blooms Taxonomy Distribution</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {Object.entries(blooms_analysis).map(([level, data]) => {
-                const count = typeof data === 'object' ? data.count : data;
-                return (
-                  <div key={level} className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{count}</div>
-                    <div className="text-sm text-gray-600 capitalize">{level}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     )
   }
@@ -664,7 +638,7 @@ const AttainmentAnalytics: React.FC = () => {
       <div className="space-y-6">
         {/* CO Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subjectAttainment.co_attainment.map((co: any) => (
+          {subjectAttainment.co_attainment.map((co: COAttainment) => (
             <div key={co.co_id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -782,7 +756,7 @@ const AttainmentAnalytics: React.FC = () => {
       <div className="space-y-6">
         {/* PO Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subjectAttainment.po_attainment.map((po: any) => (
+          {subjectAttainment.po_attainment.map((po: POAttainment) => (
             <div key={po.po_id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div>
@@ -1331,6 +1305,8 @@ const AttainmentAnalytics: React.FC = () => {
       {renderDetailedView()}
     </div>
   )
-}
+})
+
+AttainmentAnalytics.displayName = 'AttainmentAnalytics'
 
 export default AttainmentAnalytics

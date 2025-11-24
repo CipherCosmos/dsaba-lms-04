@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Brain, BarChart3, PieChart, TrendingUp, Download, BookOpen } from 'lucide-react'
-import { enhancedAnalyticsAPI, subjectAPI, examAPI } from '../../services/api'
+import { analyticsAPI, subjectAPI, examAPI } from '../../services/api'
 import { BloomsTaxonomyAnalysis } from '../../core/types'
+import jsPDF from 'jspdf'
+import * as XLSX from 'xlsx'
 
 const BLOOM_LEVELS = [
   { id: 'L1_Remember', name: 'L1: Remember', color: 'bg-red-500', recommended: 10 },
@@ -19,6 +21,7 @@ export default function BloomsTaxonomyAnalytics() {
   const [subjects, setSubjects] = useState<any[]>([])
   const [exams, setExams] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     loadSubjects()
@@ -60,10 +63,12 @@ export default function BloomsTaxonomyAnalytics() {
     
     setLoading(true)
     try {
-      const data = await enhancedAnalyticsAPI.getBloomsTaxonomyAnalysis({
-        subject_id: selectedSubject,
-        exam_id: selectedExam || undefined
-      })
+      const data = await analyticsAPI.getBloomsTaxonomyAnalysis(
+        selectedSubject || undefined,
+        undefined,
+        undefined,
+        selectedExam || undefined
+      )
       setAnalysisData(data)
     } catch (error) {
       console.error('Failed to load Bloom\'s analysis:', error)
@@ -72,8 +77,221 @@ export default function BloomsTaxonomyAnalytics() {
     }
   }
 
-  const downloadReport = () => {
-    alert('Report download will be implemented')
+  const downloadPDFReport = async () => {
+    if (!analysisData) return
+
+    setDownloading(true)
+    try {
+      const doc = new jsPDF()
+
+      // Header
+      doc.setFontSize(20)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Bloom\'s Taxonomy Analytics Report', 105, 20, { align: 'center' })
+
+      // Subject and Exam Info
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      const selectedSubjectData = subjects.find(s => s.id === selectedSubject)
+      const selectedExamData = exams.find(e => e.id === selectedExam)
+      doc.text(`Subject: ${selectedSubjectData?.name || 'N/A'} (${selectedSubjectData?.code || 'N/A'})`, 20, 40)
+      if (selectedExamData) {
+        doc.text(`Exam: ${selectedExamData.name} (${selectedExamData.exam_type})`, 20, 50)
+      }
+      doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 60)
+
+      // Summary
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Summary', 20, 80)
+
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Total Questions: ${analysisData.total_questions}`, 20, 95)
+      doc.text(`Total Marks: ${analysisData.total_marks}`, 20, 105)
+      doc.text(`Balanced Levels: ${BLOOM_LEVELS.filter(level => getLevelData(level.id)?.is_balanced).length}/6`, 20, 115)
+
+      // Level Distribution Table
+      let yPos = 130
+      const colWidths = [40, 20, 20, 25, 25]
+      const headers = ['Level', 'Questions', 'Marks', '%', 'Recommended']
+
+      // Header
+      doc.setFillColor(41, 128, 185)
+      doc.rect(20, yPos, 140, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      let xPos = 25
+      headers.forEach((header, idx) => {
+        doc.text(header, xPos, yPos + 7)
+        xPos += colWidths[idx]
+      })
+
+      // Data rows
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      yPos += 10
+      BLOOM_LEVELS.forEach((level, idx) => {
+        const levelData = getLevelData(level.id)
+        if (!levelData) return
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(245, 245, 245)
+          doc.rect(20, yPos, 140, 8, 'F')
+        }
+        xPos = 25
+        const rowData = [
+          level.name,
+          levelData.questions_count,
+          levelData.marks_allocated,
+          `${levelData.percentage_of_total.toFixed(1)}%`,
+          `${level.recommended}%`
+        ]
+        rowData.forEach((cell, cellIdx) => {
+          doc.text(String(cell), xPos, yPos + 6)
+          xPos += colWidths[cellIdx]
+        })
+        yPos += 8
+      })
+
+      // Student Performance Table
+      if (yPos > 250) doc.addPage()
+      yPos = yPos > 250 ? 20 : yPos + 10
+
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Student Performance by Level', 20, yPos)
+      yPos += 15
+
+      const perfHeaders = ['Level', 'Avg %', '>60%', '>40%', 'Total']
+      const perfWidths = [40, 20, 20, 20, 25]
+
+      doc.setFillColor(52, 152, 219)
+      doc.rect(20, yPos, 125, 10, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      xPos = 25
+      perfHeaders.forEach((header, idx) => {
+        doc.text(header, xPos, yPos + 7)
+        xPos += perfWidths[idx]
+      })
+
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+      yPos += 10
+
+      Object.entries(analysisData.student_performance_by_level).forEach(([key, performance]: [string, any], idx) => {
+        const level = BLOOM_LEVELS.find(l => l.id === key)
+        if (!level) return
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(245, 245, 245)
+          doc.rect(20, yPos, 125, 8, 'F')
+        }
+        xPos = 25
+        const rowData = [
+          level.name,
+          `${performance.avg_marks_percentage.toFixed(1)}%`,
+          performance.students_above_60,
+          performance.students_above_40,
+          performance.total_students
+        ]
+        rowData.forEach((cell, cellIdx) => {
+          doc.text(String(cell), xPos, yPos + 6)
+          xPos += perfWidths[cellIdx]
+        })
+        yPos += 8
+      })
+
+      // Footer
+      const pageCount = doc.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.text(`Generated by DSABA LMS - Page ${i} of ${pageCount}`, 105, 285, { align: 'center' })
+      }
+
+      const fileName = `Blooms_Taxonomy_Report_${selectedSubjectData?.code || 'Subject'}_${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+    } catch (error) {
+      console.error('Failed to generate PDF:', error)
+      alert('Failed to generate PDF report. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const downloadExcelReport = async () => {
+    if (!analysisData) return
+
+    setDownloading(true)
+    try {
+      const selectedSubjectData = subjects.find(s => s.id === selectedSubject)
+      const selectedExamData = exams.find(e => e.id === selectedExam)
+
+      // Level Distribution Sheet
+      const levelData = BLOOM_LEVELS.map(level => {
+        const levelData = getLevelData(level.id)
+        return levelData ? {
+          'Cognitive Level': level.name,
+          'Questions': levelData.questions_count,
+          'Marks': levelData.marks_allocated,
+          'Percentage': `${levelData.percentage_of_total.toFixed(1)}%`,
+          'Recommended': `${level.recommended}%`,
+          'Balanced': levelData.is_balanced ? 'Yes' : 'No'
+        } : null
+      }).filter(Boolean)
+
+      // Student Performance Sheet
+      const performanceData = Object.entries(analysisData.student_performance_by_level).map(([key, performance]: [string, any]) => {
+        const level = BLOOM_LEVELS.find(l => l.id === key)
+        return level ? {
+          'Cognitive Level': level.name,
+          'Average Marks %': performance.avg_marks_percentage.toFixed(1),
+          'Students >60%': performance.students_above_60,
+          'Students >40%': performance.students_above_40,
+          'Total Students': performance.total_students,
+          'Pass Rate %': ((performance.students_above_40 / performance.total_students) * 100).toFixed(1)
+        } : null
+      }).filter(Boolean)
+
+      // Summary Sheet
+      const summaryData = [{
+        'Metric': 'Total Questions',
+        'Value': analysisData.total_questions
+      }, {
+        'Metric': 'Total Marks',
+        'Value': analysisData.total_marks
+      }, {
+        'Metric': 'Balanced Levels',
+        'Value': `${BLOOM_LEVELS.filter(level => getLevelData(level.id)?.is_balanced).length}/6`
+      }, {
+        'Metric': 'Subject',
+        'Value': `${selectedSubjectData?.name || 'N/A'} (${selectedSubjectData?.code || 'N/A'})`
+      }, {
+        'Metric': 'Exam',
+        'Value': selectedExamData ? `${selectedExamData.name} (${selectedExamData.exam_type})` : 'All Exams'
+      }, {
+        'Metric': 'Generated On',
+        'Value': new Date().toLocaleDateString()
+      }]
+
+      const workbook = XLSX.utils.book_new()
+
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryData), 'Summary')
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(levelData), 'Level Distribution')
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(performanceData), 'Student Performance')
+
+      const fileName = `Blooms_Taxonomy_Report_${selectedSubjectData?.code || 'Subject'}_${new Date().toISOString().split('T')[0]}.xlsx`
+      XLSX.writeFile(workbook, fileName)
+    } catch (error) {
+      console.error('Failed to generate Excel:', error)
+      alert('Failed to generate Excel report. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const getLevelData = (levelKey: string) => {
@@ -99,13 +317,24 @@ export default function BloomsTaxonomyAnalytics() {
           </p>
         </div>
         {analysisData && (
-          <button
-            onClick={downloadReport}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Download className="h-5 w-5" />
-            Download Report
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={downloadPDFReport}
+              disabled={downloading}
+              className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-indigo-400 disabled:cursor-not-allowed"
+            >
+              <Download className={`h-5 w-5 ${downloading ? 'animate-pulse' : ''}`} />
+              PDF Report
+            </button>
+            <button
+              onClick={downloadExcelReport}
+              disabled={downloading}
+              className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-green-400 disabled:cursor-not-allowed"
+            >
+              <Download className={`h-5 w-5 ${downloading ? 'animate-pulse' : ''}`} />
+              Excel Report
+            </button>
+          </div>
         )}
       </div>
 

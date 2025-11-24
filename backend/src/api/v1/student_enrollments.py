@@ -161,19 +161,23 @@ async def list_enrollments(
     if student_id:
         enrollments = await service.get_student_enrollments(
             student_id=student_id,
-            academic_year_id=academic_year_id
+            academic_year_id=academic_year_id,
+            skip=skip,
+            limit=limit
         )
     elif semester_id:
         enrollments = await service.get_semester_enrollments(
             semester_id=semester_id,
-            academic_year_id=academic_year_id
+            academic_year_id=academic_year_id,
+            skip=skip,
+            limit=limit
         )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either student_id or semester_id must be provided"
         )
-    
+
     # Get total count for pagination
     from src.infrastructure.database.models import StudentEnrollmentModel
     from src.infrastructure.database.session import get_db
@@ -189,10 +193,6 @@ async def list_enrollments(
         total = count_query.count()
     finally:
         db.close()
-    
-    # Service should handle pagination, but if it doesn't, apply it here
-    # Note: Service should be updated to accept skip/limit parameters
-    paginated = enrollments[skip:skip + limit] if len(enrollments) > skip + limit else enrollments[skip:]
     
     return StudentEnrollmentListResponse(
         items=[StudentEnrollmentResponse(**e.to_dict()) for e in paginated],

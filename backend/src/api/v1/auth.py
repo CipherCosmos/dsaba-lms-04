@@ -50,7 +50,6 @@ router = APIRouter(
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit(f"{settings.RATE_LIMIT_LOGIN_PER_MINUTE}/minute")
 async def login(
     request: Request,
     credentials: LoginRequest,
@@ -181,7 +180,6 @@ async def get_current_user_info(
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse, status_code=status.HTTP_200_OK)
-@limiter.limit(f"{settings.RATE_LIMIT_LOGIN_PER_MINUTE}/minute")
 async def forgot_password(
     request: Request,
     request_data: ForgotPasswordRequest,

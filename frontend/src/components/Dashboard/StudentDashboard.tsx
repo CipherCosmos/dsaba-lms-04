@@ -9,6 +9,7 @@ import { logger } from '../../core/utils/logger'
 import { useExamSubjectAssignments } from '../../core/hooks/useSubjectAssignments'
 import { TrendingUp, Award, Target, BookOpen, Star, Trophy, Brain, Calendar, CheckCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import type { Exam } from '../../core/types/api'
 
 const StudentDashboard = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -49,7 +50,7 @@ const StudentDashboard = () => {
   
   // Get upcoming exams - use backend data if available, otherwise filter from exams
   const upcomingExams = dashboardStats?.statistics?.upcoming_exams_list?.length > 0
-    ? dashboardStats.statistics.upcoming_exams_list.slice(0, 3).map((exam: any) => ({
+    ? dashboardStats.statistics.upcoming_exams_list.slice(0, 3).map((exam: Exam) => ({
         id: exam.id,
         name: exam.name,
         exam_date: exam.exam_date,
@@ -266,7 +267,7 @@ const StudentDashboard = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Performance</h3>
           {(dashboardStats?.statistics?.recent_results?.length > 0 || recentPerformance.length > 0) ? (
             <div className="space-y-3">
-              {(dashboardStats?.statistics?.recent_results || recentPerformance).map((performance: any, index: number) => {
+              {(dashboardStats?.statistics?.recent_results || recentPerformance).map((performance: { percentage?: number; marks_obtained?: number; total_marks?: number; subject_name?: string; exam_name?: string }, index: number) => {
                 const percentage = performance.percentage || (performance.marks_obtained && performance.total_marks 
                   ? (performance.marks_obtained / performance.total_marks * 100) 
                   : 0)

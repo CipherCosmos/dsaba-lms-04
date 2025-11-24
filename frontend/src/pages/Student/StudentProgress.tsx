@@ -10,6 +10,7 @@ import toast from 'react-hot-toast'
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, ArcElement } from 'chart.js'
 import { Line, Doughnut } from 'react-chartjs-2'
 import { Target, TrendingUp, Award, Calendar, BookOpen, CheckCircle, AlertTriangle, Star, Clock, Trophy, Download } from 'lucide-react'
+import type { InternalMark } from '../../core/types/api'
 
 ChartJS.register(
   CategoryScale,
@@ -98,8 +99,8 @@ const StudentProgress = () => {
       // Fetch subject assignments for the marks
       const assignmentIds = new Set(
         marks
-          .map((mark: any) => mark.subject_assignment_id)
-          .filter((id: any): id is number => id !== undefined && id !== null)
+          .map((mark: InternalMark) => mark.subject_assignment_id)
+          .filter((id: number | undefined): id is number => id !== undefined && id !== null)
       )
       
       if (assignmentIds.size > 0) {

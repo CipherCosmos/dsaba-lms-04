@@ -16,11 +16,11 @@ class TestInternalMarksService:
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_create_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_create_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test creating an internal mark"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         mark = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -29,6 +29,7 @@ class TestInternalMarksService:
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
             max_marks=100.0,
+            entered_by=teacher_user.id,
             notes="Good performance"
         )
         
@@ -42,11 +43,11 @@ class TestInternalMarksService:
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_get_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_get_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test getting an internal mark by ID"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         created = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -54,7 +55,8 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
         retrieved = await service.get_internal_mark(created.id)
@@ -65,11 +67,11 @@ class TestInternalMarksService:
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_update_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_update_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test updating an internal mark"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         created = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -77,7 +79,8 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
         updated = await service.update_internal_mark(
@@ -91,11 +94,11 @@ class TestInternalMarksService:
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_submit_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_submit_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test submitting an internal mark for approval"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         created = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -103,21 +106,22 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
-        submitted = await service.submit_internal_mark(created.id)
-        
+        submitted = await service.submit_marks(created.id, teacher_user.id)
+
         assert submitted.workflow_state == MarksWorkflowState.SUBMITTED
-        assert submitted.submitted_at is not None
+        assert submitted._submitted_at is not None
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_submit_mark_not_draft(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_submit_mark_not_draft(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test submitting a mark that's not in DRAFT state raises error"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         created = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -125,23 +129,24 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
         # Submit once
-        await service.submit_internal_mark(created.id)
-        
+        await service.submit_marks(created.id, teacher_user.id)
+
         # Try to submit again (should fail)
         with pytest.raises(BusinessRuleViolationError):
-            await service.submit_internal_mark(created.id)
+            await service.submit_marks(created.id, teacher_user.id)
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_approve_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_approve_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test approving an internal mark"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         created = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -149,25 +154,26 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
         # Submit first
-        await service.submit_internal_mark(created.id)
-        
+        await service.submit_marks(created.id, teacher_user.id)
+
         # Approve
-        approved = await service.approve_internal_mark(created.id)
-        
+        approved = await service.approve_marks(created.id, teacher_user.id)
+
         assert approved.workflow_state == MarksWorkflowState.APPROVED
-        assert approved.approved_at is not None
+        assert approved._approved_at is not None
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_reject_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_reject_internal_mark(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test rejecting an internal mark"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         created = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -175,28 +181,30 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
         # Submit first
-        await service.submit_internal_mark(created.id)
-        
+        await service.submit_marks(created.id, teacher_user.id)
+
         # Reject
-        rejected = await service.reject_internal_mark(
+        rejected = await service.reject_marks(
             mark_id=created.id,
+            rejected_by=teacher_user.id,
             reason="Marks seem incorrect, please verify"
         )
-        
+
         assert rejected.workflow_state == MarksWorkflowState.REJECTED
-        assert rejected.rejection_reason == "Marks seem incorrect, please verify"
+        assert rejected._rejection_reason == "Marks seem incorrect, please verify"
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_bulk_submit_marks(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_bulk_submit_marks(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test bulk submitting marks"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         # Create multiple marks
         mark1 = await service.create_internal_mark(
             student_id=student_user.id,
@@ -205,9 +213,10 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
-        
+
         mark2 = await service.create_internal_mark(
             student_id=student_user.id,
             subject_assignment_id=subject_assignment.id,
@@ -215,13 +224,14 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA2,
             marks_obtained=90.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
         # Bulk submit
         result = await service.bulk_submit_marks(
             subject_assignment_id=subject_assignment.id,
-            mark_ids=[mark1.id, mark2.id]
+            submitted_by=teacher_user.id
         )
         
         assert result["submitted"] == 2
@@ -235,11 +245,11 @@ class TestInternalMarksService:
     
     @pytest.mark.integration
     @pytest.mark.service
-    async def test_get_submitted_marks(self, test_db_session, student_user, subject_assignment, semester, academic_year):
+    async def test_get_submitted_marks(self, test_db_session, student_user, subject_assignment, semester, academic_year, teacher_user):
         """Test getting submitted marks for approval"""
         repo = InternalMarkRepository(test_db_session)
         service = InternalMarksService(repo)
-        
+
         # Create and submit mark
         mark = await service.create_internal_mark(
             student_id=student_user.id,
@@ -248,10 +258,11 @@ class TestInternalMarksService:
             academic_year_id=academic_year.id,
             component_type=MarkComponentType.IA1,
             marks_obtained=85.0,
-            max_marks=100.0
+            max_marks=100.0,
+            entered_by=teacher_user.id
         )
         
-        await service.submit_internal_mark(mark.id)
+        await service.submit_marks(mark.id, teacher_user.id)
         
         # Get submitted marks (need to get department_id from subject)
         from src.infrastructure.database.models import SubjectModel

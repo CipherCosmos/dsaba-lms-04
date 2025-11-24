@@ -3,12 +3,20 @@
  * Provides consistent logging across the application
  */
 
+import type { LoggerArgs } from '../types'
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 class Logger {
   private isDevelopment = process.env.NODE_ENV === 'development'
 
-  private log(level: LogLevel, message: string, ...args: any[]) {
+  /**
+   * Logs a message with the specified level and additional arguments.
+   * @param level - The log level (e.g., 'debug', 'info', 'warn', 'error')
+   * @param message - The primary log message
+   * @param args - Additional arguments to log, which can include strings, numbers, booleans, objects, null, or undefined
+   */
+  private log(level: LogLevel, message: string, ...args: LoggerArgs) {
     if (!this.isDevelopment && level === 'debug') {
       return // Skip debug logs in production
     }
@@ -32,19 +40,19 @@ class Logger {
     }
   }
 
-  debug(message: string, ...args: any[]) {
+  debug(message: string, ...args: LoggerArgs) {
     this.log('debug', message, ...args)
   }
 
-  info(message: string, ...args: any[]) {
+  info(message: string, ...args: LoggerArgs) {
     this.log('info', message, ...args)
   }
 
-  warn(message: string, ...args: any[]) {
+  warn(message: string, ...args: LoggerArgs) {
     this.log('warn', message, ...args)
   }
 
-  error(message: string, ...args: any[]) {
+  error(message: string, ...args: LoggerArgs) {
     this.log('error', message, ...args)
   }
 }

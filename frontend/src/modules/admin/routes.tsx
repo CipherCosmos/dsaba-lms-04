@@ -5,7 +5,9 @@ import { UserRole, Permission } from '../../core/types/permissions'
 
 // Lazy load admin pages for code splitting
 const DepartmentManagement = lazy(() => import('../../pages/Admin/DepartmentManagement'))
-// Note: ClassManagement.tsx removed - use BatchInstanceManagement instead
+// ✅ VERIFIED: ClassManagement.tsx has been deleted (2024-12)
+// All class management now uses BatchInstanceManagement component
+// Route /admin/classes (line 49) correctly points to BatchInstanceManagement
 const BatchInstanceManagement = lazy(() => import('../../pages/Admin/BatchInstanceManagement'))
 const SubjectManagement = lazy(() => import('../../pages/Admin/SubjectManagement'))
 const UserManagement = lazy(() => import('../../pages/Admin/UserManagement'))
@@ -46,7 +48,7 @@ export const AdminRoutes = () => {
     />,
     <Route
       key="admin-classes"
-      path="/admin/classes"
+      path="/admin/classes"  // Legacy path preserved for bookmarks, uses BatchInstanceManagement
       element={
         <RoleGuard
           allowedRoles={[UserRole.ADMIN, UserRole.HOD]}

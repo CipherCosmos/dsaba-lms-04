@@ -7,6 +7,10 @@
 export { PermissionGate } from './components/PermissionGate'
 export { LoadingFallback } from './components/LoadingFallback'
 export { ErrorBoundary } from './components/ErrorBoundary'
+export { default as COPOMatrixVisualization } from './components/COPOMatrixVisualization'
+export { default as BulkCOPOMapping } from './components/BulkCOPOMapping'
+export { default as EnhancedThresholdConfiguration } from './components/EnhancedThresholdConfiguration'
+export { default as COPOManagementDashboard } from './components/COPOManagementDashboard'
 
 // Hooks
 export {

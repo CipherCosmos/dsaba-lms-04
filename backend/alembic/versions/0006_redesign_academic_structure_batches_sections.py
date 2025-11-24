@@ -2,7 +2,7 @@
 
 Revision ID: 0006
 Revises: 0005
-Create Date: 2024-12-XX XX:XX:XX.XXXXXX
+Create Date: 2024-12-15 14:30:00.000000
 
 This migration redesigns the academic structure to properly support:
 - Batches per Academic Year + Department + Program
@@ -109,16 +109,168 @@ def upgrade():
     # ============================================
     # Step 5: Data Migration
     # Migrate existing BatchYearModel data to BatchInstance
-    # This is a simplified migration - full migration would require more logic
     # ============================================
-    # Note: This is a placeholder. Actual migration would:
-    # 1. Get current academic year
-    # 2. For each BatchYear, create BatchInstance linking to AcademicYear
+
+    # Get database connection for raw SQL operations
+    conn = op.get_bind()
+
+    # 1. Get or create current academic year
+    # First, try to find an existing current academic year
+    result = conn.execute(sa.text("""
+        SELECT id, start_year, end_year FROM academic_years
+        WHERE is_current = true
+        ORDER BY start_year DESC
+        LIMIT 1
+    """)).fetchone()
+
+    if result:
+        current_ay_id = result[0]
+        current_ay_start = result[1]
+        current_ay_end = result[2]
+    else:
+        # Create a default academic year (2024-2025) if none exists
+        current_ay_start = 2024
+        current_ay_end = 2025
+        result = conn.execute(sa.text("""
+            INSERT INTO academic_years (start_year, end_year, display_name, is_current, status)
+            VALUES (:start_year, :end_year, :display_name, true, 'active')
+            RETURNING id
+        """), {
+            'start_year': current_ay_start,
+            'end_year': current_ay_end,
+            'display_name': f'{current_ay_start}-{current_ay_end}'
+        })
+        current_ay_id = result.fetchone()[0]
+        op.execute(f"SELECT setval('academic_years_id_seq', {current_ay_id})")
+
+    # 2. Migrate BatchYear data to BatchInstance
+    # Get all batch_years with their associated department from classes/semesters
+    batch_years = conn.execute(sa.text("""
+        SELECT DISTINCT
+            by.id as batch_year_id,
+            by.batch_id,
+            by.start_year,
+            by.end_year,
+            s.department_id
+        FROM batch_years by
+        JOIN semesters s ON s.batch_year_id = by.id
+        WHERE s.department_id IS NOT NULL
+        ORDER BY by.id
+    """)).fetchall()
+
+    batch_instance_map = {}  # batch_year_id -> batch_instance_id
+
+    for batch_year in batch_years:
+        batch_year_id = batch_year[0]
+        batch_id = batch_year[1]
+        start_year = batch_year[2]
+        department_id = batch_year[4]
+
+        # Create BatchInstance
+        result = conn.execute(sa.text("""
+            INSERT INTO batch_instances (
+                academic_year_id, department_id, batch_id,
+                admission_year, current_semester, is_active
+            )
+            VALUES (:ay_id, :dept_id, :batch_id, :admission_year, 1, true)
+            RETURNING id
+        """), {
+            'ay_id': current_ay_id,
+            'dept_id': department_id,
+            'batch_id': batch_id,
+            'admission_year': start_year
+        })
+        batch_instance_id = result.fetchone()[0]
+        batch_instance_map[batch_year_id] = batch_instance_id
+
     # 3. Create sections from ClassModel.section
+    # Get unique sections per batch_instance
+    classes = conn.execute(sa.text("""
+        SELECT DISTINCT
+            c.section,
+            s.batch_year_id
+        FROM classes c
+        JOIN semesters s ON s.id = c.semester_id
+        WHERE c.section IS NOT NULL
+        AND s.batch_year_id IS NOT NULL
+        ORDER BY s.batch_year_id, c.section
+    """)).fetchall()
+
+    section_map = {}  # (batch_instance_id, section_name) -> section_id
+
+    for class_row in classes:
+        section_name = class_row[0]
+        batch_year_id = class_row[1]
+
+        if batch_year_id in batch_instance_map:
+            batch_instance_id = batch_instance_map[batch_year_id]
+
+            # Create section if it doesn't exist
+            result = conn.execute(sa.text("""
+                INSERT INTO sections (batch_instance_id, section_name, is_active)
+                VALUES (:batch_instance_id, :section_name, true)
+                ON CONFLICT (batch_instance_id, section_name) DO NOTHING
+                RETURNING id
+            """), {
+                'batch_instance_id': batch_instance_id,
+                'section_name': section_name
+            })
+
+            section_result = result.fetchone()
+            if section_result:
+                section_id = section_result[0]
+                section_map[(batch_instance_id, section_name)] = section_id
+
     # 4. Update students to link to batch_instance + section
+    # First, get students with their class information
+    students = conn.execute(sa.text("""
+        SELECT DISTINCT
+            st.id as student_id,
+            c.section,
+            s.batch_year_id
+        FROM students st
+        LEFT JOIN classes c ON c.id = st.class_id
+        LEFT JOIN semesters s ON s.id = c.semester_id
+        WHERE st.batch_year_id IS NOT NULL
+        OR st.class_id IS NOT NULL
+    """)).fetchall()
+
+    for student in students:
+        student_id = student[0]
+        section_name = student[1]
+        batch_year_id = student[2]
+
+        if batch_year_id and batch_year_id in batch_instance_map:
+            batch_instance_id = batch_instance_map[batch_year_id]
+            section_id = None
+
+            if section_name and (batch_instance_id, section_name) in section_map:
+                section_id = section_map[(batch_instance_id, section_name)]
+
+            # Update student
+            conn.execute(sa.text("""
+                UPDATE students
+                SET batch_instance_id = :batch_instance_id,
+                    section_id = :section_id,
+                    academic_year_id = :academic_year_id
+                WHERE id = :student_id
+            """), {
+                'batch_instance_id': batch_instance_id,
+                'section_id': section_id,
+                'academic_year_id': current_ay_id,
+                'student_id': student_id
+            })
+
     # 5. Update semesters to link to batch_instance
-    
-    # For now, we'll leave this as a manual step or create a separate data migration script
+    for batch_year_id, batch_instance_id in batch_instance_map.items():
+        conn.execute(sa.text("""
+            UPDATE semesters
+            SET batch_instance_id = :batch_instance_id
+            WHERE batch_year_id = :batch_year_id
+        """), {
+            'batch_instance_id': batch_instance_id,
+            'batch_year_id': batch_year_id
+        })
 
 
 def downgrade():

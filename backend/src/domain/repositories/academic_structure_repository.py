@@ -24,27 +24,6 @@ class IBatchRepository(IRepository[Batch]):
         pass
 
 
-class IBatchYearRepository(IRepository[BatchYear]):
-    """
-    BatchYear repository interface
-    """
-    
-    @abstractmethod
-    async def get_by_batch(self, batch_id: int) -> List[BatchYear]:
-        """Get all batch years for a batch"""
-        pass
-    
-    @abstractmethod
-    async def get_current(self) -> Optional[BatchYear]:
-        """Get current batch year"""
-        pass
-    
-    @abstractmethod
-    async def get_by_years(self, start_year: int, end_year: int) -> Optional[BatchYear]:
-        """Get batch year by start and end years"""
-        pass
-
-
 class ISemesterRepository(IRepository[Semester]):
     """
     Semester repository interface
@@ -133,6 +112,22 @@ class IBatchInstanceRepository(IRepository[BatchInstance]):
         exclude_id: Optional[int] = None
     ) -> bool:
         """Check if batch instance exists with unique combination"""
+        pass
+
+
+class IBatchYearRepository(IRepository[BatchYear]):
+    """
+    BatchYear repository interface - Legacy interface for backward compatibility
+    """
+
+    @abstractmethod
+    async def get_by_batch(self, batch_id: int) -> List[BatchYear]:
+        """Get all batch years for a batch"""
+        pass
+
+    @abstractmethod
+    async def get_current(self) -> Optional[BatchYear]:
+        """Get current batch year"""
         pass
 
 

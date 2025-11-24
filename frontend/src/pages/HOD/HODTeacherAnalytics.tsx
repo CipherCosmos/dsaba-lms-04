@@ -41,12 +41,25 @@ const HODTeacherAnalytics: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTeacher, setSelectedTeacher] = useState<number | null>(null)
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    dispatch(fetchUsers())
-    dispatch(fetchSubjects())
-    dispatch(fetchClasses())
-    dispatch(fetchExams())
+    setLoading(true)
+    setError(null)
+    Promise.all([
+      dispatch(fetchUsers()),
+      dispatch(fetchSubjects()),
+      dispatch(fetchClasses()),
+      dispatch(fetchExams())
+    ]).then(() => {
+      setLoading(false)
+    }).catch((err) => {
+      console.error('Failed to load data:', err)
+      setError('Failed to load analytics data. Please try again.')
+      setLoading(false)
+    })
   }, [dispatch])
 
   // Filter data for HOD's department
@@ -58,7 +71,7 @@ const HODTeacherAnalytics: React.FC = () => {
     return (u as any).department_id === userDeptId
   })
   // Subjects belong to departments directly
-  const departmentSubjects = subjects.filter(s => s.department_id === userDeptId)
+  const departmentSubjects = subjects.filter(s => s.department_id === userDeptId && (!selectedSemester || (s as any).semester === selectedSemester))
   // Get subject assignments for exams
   const { getSubjectForExam } = useExamSubjectAssignments(exams)
   
@@ -180,6 +193,23 @@ const HODTeacherAnalytics: React.FC = () => {
         <p className="text-gray-600">Comprehensive analysis of teacher performance and workload in your department</p>
       </div>
 
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600">Loading analytics data...</p>
+        </div>
+      ) : error ? (
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button onClick={() => window.location.reload()} className="btn-primary">Retry</button>
+        </div>
+      ) : teachers.length === 0 ? (
+        <div className="text-center">
+          <p className="text-gray-500">No teachers found in your department.</p>
+        </div>
+      ) : (
+        <>
+
       {/* Filters */}
       <div className="card mb-6">
         <div className="flex flex-col md:flex-row gap-4">
@@ -207,6 +237,22 @@ const HODTeacherAnalytics: React.FC = () => {
                 {teacher.first_name} {teacher.last_name}
               </option>
             ))}
+          </select>
+
+          <select
+            value={selectedSemester || ''}
+            onChange={(e) => setSelectedSemester(e.target.value ? Number(e.target.value) : null)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Semesters</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
           </select>
 
           <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center">
@@ -520,6 +566,8 @@ const HODTeacherAnalytics: React.FC = () => {
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

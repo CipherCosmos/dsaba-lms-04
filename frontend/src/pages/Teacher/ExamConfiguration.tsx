@@ -14,6 +14,7 @@ import {
   TrendingUp, Users, Award, BookOpen, Zap, RefreshCw, Save, AlertTriangle
 } from 'lucide-react'
 import { logger } from '../../core/utils/logger'
+import type { QuestionCreateRequest } from '../../core/types/api'
 
 const questionSchema = yup.object({
   question_no: yup.string().required('Question number is required'),
@@ -262,7 +263,7 @@ const ExamConfiguration = () => {
     selectedCOs.forEach(coCode => {
       const coMapping = coPoMapping.find(m => m.co_code === coCode)
       if (coMapping) {
-        coMapping.mapped_pos.forEach((po: any) => {
+        coMapping.mapped_pos.forEach((po: { po_code: string; strength: number }) => {
           mappedPOs.add(po.po_code)
         })
       }
@@ -302,7 +303,7 @@ const ExamConfiguration = () => {
       }
       
       // Prepare questions for separate creation
-      const questionsToCreate = data.questions?.map((q: any, index: number) => {
+      const questionsToCreate = data.questions?.map((q: Partial<QuestionCreateRequest>, index: number) => {
         const questionText = q.question_text?.trim() || `Question ${q.question_no || (index + 1)}`
         return {
           question_no: q.question_no || `${index + 1}`,

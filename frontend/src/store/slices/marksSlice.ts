@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { marksAPI } from '../../services/api'
 import { mapMarkResponse } from '../../core/utils/contractMapper'
+import type { MarkCreateRequest } from '../../core/types/api'
 
 interface Mark {
   id: number
@@ -33,13 +34,20 @@ export const fetchMarksByExam = createAsyncThunk(
     // Backend returns MarkListResponse with items array (standardized)
     const marks = response.items || []
     // Map each mark from backend format to frontend format
-    return marks.map((mark: any) => mapMarkResponse(mark))
+    return marks.map(mark => mapMarkResponse(mark))
   }
 )
 
+/**
+ * Saves multiple marks for a given exam.
+ * @param payload - The payload containing examId and an array of marks to create.
+ * @param payload.examId - The ID of the exam for which marks are being saved.
+ * @param payload.marks - An array of MarkCreateRequest objects representing the marks to bulk create.
+ * @returns The response from the API after bulk creating the marks.
+ */
 export const saveMarks = createAsyncThunk(
   'marks/saveMarks',
-  async ({ examId, marks }: { examId: number; marks: any[] }) => {
+  async ({ examId, marks }: { examId: number; marks: MarkCreateRequest[] }) => {
     const response = await marksAPI.bulkCreate(examId, marks)
     return response
   }

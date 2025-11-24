@@ -8,13 +8,17 @@ A comprehensive, enterprise-grade Learning Management System with advanced inter
 ## 🎯 Latest Updates (v9.0)
 
 - ✅ **Complete BatchInstance Architecture**: Latest academic structure fully implemented
-- ✅ **Zero Legacy Code**: All old ClassModel references removed or deprecated
+- ✅ **Legacy Code Deprecated**: ClassModel/BatchYearModel marked deprecated with runtime warnings, BatchInstance is canonical
 - ✅ **Zero Mock Data**: All data flows are real-time API calls
 - ✅ **Zero Errors**: No TypeScript errors, no linter errors
 - ✅ **Smart Calculations**: Best-of-two internals, CO-PO attainment
 - ✅ **Enhanced Workflows**: Multi-step wizards, pre-validation checks
 - ✅ **Advanced Analytics**: Multi-dimensional pivot analytics with BatchInstance
 - ✅ **Production Config**: Docker, environment variables, deployment ready
+
+**Note on Legacy Models**: `ClassModel` and `BatchYearModel` tables still exist in the database
+for backward compatibility with existing data. They are marked as deprecated throughout the
+codebase and should not be used in new features. All new development uses `BatchInstanceModel`.
 
 ## 🏗️ Architecture
 

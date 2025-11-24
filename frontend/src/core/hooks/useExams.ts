@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { examAPI, questionAPI } from '../../services/api'
 import { queryKeys } from './queryKeys'
 import toast from 'react-hot-toast'
+import type { AxiosErrorResponse } from '../types'
+import type { ExamUpdateRequest } from '../types/api'
 
 /**
  * Hook to fetch all exams
@@ -50,7 +52,7 @@ export function useCreateExam() {
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.lists() })
       toast.success('Exam created successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to create exam')
     },
   })
@@ -63,13 +65,13 @@ export function useUpdateExam() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => examAPI.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: ExamUpdateRequest }) => examAPI.update(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.exams.lists() })
       toast.success('Exam updated successfully')
     },
-    onError: (error: any) => {
+    onError: (error: AxiosErrorResponse) => {
       toast.error(error.response?.data?.detail || 'Failed to update exam')
     },
   })

@@ -43,17 +43,18 @@ class AcademicYearService:
         # Check if academic year already exists
         existing = await self.repository.get_by_years(start_year, end_year)
         if existing:
-            raise EntityAlreadyExistsError("AcademicYear", f"{start_year}-{end_year}")
+            raise EntityAlreadyExistsError("AcademicYear", "display_name", f"{start_year}-{end_year}")
         
         # Validate year range
         if end_year <= start_year:
-            raise BusinessRuleViolationError("End year must be greater than start year")
+            raise BusinessRuleViolationError("valid_year_range", "End year must be greater than start year")
         
         # Check for overlapping years
         all_years = await self.repository.get_all(limit=1000)
         for ay in all_years:
-            if (start_year <= ay.end_year and end_year >= ay.start_year):
+            if start_year < ay.end_year and end_year > ay.start_year:
                 raise BusinessRuleViolationError(
+                    "no_overlapping_years",
                     f"Academic year {start_year}-{end_year} overlaps with existing {ay.display_name}"
                 )
         

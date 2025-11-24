@@ -332,7 +332,7 @@ const HODDashboard = () => {
           </div>
           <div className="space-y-2 text-sm">
             {hodAnalytics?.recent_updates && hodAnalytics.recent_updates.length > 0 ? (
-              hodAnalytics.recent_updates.slice(0, 4).map((update: any, index: number) => (
+              hodAnalytics.recent_updates.slice(0, 4).map((update: { message: string; type?: string; date?: string }, index: number) => (
                 <p key={index} className="text-gray-600">• {update.message}</p>
               ))
             ) : (

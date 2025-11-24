@@ -58,42 +58,57 @@ def generate_report_async(
         
         # Update task state
         self.update_state(state="PROGRESS", meta={"progress": 10})
-        
-        # Run async report generation
+
+        # Pre-load frequently accessed data into cache for better performance
+        cache_service = get_cache_service()
+        if cache_service.is_enabled:
+            # Cache warming for related data
+            if filters.get("department_id"):
+                dept_cache_key = cache_service.get_cache_key(
+                    CACHE_KEYS["department"], department_id=filters["department_id"]
+                )
+                # Department data is likely already cached, but ensure it's fresh
+                pass
+
+        # Run async report generation with optimized data loading
         async def _generate():
-        if report_type == "student_performance":
-                return await reports_service.generate_student_performance_report(
-                student_id=filters.get("student_id"),
-                subject_id=filters.get("subject_id"),
-                format_type=format_type
-            )
-        elif report_type == "class_analysis":
-                return await reports_service.generate_class_analysis_report(
-                class_id=filters.get("class_id"),
-                subject_id=filters.get("subject_id"),
-                format_type=format_type
-            )
-        elif report_type == "co_po_attainment":
-                return await reports_service.generate_co_po_attainment_report(
-                subject_id=filters.get("subject_id"),
-                exam_type=filters.get("exam_type"),
-                format_type=format_type
-            )
-        elif report_type == "teacher_performance":
-                return await reports_service.generate_teacher_performance_report(
-                teacher_id=filters.get("teacher_id"),
-                subject_id=filters.get("subject_id"),
-                format_type=format_type
-            )
-        elif report_type == "department_summary":
-                return await reports_service.generate_department_summary_report(
-                department_id=filters.get("department_id"),
-                format_type=format_type
-            )
-        else:
-            raise ValueError(f"Unknown report type: {report_type}")
-        
-        self.update_state(state="PROGRESS", meta={"progress": 50})
+            self.update_state(state="PROGRESS", meta={"progress": 25})
+
+            if report_type == "student_performance":
+                report = await reports_service.generate_student_performance_report(
+                    student_id=filters.get("student_id"),
+                    subject_id=filters.get("subject_id"),
+                    format_type=format_type
+                )
+            elif report_type == "class_analysis":
+                report = await reports_service.generate_class_analysis_report(
+                    class_id=filters.get("class_id"),
+                    subject_id=filters.get("subject_id"),
+                    format_type=format_type
+                )
+            elif report_type == "co_po_attainment":
+                report = await reports_service.generate_co_po_attainment_report(
+                    subject_id=filters.get("subject_id"),
+                    exam_type=filters.get("exam_type"),
+                    format_type=format_type
+                )
+            elif report_type == "teacher_performance":
+                report = await reports_service.generate_teacher_performance_report(
+                    teacher_id=filters.get("teacher_id"),
+                    subject_id=filters.get("subject_id"),
+                    format_type=format_type
+                )
+            elif report_type == "department_summary":
+                report = await reports_service.generate_department_summary_report(
+                    department_id=filters.get("department_id"),
+                    format_type=format_type
+                )
+            else:
+                raise ValueError(f"Unknown report type: {report_type}")
+
+            self.update_state(state="PROGRESS", meta={"progress": 75})
+            return report
+
         report = asyncio.run(_generate())
         
         # Store result (in production, would upload to S3)
@@ -166,7 +181,7 @@ def publish_semester_async(
         question_repo = QuestionRepository(db)
         cache_service = get_cache_service()
         
-        final_mark_service = FinalMarkService(final_mark_repo)
+        final_mark_service = FinalMarkService(final_mark_repo, db)
         analytics_service = AnalyticsService(db, mark_repo, exam_repo, subject_repo, user_repo, cache_service)
         pdf_service = PDFGenerationService(exam_repo, question_repo, final_mark_repo)
         

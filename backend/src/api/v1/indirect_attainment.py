@@ -13,7 +13,7 @@ from ...infrastructure.database.repositories.exit_exam_repository_impl import Ex
 from ...api.dependencies import get_current_user
 from ...domain.entities.user import User
 
-router = APIRouter()
+router = APIRouter(prefix="/indirect-attainment", tags=["Indirect Attainment"])
 
 def get_indirect_attainment_service(db: Session = Depends(get_db)) -> IndirectAttainmentService:
     """Dependency to get indirect attainment service"""

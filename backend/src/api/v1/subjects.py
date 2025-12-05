@@ -134,7 +134,10 @@ async def list_subjects(
         limit=limit,
         **filters
     )
-    total = await subject_service.count_subjects(**filters)
+    
+    # Remove sort parameters for count (they're not needed for counting)
+    count_filters = {k: v for k, v in filters.items() if k not in ('sort_by', 'sort_order')}
+    total = await subject_service.count_subjects(**count_filters)
 
     return SubjectListResponse(
         items=[SubjectResponse(**subject.to_dict()) for subject in subjects],

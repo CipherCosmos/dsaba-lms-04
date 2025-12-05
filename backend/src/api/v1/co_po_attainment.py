@@ -11,6 +11,7 @@ from src.api.dependencies import get_current_user, get_db
 from src.domain.entities.user import User
 from src.domain.enums.user_role import UserRole
 from sqlalchemy.orm import Session
+from src.infrastructure.database.models import SubjectModel, DepartmentModel
 
 
 def get_attainment_service(
@@ -59,6 +60,21 @@ async def get_co_attainment(
         - Attainment status
     """
     try:
+        # Check permissions
+        if UserRole.STUDENT in current_user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Students cannot access attainment data"
+            )
+
+        # Check if subject exists
+        subject = service.db.query(SubjectModel).filter(SubjectModel.id == subject_id).first()
+        if not subject:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subject with ID {subject_id} not found"
+            )
+
         attainment_data = service.calculate_co_attainment(
             subject_id=subject_id,
             academic_year_id=academic_year_id,
@@ -71,6 +87,8 @@ async def get_co_attainment(
             "semester_id": semester_id,
             "co_attainment": attainment_data
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -105,6 +123,13 @@ async def get_po_attainment(
         - Attainment status
     """
     try:
+        # Check permissions
+        if UserRole.STUDENT in current_user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Students cannot access attainment data"
+            )
+
         # Verify user has access to this department
         # HOD can only access their own department
         if UserRole.HOD in current_user.roles:
@@ -114,6 +139,14 @@ async def get_po_attainment(
                     detail="You don't have access to this department"
                 )
         
+        # Check if department exists
+        department = service.db.query(DepartmentModel).filter(DepartmentModel.id == department_id).first()
+        if not department:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Department with ID {department_id} not found"
+            )
+
         attainment_data = service.calculate_po_attainment(
             department_id=department_id,
             academic_year_id=academic_year_id,
@@ -159,6 +192,13 @@ async def get_co_po_summary(
         Complete CO-PO attainment summary with statistics
     """
     try:
+        # Check permissions
+        if UserRole.STUDENT in current_user.roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Students cannot access attainment data"
+            )
+
         # Verify user has access to this department
         if UserRole.HOD in current_user.roles:
             if department_id not in current_user.department_ids:
@@ -167,6 +207,14 @@ async def get_co_po_summary(
                     detail="You don't have access to this department"
                 )
         
+        # Check if department exists
+        department = service.db.query(DepartmentModel).filter(DepartmentModel.id == department_id).first()
+        if not department:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Department with ID {department_id} not found"
+            )
+
         summary = service.get_co_po_attainment_summary(
             department_id=department_id,
             academic_year_id=academic_year_id,

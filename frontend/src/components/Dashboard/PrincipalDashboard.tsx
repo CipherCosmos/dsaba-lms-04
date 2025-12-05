@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../store/store'
 import { fetchDepartments } from '../../store/slices/departmentSlice'
 import { fetchUsers } from '../../store/slices/userSlice'
-import { fetchClasses } from '../../store/slices/classSlice'
 import { fetchSubjects } from '../../store/slices/subjectSlice'
 import { dashboardAPI } from '../../services/api'
 import { logger } from '../../core/utils/logger'
@@ -19,7 +18,6 @@ const PrincipalDashboard = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { departments } = useSelector((state: RootState) => state.departments)
   const { users } = useSelector((state: RootState) => state.users)
-  const { classes } = useSelector((state: RootState) => state.classes)
   const { subjects } = useSelector((state: RootState) => state.subjects)
   
   const [dashboardStats, setDashboardStats] = useState<any>(null)
@@ -35,7 +33,7 @@ const PrincipalDashboard = () => {
       setDashboardStats(response)
       setRecentActivity(response.recent_activity || [])
     } catch (error) {
-      logger.error('Error fetching dashboard stats:', error)
+      logger.error('Error fetching dashboard stats:', error as Error)
       setError('Failed to fetch dashboard statistics')
     } finally {
       setLoading(false)
@@ -45,7 +43,6 @@ const PrincipalDashboard = () => {
   useEffect(() => {
     dispatch(fetchDepartments())
     dispatch(fetchUsers())
-    dispatch(fetchClasses())
     dispatch(fetchSubjects())
     fetchDashboardStats()
   }, [dispatch])
@@ -323,14 +320,6 @@ const PrincipalDashboard = () => {
                 <h4 className="font-semibold text-gray-900 mb-2">{dept.name}</h4>
                 <p className="text-sm text-gray-600 mb-3">Code: {dept.code}</p>
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span>Students:</span>
-                    <span className="font-medium text-blue-600">{dept.students}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Teachers:</span>
-                    <span className="font-medium text-green-600">{dept.teachers}</span>
-                  </div>
                   <div className="flex justify-between">
                     <span>HOD:</span>
                     <span className="font-medium text-purple-600">{dept.hod ? 'Assigned' : 'Pending'}</span>

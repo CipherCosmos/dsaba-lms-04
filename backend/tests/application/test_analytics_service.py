@@ -4,7 +4,7 @@ Tests for AnalyticsService
 """
 
 import pytest
-from src.application.services.analytics_service import AnalyticsService
+from src.application.services.analytics.analytics_service import AnalyticsService
 from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
 from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
 from src.infrastructure.database.repositories.subject_repository_impl import SubjectRepository

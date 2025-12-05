@@ -21,6 +21,8 @@ from src.domain.exceptions import (
     EntityAlreadyExistsError,
     ValidationError
 )
+from src.infrastructure.database.session import get_db
+from sqlalchemy.orm import Session
 
 # Create router
 router = APIRouter(
@@ -36,7 +38,8 @@ router = APIRouter(
 
 @router.get("/me", response_model=ProfileResponse)
 async def get_my_profile(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get current user's profile
@@ -53,6 +56,28 @@ async def get_my_profile(
     # Add role field for backward compatibility
     if "role" not in user_dict and "roles" in user_dict and len(user_dict["roles"]) > 0:
         user_dict["role"] = user_dict["roles"][0]
+    
+    # Populate teacher_id and student_id
+    from src.infrastructure.database.models import TeacherModel, StudentModel
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if UserRole.TEACHER in current_user.roles:
+        teacher = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+        if teacher:
+            user_dict["teacher_id"] = teacher.id
+            logger.info(f"Found Teacher Profile: ID={teacher.id} for UserID={current_user.id}")
+        else:
+            logger.warning(f"No Teacher Profile found for UserID={current_user.id}")
+            
+    if UserRole.STUDENT in current_user.roles:
+        student = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        if student:
+            user_dict["student_id"] = student.id
+            logger.info(f"Found Student Profile: ID={student.id} for UserID={current_user.id}")
+        else:
+            logger.warning(f"No Student Profile found for UserID={current_user.id}")
+            
     return ProfileResponse(**user_dict)
 
 

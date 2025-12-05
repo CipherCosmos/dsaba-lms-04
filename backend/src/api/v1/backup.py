@@ -294,7 +294,7 @@ async def get_backup_status(
             "retention_days": settings.BACKUP_RETENTION_DAYS,
             "schedule_enabled": settings.BACKUP_SCHEDULE_ENABLED,
             "last_full_backup": full_backups[0] if full_backups else None,
-            "storage_available": self._get_available_space(backup_dir) if backup_dir.exists() else None
+            "storage_available": _get_available_space(backup_dir) if backup_dir.exists() else None
         }
 
     except Exception as e:

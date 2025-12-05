@@ -1,5 +1,5 @@
 """
-Enhanced Teacher Analytics Service
+Teacher Analytics Service
 Provides class-level analysis and student insights for teachers
 """
 
@@ -18,9 +18,10 @@ from src.infrastructure.database.models import (
     SectionModel,
     MarksWorkflowState
 )
+from .analytics_utils import calculate_grade, calculate_percentage, generate_at_risk_recommendation
 
 
-class EnhancedTeacherAnalyticsService:
+class TeacherAnalyticsService:
     """Enhanced analytics for teachers focused on class and student insights"""
     
     def __init__(self, db: Session):
@@ -288,7 +289,7 @@ class EnhancedTeacherAnalyticsService:
                             "marks_obtained": round(totals["obtained"], 2),
                             "max_marks": totals["maximum"],
                             "risk_level": "critical" if percentage < 30 else "high" if percentage < 35 else "moderate",
-                            "recommendation": self._generate_at_risk_recommendation(percentage)
+                            "recommendation": generate_at_risk_recommendation(percentage)
                         })
         
         # Sort by percentage (lowest first)
@@ -357,7 +358,7 @@ class EnhancedTeacherAnalyticsService:
                 "total_obtained": round(total_obtained, 2),
                 "total_maximum": total_max,
                 "percentage": round(overall_percentage, 2),
-                "grade": self._calculate_grade(overall_percentage)
+                "grade": calculate_grade(overall_percentage)
             },
             "component_breakdown": component_breakdown,
             "total_assessments": len(marks)
@@ -414,36 +415,10 @@ class EnhancedTeacherAnalyticsService:
         
         return {
             "total_classes": len(assignments),
-            "total_students"": len(total_students),
+            "total_students": len(total_students),
             "total_marks_entered": total_marks_entered,
             "average_class_performance": round(avg_class_performance, 2),
             "overall_pass_rate": round(pass_rate, 2)
         }
     
-    # Helper methods
-    
-    def _calculate_grade(self, percentage: float) -> str:
-        """Calculate letter grade from percentage"""
-        if percentage >= 90:
-            return 'O'
-        elif percentage >= 80:
-            return 'A+'
-        elif percentage >= 70:
-            return 'A'
-        elif percentage >= 60:
-            return 'B+'
-        elif percentage >= 50:
-            return 'B'
-        elif percentage >= 40:
-            return 'C'
-        else:
-            return 'F'
-    
-    def _generate_at_risk_recommendation(self, percentage: float) -> str:
-        """Generate recommendation for at-risk student"""
-        if percentage < 30:
-            return "Immediate intervention required. Schedule one-on-one session and consider remedial classes."
-        elif percentage < 35:
-            return "High risk. Provide additional practice materials and monitor closely."
-        else:
-            return "Moderate risk. Encourage participation and provide extra support."
+    # Helper methods remain for complex logic

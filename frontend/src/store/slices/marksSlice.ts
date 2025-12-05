@@ -34,7 +34,7 @@ export const fetchMarksByExam = createAsyncThunk(
     // Backend returns MarkListResponse with items array (standardized)
     const marks = response.items || []
     // Map each mark from backend format to frontend format
-    return marks.map(mark => mapMarkResponse(mark))
+    return marks.map((mark: any) => mapMarkResponse(mark))
   }
 )
 

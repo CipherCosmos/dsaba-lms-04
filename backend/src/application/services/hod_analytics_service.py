@@ -385,7 +385,7 @@ class HODAnalyticsService:
         weak_subjects = [
             {
                 **subject,
-                "improvement_needed": round(threshold - subject["average_percentage"], 2),
+                "improvement_needed": round(float(Decimal(str(threshold)) - Decimal(str(subject["average_percentage"]))), 2),
                 "recommendation": f"Focus on improving {subject['subject_name']}. Consider additional tutorials or practice sessions."
             }
             for subject in all_subjects

@@ -1,0 +1,635 @@
+dsaba-lms-frontend  | 
+dsaba-lms-frontend  | > internal-exam-management-system@0.0.0 dev
+dsaba-lms-frontend  | > vite dev --host 0.0.0.0 --port 5173
+dsaba-lms-frontend  | 
+dsaba-lms-frontend  | 
+dsaba-lms-frontend  |   VITE v4.5.14  ready in 124 ms
+dsaba-lms-frontend  | 
+dsaba-lms-frontend  |   ➜  Local:   http://localhost:5173/
+dsaba-lms-frontend  |   ➜  Network: http://172.18.0.6:5173/
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 06:22:16,406: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 06:22:16,408: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 06:22:17,420: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 06:22:17,435: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-celery    | 
+dsaba-lms-celery    | worker: Warm shutdown (MainProcess)
+dsaba-lms-celery    |  
+dsaba-lms-celery    |  -------------- celery@703f6a160d4d v5.3.4 (emerald-rush)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    | -- ******* ---- Linux-6.10.14-linuxkit-aarch64-with-glibc2.41 2025-11-28 06:52:44
+dsaba-lms-celery    | - *** --- * --- 
+dsaba-lms-celery    | - ** ---------- [config]
+dsaba-lms-celery    | - ** ---------- .> app:         dsaba_lms:0xffffa2b875d0
+dsaba-lms-celery    | - ** ---------- .> transport:   redis://redis:6379/1
+dsaba-lms-celery    | - ** ---------- .> results:     redis://redis:6379/2
+dsaba-lms-celery    | - *** --- * --- .> concurrency: 14 (prefork)
+dsaba-lms-celery    | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    |  -------------- [queues]
+dsaba-lms-celery    |                 .> celery           exchange=celery(direct) key=celery
+dsaba-lms-celery    |                 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [tasks]
+dsaba-lms-celery    |   . cache_warming_task
+dsaba-lms-celery    |   . calculate_nightly_analytics
+dsaba-lms-celery    |   . cleanup_old_reports
+dsaba-lms-celery    |   . generate_report_async
+dsaba-lms-celery    |   . invalidate_analytics_cache
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 06:52:44,726: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 06:52:44,727: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 06:52:45,734: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 06:52:45,746: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-celery    | 
+dsaba-lms-celery    | worker: Warm shutdown (MainProcess)
+dsaba-lms-celery    |  
+dsaba-lms-celery    |  -------------- celery@703f6a160d4d v5.3.4 (emerald-rush)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    | -- ******* ---- Linux-6.10.14-linuxkit-aarch64-with-glibc2.41 2025-11-28 06:52:53
+dsaba-lms-celery    | - *** --- * --- 
+dsaba-lms-celery    | - ** ---------- [config]
+dsaba-lms-celery    | - ** ---------- .> app:         dsaba_lms:0xffffb5655610
+dsaba-lms-celery    | - ** ---------- .> transport:   redis://redis:6379/1
+dsaba-lms-celery    | - ** ---------- .> results:     redis://redis:6379/2
+dsaba-lms-celery    | - *** --- * --- .> concurrency: 14 (prefork)
+dsaba-lms-celery    | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    |  -------------- [queues]
+dsaba-lms-celery    |                 .> celery           exchange=celery(direct) key=celery
+dsaba-lms-celery    |                 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [tasks]
+dsaba-lms-celery    |   . cache_warming_task
+dsaba-lms-celery    |   . calculate_nightly_analytics
+dsaba-lms-celery    |   . cleanup_old_reports
+dsaba-lms-celery    |   . generate_report_async
+dsaba-lms-celery    |   . invalidate_analytics_cache
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 06:52:54,111: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 06:52:54,113: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 06:52:55,119: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 06:52:55,130: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-celery    | 
+dsaba-lms-celery    | worker: Warm shutdown (MainProcess)
+dsaba-lms-celery    |  
+dsaba-lms-celery    |  -------------- celery@703f6a160d4d v5.3.4 (emerald-rush)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    | -- ******* ---- Linux-6.10.14-linuxkit-aarch64-with-glibc2.41 2025-11-28 06:53:03
+dsaba-lms-celery    | - *** --- * --- 
+dsaba-lms-celery    | - ** ---------- [config]
+dsaba-lms-celery    | - ** ---------- .> app:         dsaba_lms:0xffffb39a97d0
+dsaba-lms-celery    | - ** ---------- .> transport:   redis://redis:6379/1
+dsaba-lms-celery    | - ** ---------- .> results:     redis://redis:6379/2
+dsaba-lms-celery    | - *** --- * --- .> concurrency: 14 (prefork)
+dsaba-lms-celery    | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    |  -------------- [queues]
+dsaba-lms-celery    |                 .> celery           exchange=celery(direct) key=celery
+dsaba-lms-celery    |                 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [tasks]
+dsaba-lms-celery    |   . cache_warming_task
+dsaba-lms-celery    |   . calculate_nightly_analytics
+dsaba-lms-celery    |   . cleanup_old_reports
+dsaba-lms-celery    |   . generate_report_async
+dsaba-lms-celery    |   . invalidate_analytics_cache
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 06:53:03,777: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 06:53:03,778: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 06:53:04,787: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 06:53:04,799: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-celery    | 
+dsaba-lms-celery    | worker: Warm shutdown (MainProcess)
+dsaba-lms-celery    |  
+dsaba-lms-celery    |  -------------- celery@703f6a160d4d v5.3.4 (emerald-rush)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    | -- ******* ---- Linux-6.10.14-linuxkit-aarch64-with-glibc2.41 2025-11-28 06:55:13
+dsaba-lms-celery    | - *** --- * --- 
+dsaba-lms-celery    | - ** ---------- [config]
+dsaba-lms-celery    | - ** ---------- .> app:         dsaba_lms:0xffff88d55950
+dsaba-lms-celery    | - ** ---------- .> transport:   redis://redis:6379/1
+dsaba-lms-celery    | - ** ---------- .> results:     redis://redis:6379/2
+dsaba-lms-celery    | - *** --- * --- .> concurrency: 14 (prefork)
+dsaba-lms-celery    | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    |  -------------- [queues]
+dsaba-lms-celery    |                 .> celery           exchange=celery(direct) key=celery
+dsaba-lms-celery    |                 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [tasks]
+dsaba-lms-celery    |   . cache_warming_task
+dsaba-lms-celery    |   . calculate_nightly_analytics
+dsaba-lms-celery    |   . cleanup_old_reports
+dsaba-lms-celery    |   . generate_report_async
+dsaba-lms-celery    |   . invalidate_analytics_cache
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 06:55:14,089: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 06:55:14,090: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 06:55:15,098: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 06:55:15,113: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-celery    | 
+dsaba-lms-celery    | worker: Warm shutdown (MainProcess)
+dsaba-lms-celery    |  
+dsaba-lms-redis     | 1:C 16 Nov 2025 13:44:36.219 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+dsaba-lms-redis     | 1:C 16 Nov 2025 13:44:36.219 * Redis version=7.4.7, bits=64, commit=00000000, modified=0, pid=1, just started
+dsaba-lms-redis     | 1:C 16 Nov 2025 13:44:36.219 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+dsaba-lms-redis     | 1:M 16 Nov 2025 13:44:36.219 * monotonic clock: POSIX clock_gettime
+dsaba-lms-redis     | 1:M 16 Nov 2025 13:44:36.220 * Running mode=standalone, port=6379.
+dsaba-lms-redis     | 1:M 16 Nov 2025 13:44:36.220 * Server initialized
+dsaba-lms-redis     | 1:M 16 Nov 2025 13:44:36.220 * Ready to accept connections tcp
+dsaba-lms-redis     | 1:M 16 Nov 2025 14:44:37.083 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 14:44:37.084 * Background saving started by pid 2161
+dsaba-lms-redis     | 2161:C 16 Nov 2025 14:44:37.092 * DB saved on disk
+dsaba-lms-redis     | 2161:C 16 Nov 2025 14:44:37.092 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 16 Nov 2025 14:44:37.193 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 16 Nov 2025 15:44:38.092 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 15:44:38.094 * Background saving started by pid 4299
+dsaba-lms-celery    |  -------------- celery@703f6a160d4d v5.3.4 (emerald-rush)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-redis     | 4299:C 16 Nov 2025 15:44:38.102 * DB saved on disk
+dsaba-lms-redis     | 4299:C 16 Nov 2025 15:44:38.102 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 16 Nov 2025 15:44:38.200 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 16 Nov 2025 16:44:39.034 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 16:44:39.036 * Background saving started by pid 6437
+dsaba-lms-redis     | 6437:C 16 Nov 2025 16:44:39.046 * DB saved on disk
+dsaba-lms-redis     | 6437:C 16 Nov 2025 16:44:39.046 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-celery    | -- ******* ---- Linux-6.10.14-linuxkit-aarch64-with-glibc2.41 2025-11-28 07:02:03
+dsaba-lms-celery    | - *** --- * --- 
+dsaba-lms-celery    | - ** ---------- [config]
+dsaba-lms-celery    | - ** ---------- .> app:         dsaba_lms:0xffff7e6e5750
+dsaba-lms-backend   | INFO:     Will watch for changes in these directories: ['/app/src']
+dsaba-lms-backend   | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+dsaba-lms-backend   | INFO:     Started reloader process [1] using WatchFiles
+dsaba-lms-backend   | 2025-11-28 06:58:51 - root - INFO - ✅ Logging configured (level=INFO, format=json)
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.api.middleware.rate_limiting - INFO - ✅ Rate limiting and DDoS protection enabled
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.api.middleware.audit_middleware - INFO - ✅ Audit middleware enabled
+dsaba-lms-backend   | INFO:     Started server process [8]
+dsaba-lms-backend   | INFO:     Waiting for application startup.
+dsaba-lms-postgres  | The files belonging to this database system will be owned by user "postgres".
+dsaba-lms-postgres  | This user must also own the server process.
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | The database cluster will be initialized with locale "en_US.utf8".
+dsaba-lms-postgres  | The default database encoding has accordingly been set to "UTF8".
+dsaba-lms-postgres  | The default text search configuration will be set to "english".
+dsaba-lms-postgres  | 
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - 🚀 Starting DSABA LMS v2.0.0
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - 📍 Environment: development
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.infrastructure.database.session - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.infrastructure.database.session - INFO - ✅ Database tables created
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - ✅ Database tables created/verified
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - ✅ All required roles verified
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - ✅ JWT expiry: 1440 minutes
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - ✅ DB pool size: 20
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - ✅ Caching enabled: True
+dsaba-lms-celery    | - ** ---------- .> transport:   redis://redis:6379/1
+dsaba-lms-celery    | - ** ---------- .> results:     redis://redis:6379/2
+dsaba-lms-celery    | - *** --- * --- .> concurrency: 14 (prefork)
+dsaba-lms-celery    | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    |  -------------- [queues]
+dsaba-lms-celery    |                 .> celery           exchange=celery(direct) key=celery
+dsaba-lms-celery    |                 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [tasks]
+dsaba-lms-celery    |   . cache_warming_task
+dsaba-lms-celery    |   . calculate_nightly_analytics
+dsaba-lms-redis     | 1:M 16 Nov 2025 16:44:39.138 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 16 Nov 2025 17:44:40.093 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 17:44:40.094 * Background saving started by pid 8584
+dsaba-lms-redis     | 8584:C 16 Nov 2025 17:44:40.101 * DB saved on disk
+dsaba-lms-redis     | 8584:C 16 Nov 2025 17:44:40.101 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-postgres  | Data page checksums are disabled.
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+dsaba-lms-postgres  | creating subdirectories ... ok
+dsaba-lms-backend   | 2025-11-28 06:58:51 - src.main - INFO - 🎉 Application startup complete
+dsaba-lms-backend   | INFO:     Application startup complete.
+dsaba-lms-backend   | WARNING:  WatchFiles detected changes in 'src/infrastructure/queue/tasks/analytics_tasks.py'. Reloading...
+dsaba-lms-backend   | INFO:     Shutting down
+dsaba-lms-backend   | INFO:     Waiting for application shutdown.
+dsaba-lms-backend   | 2025-11-28 07:01:32 - src.main - INFO - 👋 Shutting down application
+dsaba-lms-backend   | INFO:     Application shutdown complete.
+dsaba-lms-backend   | INFO:     Finished server process [8]
+dsaba-lms-backend   | 2025-11-28 07:01:33 - root - INFO - ✅ Logging configured (level=INFO, format=json)
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.api.middleware.rate_limiting - INFO - ✅ Rate limiting and DDoS protection enabled
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.api.middleware.audit_middleware - INFO - ✅ Audit middleware enabled
+dsaba-lms-backend   | INFO:     Started server process [60]
+dsaba-lms-backend   | INFO:     Waiting for application startup.
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - 🚀 Starting DSABA LMS v2.0.0
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - 📍 Environment: development
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.infrastructure.database.session - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.infrastructure.database.session - INFO - ✅ Database tables created
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - ✅ Database tables created/verified
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - ✅ All required roles verified
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - ✅ JWT expiry: 1440 minutes
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - ✅ DB pool size: 20
+dsaba-lms-postgres  | selecting dynamic shared memory implementation ... posix
+dsaba-lms-postgres  | selecting default max_connections ... 100
+dsaba-lms-postgres  | selecting default shared_buffers ... 128MB
+dsaba-lms-postgres  | selecting default time zone ... UTC
+dsaba-lms-postgres  | creating configuration files ... ok
+dsaba-lms-postgres  | running bootstrap script ... ok
+dsaba-lms-postgres  | sh: locale: not found
+dsaba-lms-postgres  | 2025-11-16 13:44:32.144 UTC [35] WARNING:  no usable system locales were found
+dsaba-lms-celery    |   . cleanup_old_reports
+dsaba-lms-celery    |   . generate_report_async
+dsaba-lms-celery    |   . invalidate_analytics_cache
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-postgres  | performing post-bootstrap initialization ... ok
+dsaba-lms-postgres  | syncing data to disk ... ok
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 07:02:04,040: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 07:02:04,043: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 07:02:05,049: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 07:02:05,063: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-celery    | 
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - ✅ Caching enabled: True
+dsaba-lms-backend   | 2025-11-28 07:01:33 - src.main - INFO - 🎉 Application startup complete
+dsaba-lms-backend   | INFO:     Application startup complete.
+dsaba-lms-backend   | WARNING:  WatchFiles detected changes in 'src/infrastructure/queue/tasks/analytics_tasks.py'. Reloading...
+dsaba-lms-celery    | worker: Warm shutdown (MainProcess)
+dsaba-lms-celery    |  
+dsaba-lms-celery    |  -------------- celery@703f6a160d4d v5.3.4 (emerald-rush)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    | -- ******* ---- Linux-6.10.14-linuxkit-aarch64-with-glibc2.41 2025-11-28 07:02:12
+dsaba-lms-celery    | - *** --- * --- 
+dsaba-lms-celery    | - ** ---------- [config]
+dsaba-lms-celery    | - ** ---------- .> app:         dsaba_lms:0xffff8a8d2b10
+dsaba-lms-celery    | - ** ---------- .> transport:   redis://redis:6379/1
+dsaba-lms-celery    | - ** ---------- .> results:     redis://redis:6379/2
+dsaba-lms-redis     | 1:M 16 Nov 2025 17:44:40.200 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 16 Nov 2025 18:44:41.092 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 18:44:41.095 * Background saving started by pid 10735
+dsaba-lms-redis     | 10735:C 16 Nov 2025 18:44:41.104 * DB saved on disk
+dsaba-lms-redis     | 10735:C 16 Nov 2025 18:44:41.105 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 16 Nov 2025 18:44:41.201 * Background saving terminated with success
+dsaba-lms-celery    | - *** --- * --- .> concurrency: 14 (prefork)
+dsaba-lms-celery    | -- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+dsaba-lms-celery    | --- ***** ----- 
+dsaba-lms-celery    |  -------------- [queues]
+dsaba-lms-redis     | 1:M 16 Nov 2025 19:57:01.842 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 19:57:01.844 * Background saving started by pid 12246
+dsaba-lms-celery    |                 .> celery           exchange=celery(direct) key=celery
+dsaba-lms-celery    |                 
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [tasks]
+dsaba-lms-celery    |   . cache_warming_task
+dsaba-lms-celery    |   . calculate_nightly_analytics
+dsaba-lms-celery    |   . cleanup_old_reports
+dsaba-lms-celery    |   . generate_report_async
+dsaba-lms-celery    |   . invalidate_analytics_cache
+dsaba-lms-celery    |   . publish_semester_async
+dsaba-lms-redis     | 12246:C 16 Nov 2025 19:57:01.850 * DB saved on disk
+dsaba-lms-redis     | 12246:C 16 Nov 2025 19:57:01.850 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 16 Nov 2025 19:57:01.956 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 16 Nov 2025 20:58:40.632 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 20:58:40.633 * Background saving started by pid 12300
+dsaba-lms-redis     | 12300:C 16 Nov 2025 20:58:40.638 * DB saved on disk
+dsaba-lms-redis     | 12300:C 16 Nov 2025 20:58:40.639 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 16 Nov 2025 20:58:40.744 * Background saving terminated with success
+dsaba-lms-celery    |   . send_bulk_email
+dsaba-lms-celery    |   . send_email
+dsaba-lms-redis     | 1:M 16 Nov 2025 22:38:03.118 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 16 Nov 2025 22:38:03.119 * Background saving started by pid 12337
+dsaba-lms-redis     | 12337:C 16 Nov 2025 22:38:03.126 * DB saved on disk
+dsaba-lms-redis     | 12337:C 16 Nov 2025 22:38:03.126 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 16 Nov 2025 22:38:03.220 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 00:42:23.287 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 00:42:23.288 * Background saving started by pid 12380
+dsaba-lms-redis     | 12380:C 17 Nov 2025 00:42:23.292 * DB saved on disk
+dsaba-lms-redis     | 12380:C 17 Nov 2025 00:42:23.293 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 00:42:23.399 * Background saving terminated with success
+dsaba-lms-backend   | INFO:     Shutting down
+dsaba-lms-backend   | INFO:     Waiting for application shutdown.
+dsaba-lms-backend   | 2025-11-28 07:01:34 - src.main - INFO - 👋 Shutting down application
+dsaba-lms-backend   | INFO:     Application shutdown complete.
+dsaba-lms-backend   | INFO:     Finished server process [60]
+dsaba-lms-backend   | 2025-11-28 07:01:35 - root - INFO - ✅ Logging configured (level=INFO, format=json)
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.api.middleware.rate_limiting - INFO - ✅ Rate limiting and DDoS protection enabled
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.api.middleware.audit_middleware - INFO - ✅ Audit middleware enabled
+dsaba-lms-backend   | INFO:     Started server process [75]
+dsaba-lms-backend   | INFO:     Waiting for application startup.
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - 🚀 Starting DSABA LMS v2.0.0
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - 📍 Environment: development
+dsaba-lms-postgres  | Success. You can now start the database server using:
+dsaba-lms-celery    | 
+dsaba-lms-celery    | [2025-11-28 07:02:12,388: INFO/MainProcess] Connected to redis://redis:6379/1
+dsaba-lms-celery    | [2025-11-28 07:02:12,389: INFO/MainProcess] mingle: searching for neighbors
+dsaba-lms-celery    | [2025-11-28 07:02:13,394: INFO/MainProcess] mingle: all alone
+dsaba-lms-celery    | [2025-11-28 07:02:13,407: INFO/MainProcess] celery@703f6a160d4d ready.
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.infrastructure.database.session - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - ✅ Database connection verified
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | initdb: warning: enabling "trust" authentication for local connections
+dsaba-lms-postgres  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.infrastructure.database.session - INFO - ✅ Database tables created
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - ✅ Database tables created/verified
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - ✅ All required roles verified
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - ✅ JWT expiry: 1440 minutes
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - ✅ DB pool size: 20
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - ✅ Caching enabled: True
+dsaba-lms-backend   | 2025-11-28 07:01:35 - src.main - INFO - 🎉 Application startup complete
+dsaba-lms-backend   | INFO:     Application startup complete.
+dsaba-lms-backend   | WARNING:  WatchFiles detected changes in 'tests/application/test_analytics_service.py'. Reloading...
+dsaba-lms-backend   | INFO:     Shutting down
+dsaba-lms-backend   | INFO:     Waiting for application shutdown.
+dsaba-lms-backend   | 2025-11-28 07:01:36 - src.main - INFO - 👋 Shutting down application
+dsaba-lms-backend   | INFO:     Application shutdown complete.
+dsaba-lms-backend   | INFO:     Finished server process [75]
+dsaba-lms-backend   | 2025-11-28 07:01:37 - root - INFO - ✅ Logging configured (level=INFO, format=json)
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.api.middleware.rate_limiting - INFO - ✅ Rate limiting and DDoS protection enabled
+dsaba-lms-redis     | 1:M 17 Nov 2025 03:32:10.472 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 03:32:10.472 * Background saving started by pid 12441
+dsaba-lms-redis     | 12441:C 17 Nov 2025 03:32:10.476 * DB saved on disk
+dsaba-lms-redis     | 12441:C 17 Nov 2025 03:32:10.476 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 03:32:10.574 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 05:00:16.072 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 05:00:16.074 * Background saving started by pid 12664
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.api.middleware.audit_middleware - INFO - ✅ Audit middleware enabled
+dsaba-lms-backend   | INFO:     Started server process [90]
+dsaba-lms-backend   | INFO:     Waiting for application startup.
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - 🚀 Starting DSABA LMS v2.0.0
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - 📍 Environment: development
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.infrastructure.database.session - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.infrastructure.database.session - INFO - ✅ Database tables created
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - ✅ Database tables created/verified
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - ✅ All required roles verified
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - ✅ JWT expiry: 1440 minutes
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - ✅ DB pool size: 20
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - ✅ Caching enabled: True
+dsaba-lms-backend   | 2025-11-28 07:01:37 - src.main - INFO - 🎉 Application startup complete
+dsaba-lms-backend   | INFO:     Application startup complete.
+dsaba-lms-backend   | WARNING:  WatchFiles detected changes in 'src/infrastructure/queue/tasks/report_tasks.py'. Reloading...
+dsaba-lms-redis     | 12664:C 17 Nov 2025 05:00:16.081 * DB saved on disk
+dsaba-lms-redis     | 12664:C 17 Nov 2025 05:00:16.081 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 05:00:16.179 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:00:17.005 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:00:17.007 * Background saving started by pid 14721
+dsaba-lms-postgres  | waiting for server to start....2025-11-16 13:44:32.390 UTC [41] LOG:  starting PostgreSQL 15.14 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+dsaba-lms-postgres  | 2025-11-16 13:44:32.391 UTC [41] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+dsaba-lms-postgres  | 2025-11-16 13:44:32.394 UTC [44] LOG:  database system was shut down at 2025-11-16 13:44:32 UTC
+dsaba-lms-postgres  | 2025-11-16 13:44:32.396 UTC [41] LOG:  database system is ready to accept connections
+dsaba-lms-postgres  |  done
+dsaba-lms-backend   | INFO:     Shutting down
+dsaba-lms-backend   | INFO:     Waiting for application shutdown.
+dsaba-lms-backend   | 2025-11-28 07:02:09 - src.main - INFO - 👋 Shutting down application
+dsaba-lms-postgres  | server started
+dsaba-lms-postgres  | CREATE DATABASE
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | 
+dsaba-lms-redis     | 14721:C 17 Nov 2025 06:00:17.017 * DB saved on disk
+dsaba-lms-redis     | 14721:C 17 Nov 2025 06:00:17.018 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-postgres  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | waiting for server to shut down....2025-11-16 13:44:32.517 UTC [41] LOG:  received fast shutdown request
+dsaba-lms-postgres  | 2025-11-16 13:44:32.519 UTC [41] LOG:  aborting any active transactions
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:00:17.112 * Background saving terminated with success
+dsaba-lms-redis     | 1:signal-handler (1763361503) Received SIGTERM scheduling shutdown...
+dsaba-lms-postgres  | 2025-11-16 13:44:32.520 UTC [41] LOG:  background worker "logical replication launcher" (PID 47) exited with exit code 1
+dsaba-lms-postgres  | 2025-11-16 13:44:32.520 UTC [42] LOG:  shutting down
+dsaba-lms-postgres  | 2025-11-16 13:44:32.520 UTC [42] LOG:  checkpoint starting: shutdown immediate
+dsaba-lms-postgres  | 2025-11-16 13:44:32.545 UTC [42] LOG:  checkpoint complete: wrote 921 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.012 s, sync=0.011 s, total=0.025 s; sync files=301, longest=0.005 s, average=0.001 s; distance=4238 kB, estimate=4238 kB
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:38:23.519 * User requested shutdown...
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:38:23.519 * Saving the final RDB snapshot before exiting.
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:38:23.530 * DB saved on disk
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:38:23.530 # Redis is now ready to exit, bye bye...
+dsaba-lms-postgres  | 2025-11-16 13:44:32.547 UTC [41] LOG:  database system is shut down
+dsaba-lms-postgres  |  done
+dsaba-lms-redis     | 1:C 17 Nov 2025 06:43:28.940 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+dsaba-lms-redis     | 1:C 17 Nov 2025 06:43:28.940 * Redis version=7.4.7, bits=64, commit=00000000, modified=0, pid=1, just started
+dsaba-lms-postgres  | server stopped
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | PostgreSQL init process complete; ready for start up.
+dsaba-lms-postgres  | 
+dsaba-lms-backend   | INFO:     Application shutdown complete.
+dsaba-lms-backend   | INFO:     Finished server process [90]
+dsaba-lms-backend   | 2025-11-28 07:02:10 - root - INFO - ✅ Logging configured (level=INFO, format=json)
+dsaba-lms-backend   | 2025-11-28 07:02:10 - src.api.middleware.rate_limiting - INFO - ✅ Rate limiting and DDoS protection enabled
+dsaba-lms-backend   | 2025-11-28 07:02:10 - src.api.middleware.audit_middleware - INFO - ✅ Audit middleware enabled
+dsaba-lms-backend   | INFO:     Started server process [111]
+dsaba-lms-backend   | INFO:     Waiting for application startup.
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - 🚀 Starting DSABA LMS v2.0.0
+dsaba-lms-redis     | 1:C 17 Nov 2025 06:43:28.940 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.940 * monotonic clock: POSIX clock_gettime
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.942 * Running mode=standalone, port=6379.
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.942 * Server initialized
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.942 * Loading RDB produced by version 7.4.7
+dsaba-lms-postgres  | 2025-11-16 13:44:32.635 UTC [1] LOG:  starting PostgreSQL 15.14 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+dsaba-lms-postgres  | 2025-11-16 13:44:32.635 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.942 * RDB age 305 seconds
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.942 * RDB memory usage when created 1.49 Mb
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.943 * Done loading RDB, keys loaded: 3, keys expired: 0.
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - 📍 Environment: development
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.infrastructure.database.session - INFO - ✅ Database connection verified
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.943 * DB loaded from disk: 0.001 seconds
+dsaba-lms-redis     | 1:M 17 Nov 2025 06:43:28.943 * Ready to accept connections tcp
+dsaba-lms-redis     | 1:M 17 Nov 2025 07:53:05.154 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 07:53:05.155 * Background saving started by pid 1179
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - ✅ Database connection verified
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.infrastructure.database.session - INFO - ✅ Database tables created
+dsaba-lms-redis     | 1179:C 17 Nov 2025 07:53:05.160 * DB saved on disk
+dsaba-lms-redis     | 1179:C 17 Nov 2025 07:53:05.161 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 07:53:05.268 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 08:53:06.023 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 08:53:06.025 * Background saving started by pid 2877
+dsaba-lms-redis     | 2877:C 17 Nov 2025 08:53:06.032 * DB saved on disk
+dsaba-lms-redis     | 2877:C 17 Nov 2025 08:53:06.032 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 08:53:06.127 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 09:55:19.027 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 09:55:19.028 * Background saving started by pid 4571
+dsaba-lms-redis     | 4571:C 17 Nov 2025 09:55:19.032 * DB saved on disk
+dsaba-lms-redis     | 4571:C 17 Nov 2025 09:55:19.032 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-postgres  | 2025-11-16 13:44:32.635 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+dsaba-lms-postgres  | 2025-11-16 13:44:32.636 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+dsaba-lms-redis     | 1:M 17 Nov 2025 09:55:19.139 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 11:04:29.099 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-postgres  | 2025-11-16 13:44:32.638 UTC [57] LOG:  database system was shut down at 2025-11-16 13:44:32 UTC
+dsaba-lms-postgres  | 2025-11-16 13:44:32.640 UTC [1] LOG:  database system is ready to accept connections
+dsaba-lms-redis     | 1:M 17 Nov 2025 11:04:29.105 * Background saving started by pid 6468
+dsaba-lms-redis     | 6468:C 17 Nov 2025 11:04:29.109 * DB saved on disk
+dsaba-lms-redis     | 6468:C 17 Nov 2025 11:04:29.109 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 11:04:29.213 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 12:04:30.082 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 12:04:30.084 * Background saving started by pid 8616
+dsaba-lms-redis     | 8616:C 17 Nov 2025 12:04:30.092 * DB saved on disk
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - ✅ Database tables created/verified
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - ✅ All required roles verified
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - ✅ JWT expiry: 1440 minutes
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - ✅ DB pool size: 20
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - ✅ Caching enabled: True
+dsaba-lms-backend   | 2025-11-28 07:02:11 - src.main - INFO - 🎉 Application startup complete
+dsaba-lms-backend   | INFO:     Application startup complete.
+dsaba-lms-redis     | 8616:C 17 Nov 2025 12:04:30.092 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 12:04:30.185 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 13:04:31.020 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 13:04:31.021 * Background saving started by pid 10767
+dsaba-lms-redis     | 10767:C 17 Nov 2025 13:04:31.028 * DB saved on disk
+dsaba-lms-redis     | 10767:C 17 Nov 2025 13:04:31.029 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-backend   | 2025-11-28 07:03:30 - src.application.services.audit_service - INFO - AUDIT: api_options by user None on authentication None from 192.168.65.1
+dsaba-lms-backend   | 2025-11-28 07:03:30 - src.api.middleware.audit_middleware - ERROR - Audit middleware error: '_StreamingResponse' object has no attribute 'body'
+dsaba-lms-backend   | 2025-11-28 07:03:30 - src.application.services.audit_service - INFO - AUDIT: api_create by user None on authentication None from 192.168.65.1
+dsaba-lms-redis     | 1:M 17 Nov 2025 13:04:31.129 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 14:04:32.047 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 14:04:32.048 * Background saving started by pid 12913
+dsaba-lms-redis     | 12913:C 17 Nov 2025 14:04:32.055 * DB saved on disk
+dsaba-lms-redis     | 12913:C 17 Nov 2025 14:04:32.055 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 14:04:32.150 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 15:04:33.098 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-backend   | 2025-11-28 07:03:30 - src.api.middleware.audit_middleware - ERROR - Audit middleware error: '_StreamingResponse' object has no attribute 'body'
+dsaba-lms-backend   | 2025-11-28 07:03:41 - src.application.services.audit_service - INFO - AUDIT: api_create by user None on authentication None from 192.168.65.1
+dsaba-lms-redis     | 1:M 17 Nov 2025 15:04:33.099 * Background saving started by pid 15066
+dsaba-lms-redis     | 15066:C 17 Nov 2025 15:04:33.105 * DB saved on disk
+dsaba-lms-backend   | 2025-11-28 07:03:41 - src.api.middleware.audit_middleware - ERROR - Audit middleware error: '_StreamingResponse' object has no attribute 'body'
+dsaba-lms-redis     | 15066:C 17 Nov 2025 15:04:33.105 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 15:04:33.209 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 16:14:16.369 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 16:14:16.371 * Background saving started by pid 16908
+dsaba-lms-redis     | 16908:C 17 Nov 2025 16:14:16.377 * DB saved on disk
+dsaba-lms-redis     | 16908:C 17 Nov 2025 16:14:16.378 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 16:14:16.475 * Background saving terminated with success
+dsaba-lms-redis     | 1:M 17 Nov 2025 18:15:07.007 * 1 changes in 3600 seconds. Saving...
+dsaba-lms-redis     | 1:M 17 Nov 2025 18:15:07.008 * Background saving started by pid 17855
+dsaba-lms-postgres  | 2025-11-16 13:44:47.251 UTC [68] ERROR:  relation "subjects" does not exist
+dsaba-lms-postgres  | 2025-11-16 13:44:47.251 UTC [68] STATEMENT:  
+dsaba-lms-postgres  | 	CREATE TABLE co_definitions (
+dsaba-lms-postgres  | 		id SERIAL NOT NULL, 
+dsaba-lms-postgres  | 		subject_id INTEGER NOT NULL, 
+dsaba-lms-postgres  | 		code VARCHAR(10) NOT NULL, 
+dsaba-lms-postgres  | 		title VARCHAR(200) NOT NULL, 
+dsaba-lms-redis     | 17855:C 17 Nov 2025 18:15:07.016 * DB saved on disk
+dsaba-lms-redis     | 17855:C 17 Nov 2025 18:15:07.016 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB
+dsaba-lms-redis     | 1:M 17 Nov 2025 18:15:07.116 * Background saving terminated with success
+dsaba-lms-redis     | 1:C 19 Nov 2025 12:29:19.057 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+dsaba-lms-redis     | 1:C 19 Nov 2025 12:29:19.057 * Redis version=7.4.7, bits=64, commit=00000000, modified=0, pid=1, just started
+dsaba-lms-redis     | 1:C 19 Nov 2025 12:29:19.057 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.058 * monotonic clock: POSIX clock_gettime
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.058 * Running mode=standalone, port=6379.
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.059 * Server initialized
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.059 * Loading RDB produced by version 7.4.7
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.059 * RDB age 152052 seconds
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.059 * RDB memory usage when created 1.45 Mb
+dsaba-lms-postgres  | 		description TEXT, 
+dsaba-lms-postgres  | 		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, 
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.060 * Done loading RDB, keys loaded: 3, keys expired: 0.
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.060 * DB loaded from disk: 0.001 seconds
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:19.060 * Ready to accept connections tcp
+dsaba-lms-redis     | 1:signal-handler (1763555368) Received SIGTERM scheduling shutdown...
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:28.155 * User requested shutdown...
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:28.155 * Saving the final RDB snapshot before exiting.
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:28.157 * DB saved on disk
+dsaba-lms-redis     | 1:M 19 Nov 2025 12:29:28.158 # Redis is now ready to exit, bye bye...
+dsaba-lms-redis     | 1:C 28 Nov 2025 06:17:58.902 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+dsaba-lms-redis     | 1:C 28 Nov 2025 06:17:58.902 * Redis version=7.4.7, bits=64, commit=00000000, modified=0, pid=1, just started
+dsaba-lms-postgres  | 		PRIMARY KEY (id), 
+dsaba-lms-redis     | 1:C 28 Nov 2025 06:17:58.902 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.902 * monotonic clock: POSIX clock_gettime
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.903 * Running mode=standalone, port=6379.
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.903 * Server initialized
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.903 * Loading RDB produced by version 7.4.7
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.903 * RDB age 755310 seconds
+dsaba-lms-postgres  | 		FOREIGN KEY(subject_id) REFERENCES subjects (id)
+dsaba-lms-postgres  | 	)
+dsaba-lms-postgres  | 	
+dsaba-lms-postgres  | 	
+dsaba-lms-postgres  | 2025-11-16 13:44:58.976 UTC [77] ERROR:  column "co_id" referenced in foreign key constraint does not exist
+dsaba-lms-postgres  | 2025-11-16 13:44:58.976 UTC [77] STATEMENT:  ALTER TABLE co_targets ADD CONSTRAINT fk_co_targets_co_id FOREIGN KEY(co_id) REFERENCES co_definitions (id)
+dsaba-lms-postgres  | 2025-11-16 13:45:04.663 UTC [86] ERROR:  column "co_id" referenced in foreign key constraint does not exist
+dsaba-lms-postgres  | 2025-11-16 13:45:04.663 UTC [86] STATEMENT:  ALTER TABLE co_targets ADD CONSTRAINT fk_co_targets_co_id FOREIGN KEY(co_id) REFERENCES co_definitions (id)
+dsaba-lms-postgres  | 2025-11-16 13:49:32.652 UTC [55] LOG:  checkpoint starting: time
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.903 * RDB memory usage when created 1.36 Mb
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.904 * Done loading RDB, keys loaded: 2, keys expired: 0.
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.904 * DB loaded from disk: 0.001 seconds
+dsaba-lms-redis     | 1:M 28 Nov 2025 06:17:58.904 * Ready to accept connections tcp
+dsaba-lms-postgres  | 2025-11-16 13:50:09.141 UTC [55] LOG:  checkpoint complete: wrote 355 buffers (2.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=36.447 s, sync=0.031 s, total=36.490 s; sync files=425, longest=0.002 s, average=0.001 s; distance=2500 kB, estimate=2500 kB
+dsaba-lms-postgres  | 2025-11-16 15:17:35.687 UTC [4233] ERROR:  column "co_id" referenced in foreign key constraint does not exist
+dsaba-lms-postgres  | 2025-11-16 15:17:35.687 UTC [4233] STATEMENT:  ALTER TABLE co_targets ADD CONSTRAINT fk_co_targets_co_id FOREIGN KEY(co_id) REFERENCES co_definitions (id)
+dsaba-lms-postgres  | 2025-11-16 15:17:43.477 UTC [4254] ERROR:  relation "alembic_version" does not exist at character 15
+dsaba-lms-postgres  | 2025-11-16 15:17:43.477 UTC [4254] STATEMENT:  SELECT * FROM alembic_version;
+dsaba-lms-postgres  | 2025-11-16 15:19:33.336 UTC [55] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-16 15:19:47.225 UTC [55] LOG:  checkpoint complete: wrote 134 buffers (0.8%); 1 WAL file(s) added, 0 removed, 0 recycled; write=13.839 s, sync=0.009 s, total=13.890 s; sync files=82, longest=0.001 s, average=0.001 s; distance=700 kB, estimate=2320 kB
+dsaba-lms-postgres  | 2025-11-16 16:59:35.041 UTC [55] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-16 16:59:45.971 UTC [55] LOG:  checkpoint complete: wrote 103 buffers (0.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=10.913 s, sync=0.011 s, total=10.930 s; sync files=81, longest=0.002 s, average=0.001 s; distance=620 kB, estimate=2150 kB
+dsaba-lms-postgres  | 2025-11-17 05:06:24.044 UTC [55] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-17 05:06:24.373 UTC [55] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.315 s, sync=0.003 s, total=0.329 s; sync files=2, longest=0.003 s, average=0.002 s; distance=8 kB, estimate=1936 kB
+dsaba-lms-postgres  | 2025-11-17 06:38:23.478 UTC [1] LOG:  received fast shutdown request
+dsaba-lms-postgres  | 2025-11-17 06:38:23.481 UTC [1] LOG:  aborting any active transactions
+dsaba-lms-postgres  | 2025-11-17 06:38:23.482 UTC [19944] FATAL:  terminating connection due to administrator command
+dsaba-lms-postgres  | 2025-11-17 06:38:23.482 UTC [19945] FATAL:  terminating connection due to administrator command
+dsaba-lms-postgres  | 2025-11-17 06:38:23.488 UTC [1] LOG:  background worker "logical replication launcher" (PID 60) exited with exit code 1
+dsaba-lms-postgres  | 2025-11-17 06:38:23.490 UTC [55] LOG:  shutting down
+dsaba-lms-postgres  | 2025-11-17 06:38:23.491 UTC [55] LOG:  checkpoint starting: shutdown immediate
+dsaba-lms-postgres  | 2025-11-17 06:38:23.496 UTC [55] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.001 s, total=0.006 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=1742 kB
+dsaba-lms-postgres  | 2025-11-17 06:38:23.505 UTC [1] LOG:  database system is shut down
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | 2025-11-17 06:43:29.047 UTC [1] LOG:  starting PostgreSQL 15.14 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+dsaba-lms-postgres  | 2025-11-17 06:43:29.047 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+dsaba-lms-postgres  | 2025-11-17 06:43:29.047 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+dsaba-lms-postgres  | 2025-11-17 06:43:29.053 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+dsaba-lms-postgres  | 2025-11-17 06:43:29.057 UTC [29] LOG:  database system was shut down at 2025-11-17 06:38:23 UTC
+dsaba-lms-postgres  | 2025-11-17 06:43:29.066 UTC [1] LOG:  database system is ready to accept connections
+dsaba-lms-postgres  | 2025-11-17 06:48:29.093 UTC [27] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-17 06:48:29.203 UTC [27] LOG:  checkpoint complete: wrote 4 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.106 s, sync=0.002 s, total=0.111 s; sync files=3, longest=0.001 s, average=0.001 s; distance=8 kB, estimate=8 kB
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | 2025-11-19 12:29:19.204 UTC [1] LOG:  starting PostgreSQL 15.14 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+dsaba-lms-postgres  | 2025-11-19 12:29:19.204 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+dsaba-lms-postgres  | 2025-11-19 12:29:19.204 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+dsaba-lms-postgres  | 2025-11-19 12:29:19.237 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+dsaba-lms-postgres  | 2025-11-19 12:29:19.279 UTC [28] LOG:  database system was interrupted; last known up at 2025-11-17 06:48:29 UTC
+dsaba-lms-postgres  | 2025-11-19 12:29:20.080 UTC [28] LOG:  database system was not properly shut down; automatic recovery in progress
+dsaba-lms-postgres  | 2025-11-19 12:29:20.083 UTC [28] LOG:  redo starts at 0/1CEC858
+dsaba-lms-postgres  | 2025-11-19 12:29:20.083 UTC [28] LOG:  invalid record length at 0/1CEC940: wanted 24, got 0
+dsaba-lms-postgres  | 2025-11-19 12:29:20.083 UTC [28] LOG:  redo done at 0/1CEC908 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+dsaba-lms-postgres  | 2025-11-19 12:29:20.086 UTC [26] LOG:  checkpoint starting: end-of-recovery immediate wait
+dsaba-lms-postgres  | 2025-11-19 12:29:20.096 UTC [26] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.001 s, total=0.011 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB
+dsaba-lms-postgres  | 2025-11-19 12:29:20.100 UTC [1] LOG:  database system is ready to accept connections
+dsaba-lms-postgres  | 2025-11-19 12:29:28.094 UTC [1] LOG:  received fast shutdown request
+dsaba-lms-postgres  | 2025-11-19 12:29:28.099 UTC [1] LOG:  aborting any active transactions
+dsaba-lms-postgres  | 2025-11-19 12:29:28.101 UTC [1] LOG:  background worker "logical replication launcher" (PID 31) exited with exit code 1
+dsaba-lms-postgres  | 2025-11-19 12:29:28.101 UTC [26] LOG:  shutting down
+dsaba-lms-postgres  | 2025-11-19 12:29:28.102 UTC [26] LOG:  checkpoint starting: shutdown immediate
+dsaba-lms-postgres  | 2025-11-19 12:29:28.109 UTC [26] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.009 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=0 kB
+dsaba-lms-postgres  | 2025-11-19 12:29:28.110 UTC [1] LOG:  database system is shut down
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+dsaba-lms-postgres  | 
+dsaba-lms-postgres  | 2025-11-28 06:17:58.953 UTC [1] LOG:  starting PostgreSQL 15.14 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 14.2.0) 14.2.0, 64-bit
+dsaba-lms-postgres  | 2025-11-28 06:17:58.953 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+dsaba-lms-postgres  | 2025-11-28 06:17:58.953 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+dsaba-lms-postgres  | 2025-11-28 06:17:58.954 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+dsaba-lms-postgres  | 2025-11-28 06:17:58.955 UTC [29] LOG:  database system was shut down at 2025-11-19 12:29:28 UTC
+dsaba-lms-postgres  | 2025-11-28 06:17:58.960 UTC [1] LOG:  database system is ready to accept connections
+dsaba-lms-postgres  | 2025-11-28 06:29:21.154 UTC [27] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-28 06:29:21.163 UTC [27] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.002 s, total=0.010 s; sync files=2, longest=0.001 s, average=0.001 s; distance=0 kB, estimate=0 kB
+dsaba-lms-postgres  | 2025-11-28 06:53:34.996 UTC [27] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-28 06:53:39.745 UTC [27] LOG:  checkpoint complete: wrote 47 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.712 s, sync=0.032 s, total=4.750 s; sync files=40, longest=0.024 s, average=0.001 s; distance=253 kB, estimate=253 kB
+dsaba-lms-postgres  | 2025-11-28 07:03:34.585 UTC [27] LOG:  checkpoint starting: time
+dsaba-lms-postgres  | 2025-11-28 07:03:35.944 UTC [27] LOG:  checkpoint complete: wrote 14 buffers (0.1%); 0 WAL file(s) added, 0 removed, 0 recycled; write=1.348 s, sync=0.005 s, total=1.360 s; sync files=9, longest=0.003 s, average=0.001 s; distance=2 kB, estimate=228 kB

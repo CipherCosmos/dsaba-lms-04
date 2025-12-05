@@ -28,6 +28,7 @@ class DDoSProtection:
         self.ip_blocklist = set()
         self.suspicious_ips = defaultdict(int)
         self.last_cleanup = time.time()
+        self.time_window = 300  # 5 minutes window
 
     def is_ip_blocked(self, ip: str) -> bool:
         """Check if IP is blocked"""
@@ -89,10 +90,16 @@ class DDoSProtection:
 
     def _cleanup_old_data(self) -> None:
         """Clean up old request count data"""
-        current_time = int(time.time() / 60)
-        cutoff_time = current_time - 10  # Keep last 10 minutes
+        # This method is no longer called periodically from record_request,
+        # as cleanup is now integrated into record_request.
+        # However, it might still be useful for other periodic tasks or if the
+        # tracking logic changes. For now, it's kept but its original purpose
+        # of cleaning ip_request_counts is superseded by the new record_request.
 
-        # Clean up request counts
+        current_time = int(time.time())
+        cutoff_time = current_time - self.time_window * 2 # Keep last 10 minutes (2 * 5 min window)
+
+        # Clean up request counts (this part is now mostly handled by record_request)
         for ip in list(self.ip_request_counts.keys()):
             self.ip_request_counts[ip] = {
                 minute: count
@@ -236,7 +243,7 @@ def ddos_protection_middleware(request: Request) -> None:
         except Exception as e:
             logger.error(f"Failed to log blocked IP access: {e}")
 
-        raise JSONResponse(
+        return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
                 "success": False,
@@ -271,7 +278,7 @@ def setup_rate_limiting(app):
     logger.info("✅ Rate limiting and DDoS protection enabled")
 
 
-def ddos_protection_middleware_wrapper(request: Request, call_next):
+async def ddos_protection_middleware_wrapper(request: Request, call_next):
     """
     Wrapper for DDoS protection middleware to work with FastAPI
 
@@ -283,10 +290,12 @@ def ddos_protection_middleware_wrapper(request: Request, call_next):
         Response from next handler
     """
     # Run DDoS protection check
-    ddos_protection_middleware(request)
+    response = ddos_protection_middleware(request)
+    if response:
+        return response
 
     # Continue to next handler
-    return call_next(request)
+    return await call_next(request)
 
 
 # Export limiter for use in endpoint decorators

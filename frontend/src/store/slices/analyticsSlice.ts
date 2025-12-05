@@ -123,7 +123,7 @@ const analyticsSlice = createSlice({
       })
       .addCase(fetchStudentAnalytics.fulfilled, (state, action) => {
         state.loading = false
-        state.studentAnalytics = action.payload
+        state.studentAnalytics = action.payload as any
       })
       .addCase(fetchStudentAnalytics.rejected, (state, action) => {
         state.loading = false
@@ -135,7 +135,7 @@ const analyticsSlice = createSlice({
       })
       .addCase(fetchTeacherAnalytics.fulfilled, (state, action) => {
         state.loading = false
-        state.teacherAnalytics = action.payload
+        state.teacherAnalytics = action.payload as any
       })
       .addCase(fetchTeacherAnalytics.rejected, (state, action) => {
         state.loading = false
@@ -147,7 +147,7 @@ const analyticsSlice = createSlice({
       })
       .addCase(fetchHODAnalytics.fulfilled, (state, action) => {
         state.loading = false
-        state.hodAnalytics = action.payload
+        state.hodAnalytics = action.payload as any
       })
       .addCase(fetchHODAnalytics.rejected, (state, action) => {
         state.loading = false

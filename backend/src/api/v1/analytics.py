@@ -7,11 +7,10 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 
-from src.application.services.analytics_service import AnalyticsService
+from src.application.services.analytics import AnalyticsService
 from src.application.dto.analytics_dto import (
     StudentAnalyticsResponse,
     TeacherAnalyticsResponse,
-    ClassAnalyticsResponse,
     SubjectAnalyticsResponse,
     HODAnalyticsResponse,
     COAttainmentResponse,
@@ -24,6 +23,7 @@ from src.api.dependencies import (
     get_user_repository
 )
 from src.domain.entities.user import User
+from src.domain.enums.user_role import UserRole
 from src.domain.exceptions import EntityNotFoundError
 from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
 from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
@@ -518,3 +518,272 @@ async def get_multi_dimensional_analytics(
             detail=f"Failed to get multi-dimensional analytics: {str(e)}"
         )
 
+
+# ============================================
+# Enhanced Analytics Endpoints
+# ============================================
+
+@router.get("/blooms-taxonomy")
+async def get_blooms_analysis_enhanced(
+    subject_assignment_id: Optional[int] = Query(None, description="Filter by subject assignment"),
+    department_id: Optional[int] = Query(None, description="Filter by department"),
+    semester_id: Optional[int] = Query(None, description="Filter by semester"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Analyze student performance based on Bloom's taxonomy levels
+    
+    Returns distribution across:
+    - L1: Remember
+    - L2: Understand
+    - L3: Apply
+    - L4: Analyze
+    - L5: Evaluate
+    - L6: Create
+    """
+    try:
+        result = analytics_service.get_blooms_taxonomy_analysis(
+            subject_assignment_id=subject_assignment_id,
+            department_id=department_id,
+            semester_id=semester_id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error analyzing Bloom's taxonomy: {str(e)}"
+        )
+
+
+@router.get("/performance-trends")
+async def get_performance_trends(
+    student_id: Optional[int] = Query(None, description="Filter by student"),
+    subject_id: Optional[int] = Query(None, description="Filter by subject"),
+    department_id: Optional[int] = Query(None, description="Filter by department"),
+    months: int = Query(6, description="Number of months to analyze"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get performance trends over time
+    
+    Returns:
+    - Monthly performance averages
+    - Trend direction (improving/declining/stable)
+    - Overall statistics
+    """
+    try:
+        result = analytics_service.get_performance_trends(
+            student_id=student_id,
+            subject_id=subject_id,
+            department_id=department_id,
+            months=months
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error calculating performance trends: {str(e)}"
+        )
+
+
+@router.get("/department-comparison")
+async def get_department_comparison(
+    academic_year_id: Optional[int] = Query(None, description="Filter by academic year"),
+    semester_id: Optional[int] = Query(None, description="Filter by semester"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Compare performance across departments
+    
+    Returns:
+    - Department-wise statistics
+    - Student/teacher/subject counts
+    - Average performance
+    - Pass rates
+    - Rankings
+    """
+    # Only admins and principals can see department comparisons
+    if not any(role in [UserRole.ADMIN, UserRole.PRINCIPAL] for role in current_user.roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to view department comparisons"
+        )
+    
+    try:
+        result = analytics_service.get_department_comparison(
+            academic_year_id=academic_year_id,
+            semester_id=semester_id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error comparing departments: {str(e)}"
+        )
+
+
+@router.get("/student-performance/{student_id}")
+async def get_student_performance_enhanced(
+    student_id: int,
+    academic_year_id: Optional[int] = Query(None, description="Filter by academic year"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Comprehensive performance analytics for a student
+    
+    Returns:
+    - Subject-wise performance
+    - Overall statistics
+    - Strengths and weaknesses
+    - Pass/fail status
+    """
+    try:
+        result = await analytics_service.get_student_performance_analytics(
+            student_id=student_id,
+            academic_year_id=academic_year_id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching student performance: {str(e)}"
+        )
+
+
+@router.get("/subject-analytics/{subject_id}")
+async def get_subject_analytics_enhanced(
+    subject_id: int,
+    semester_id: Optional[int] = Query(None, description="Filter by semester"),
+    batch_instance_id: Optional[int] = Query(None, description="Filter by batch instance"),
+    include_bloom_analysis: bool = Query(False, description="Include Bloom's taxonomy analysis"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get subject-level analytics (Enhanced)
+    """
+    try:
+        result = analytics_service.get_subject_analytics_enhanced(
+            subject_id=subject_id,
+            semester_id=semester_id,
+            batch_instance_id=batch_instance_id,
+            include_bloom_analysis=include_bloom_analysis
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching subject analytics: {str(e)}"
+        )
+
+
+@router.get("/class-performance/{batch_instance_id}")
+async def get_class_performance_analytics(
+    batch_instance_id: int,
+    semester_id: Optional[int] = Query(None, description="Filter by semester"),
+    subject_id: Optional[int] = Query(None, description="Filter by subject"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get class/batch instance performance analytics
+    """
+    try:
+        result = analytics_service.get_class_performance_analytics(
+            batch_instance_id=batch_instance_id,
+            semester_id=semester_id,
+            subject_id=subject_id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching class performance: {str(e)}"
+        )
+
+
+@router.get("/teacher-performance/{teacher_id}")
+async def get_teacher_performance_enhanced(
+    teacher_id: int,
+    academic_year_id: Optional[int] = Query(None, description="Filter by academic year"),
+    semester_id: Optional[int] = Query(None, description="Filter by semester"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Analytics for teacher performance
+    
+    Returns:
+    - Students taught
+    - Subjects handled
+    - Average student performance
+    - Marks submission status
+    """
+    try:
+        result = await analytics_service.get_teacher_performance_analytics(
+            teacher_id=teacher_id,
+            academic_year_id=academic_year_id,
+            semester_id=semester_id
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching teacher performance: {str(e)}"
+        )
+
+
+@router.get("/department-analytics/{department_id}")
+async def get_department_analytics_enhanced(
+    department_id: int,
+    academic_year_id: Optional[int] = Query(None, description="Filter by academic year"),
+    include_po_attainment: bool = Query(False, description="Include PO attainment"),
+    include_trends: bool = Query(False, description="Include performance trends"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get department-level analytics (Enhanced)
+    """
+    try:
+        result = analytics_service.get_department_analytics_enhanced(
+            department_id=department_id,
+            academic_year_id=academic_year_id,
+            include_po_attainment=include_po_attainment,
+            include_trends=include_trends
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching department analytics: {str(e)}"
+        )
+
+
+@router.get("/nba/{department_id}")
+async def get_nba_accreditation_data(
+    department_id: int,
+    academic_year_id: int = Query(..., description="Academic year ID"),
+    include_indirect_attainment: bool = Query(False, description="Include indirect attainment"),
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get NBA accreditation report data
+    """
+    try:
+        result = analytics_service.get_nba_accreditation_data(
+            department_id=department_id,
+            academic_year_id=academic_year_id,
+            include_indirect_attainment=include_indirect_attainment
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching NBA accreditation data: {str(e)}"
+        )

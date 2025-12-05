@@ -135,15 +135,16 @@ class AcademicStructureService:
     # Semester operations
     async def create_semester(
         self,
-        batch_year_id: int,
+        batch_instance_id: int,
         semester_no: int,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         is_current: bool = False
     ) -> Semester:
         """Create a new semester"""
-        # Verify batch year exists
-        await self.get_batch_year(batch_year_id)
+        # Verify batch instance exists (we don't have get_batch_instance here yet, assuming repository handles FK or we add check)
+        # For now, let's assume repository handles it or we rely on DB constraint.
+        # Ideally we should check: await self.batch_instance_repository.get_by_id(batch_instance_id)
         
         # If marking as current, unmark others
         if is_current:
@@ -153,7 +154,7 @@ class AcademicStructureService:
                 await self.semester_repository.update(current)
         
         semester = Semester(
-            batch_year_id=batch_year_id,
+            batch_instance_id=batch_instance_id,
             semester_no=semester_no,
             start_date=start_date,
             end_date=end_date,

@@ -4,13 +4,13 @@ Handles year-level progression, promotion, and detention
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from pydantic import BaseModel, Field
 from datetime import date
 
 from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
-from src.api.v1.dependencies import get_current_user
+from src.api.v1.auth import get_current_user
 from src.domain.entities.user import User as UserEntity
 from src.application.services.student_progression_service import (
     StudentProgressionService,
@@ -129,7 +129,7 @@ async def promote_student(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/students/{student_id}/eligibility", response_model=Eligibility Response)
+@router.get("/students/{student_id}/eligibility", response_model=EligibilityResponse)
 async def check_promotion_eligibility(
     student_id: int,
     cgpa: Optional[float] = Query(None),
@@ -270,7 +270,7 @@ async def get_progression_history(
 
 @router.get("/year/{year_level}/statistics", response_model=YearStatisticsResponse)
 async def get_year_statistics(
-    year_level: int = Query(..., ge=1, le=4),
+    year_level: int = Path(..., ge=1, le=4),
     department_id: Optional[int] = Query(None),
     academic_year_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),

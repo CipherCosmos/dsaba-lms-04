@@ -147,6 +147,7 @@ async def list_enrollments(
     semester_id: Optional[int] = Query(None, gt=0),
     academic_year_id: Optional[int] = Query(None, gt=0),
     service: StudentEnrollmentService = Depends(get_student_enrollment_service),
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -180,22 +181,18 @@ async def list_enrollments(
 
     # Get total count for pagination
     from src.infrastructure.database.models import StudentEnrollmentModel
-    from src.infrastructure.database.session import get_db
-    db = next(get_db())
-    try:
-        count_query = db.query(StudentEnrollmentModel)
-        if student_id:
-            count_query = count_query.filter(StudentEnrollmentModel.student_id == student_id)
-        if semester_id:
-            count_query = count_query.filter(StudentEnrollmentModel.semester_id == semester_id)
-        if academic_year_id:
-            count_query = count_query.filter(StudentEnrollmentModel.academic_year_id == academic_year_id)
-        total = count_query.count()
-    finally:
-        db.close()
+    
+    count_query = db.query(StudentEnrollmentModel)
+    if student_id:
+        count_query = count_query.filter(StudentEnrollmentModel.student_id == student_id)
+    if semester_id:
+        count_query = count_query.filter(StudentEnrollmentModel.semester_id == semester_id)
+    if academic_year_id:
+        count_query = count_query.filter(StudentEnrollmentModel.academic_year_id == academic_year_id)
+    total = count_query.count()
     
     return StudentEnrollmentListResponse(
-        items=[StudentEnrollmentResponse(**e.to_dict()) for e in paginated],
+        items=[StudentEnrollmentResponse(**e.to_dict()) for e in enrollments],
         total=total,
         skip=skip,
         limit=limit

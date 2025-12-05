@@ -39,12 +39,13 @@ import type { ValidationErrorDetail } from '../core/types'
 import type { FormattedValidationError } from '../core/types'
 
 const apiClient = axios.create({
-  baseURL: `${API_CONFIG.BASE_URL}/api/v1`,
+  baseURL: '/api/v1',
   timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },
 })
+console.log('API Base URL:', apiClient.defaults.baseURL)
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -357,14 +358,14 @@ const forceFreshRequest = (url: string, config: Record<string, unknown> = {}) =>
   return apiClient.get(url, {
     ...config,
     params: {
-      ...config.params,
+      ...(config.params || {}),
       _t: timestamp,
       _r: randomId,
       _cache: 'no-cache',
       _fresh: 'true'
     },
     headers: {
-      ...config.headers,
+      ...(config.headers || {}),
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
@@ -390,7 +391,7 @@ export const examAPI = {
         await axios.get(`${API_CONFIG.BASE_URL}/cache/clear`)
         logger.debug('Server cache cleared')
       } catch (error) {
-        logger.warn('Cache clear failed, continuing', error)
+        logger.warn('Cache clear failed, continuing', error as Error)
       }
 
       // Use force fresh request to completely bypass cache
@@ -520,7 +521,7 @@ export const marksAPI = {
   calculateStudentTotal: async (studentId: number, examId: number, questionMaxMarks: Record<number, number>, optionalQuestions?: number[]) => {
     // Backend expects question_max_marks as body and optional_questions as query param
     const params: QueryParams = {}
-    if (optionalQuestions) params.optional_questions = optionalQuestions
+    if (optionalQuestions) (params as any).optional_questions = optionalQuestions.join(',')
     const response = await apiClient.post(`/marks/student/${studentId}/exam/${examId}/calculate`, questionMaxMarks, {
       params
     })
@@ -629,7 +630,7 @@ export const analyticsAPI = {
     return response.data
   },
   getReportTemplates: async (): Promise<unknown> => {
-    const response = await apiClient.get('/reports/templates')
+    const response = await apiClient.get('/reports/types')  // Fixed: backend has /reports/types not /reports/templates
     return response.data
   },
 
@@ -643,7 +644,7 @@ export const analyticsAPI = {
     if (departmentId) params.department_id = departmentId
     if (semesterId) params.semester_id = semesterId
     if (examId) params.exam_id = examId
-    const response = await apiClient.get('/enhanced-analytics/blooms-taxonomy', {
+    const response = await apiClient.get('/analytics/blooms-taxonomy', {
       params
     })
     return response.data
@@ -659,7 +660,7 @@ export const analyticsAPI = {
     if (subjectId) params.subject_id = subjectId
     if (departmentId) params.department_id = departmentId
     if (months) params.months = months
-    const response = await apiClient.get('/enhanced-analytics/performance-trends', {
+    const response = await apiClient.get('/analytics/performance-trends', {
       params
     })
     return response.data
@@ -673,7 +674,7 @@ export const analyticsAPI = {
     const params: QueryParams = {}
     if (academicYearId) params.academic_year_id = academicYearId
     if (semesterId) params.semester_id = semesterId
-    const response = await apiClient.get('/enhanced-analytics/department-comparison', {
+    const response = await apiClient.get('/analytics/department-comparison', {
       params
     })
     return response.data
@@ -686,7 +687,7 @@ export const analyticsAPI = {
   getStudentPerformanceAnalytics: async (studentId: number, academicYearId?: number): Promise<StudentPerformanceAnalytics> => {
     const params: QueryParams = {}
     if (academicYearId) params.academic_year_id = academicYearId
-    const response = await apiClient.get(`/enhanced-analytics/student/${studentId}/performance`, {
+    const response = await apiClient.get(`/analytics/student-performance/${studentId}`, {
       params
     })
     return response.data
@@ -700,7 +701,7 @@ export const analyticsAPI = {
     const params: QueryParams = {}
     if (academicYearId) params.academic_year_id = academicYearId
     if (semesterId) params.semester_id = semesterId
-    const response = await apiClient.get(`/enhanced-analytics/teacher/${teacherId}/performance`, {
+    const response = await apiClient.get(`/analytics/teacher-performance/${teacherId}`, {
       params
     })
     return response.data
@@ -713,7 +714,7 @@ export const analyticsAPI = {
     const params: QueryParams = {}
     if (semesterId) params.semester_id = semesterId
     if (subjectId) params.subject_id = subjectId
-    const response = await apiClient.get(`/enhanced-analytics/class/${batchInstanceId}/performance`, {
+    const response = await apiClient.get(`/analytics/class-performance/${batchInstanceId}`, {
       params
     })
     return response.data
@@ -728,7 +729,7 @@ export const analyticsAPI = {
     if (semesterId) params.semester_id = semesterId
     if (batchInstanceId) params.batch_instance_id = batchInstanceId
     if (includeBloomAnalysis) params.include_bloom_analysis = includeBloomAnalysis
-    const response = await apiClient.get(`/enhanced-analytics/subject/${subjectId}`, {
+    const response = await apiClient.get(`/analytics/subject-analytics/${subjectId}`, {
       params
     })
     return response.data
@@ -743,7 +744,7 @@ export const analyticsAPI = {
     if (academicYearId) params.academic_year_id = academicYearId
     if (includePOAttainment) params.include_po_attainment = includePOAttainment
     if (includeTrends) params.include_trends = includeTrends
-    const response = await apiClient.get(`/enhanced-analytics/department/${departmentId}`, {
+    const response = await apiClient.get(`/analytics/department-analytics/${departmentId}`, {
       params
     })
     return response.data
@@ -758,7 +759,7 @@ export const analyticsAPI = {
       academic_year_id: academicYearId
     }
     if (includeIndirectAttainment) params.include_indirect_attainment = includeIndirectAttainment
-    const response = await apiClient.get(`/enhanced-analytics/nba/${departmentId}`, {
+    const response = await apiClient.get(`/analytics/nba/${departmentId}`, {
       params
     })
     return response.data
@@ -813,6 +814,30 @@ export const analyticsAPI = {
       )
     )
     return mappings
+  },
+
+  /**
+   * Get institution-wide analytics
+   */
+  getInstitutionAnalytics: async (academicYearId?: number): Promise<unknown> => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get('/analytics/institution', { params })
+    return response.data
+  },
+
+  /**
+   * Export analytics data in various formats
+   */
+  exportAnalytics: async (type: string, filters: Record<string, any>, format: 'csv' | 'excel' | 'pdf' = 'excel'): Promise<Blob> => {
+    const response = await apiClient.post('/analytics/export', {
+      type,
+      filters,
+      format
+    }, {
+      responseType: 'blob'
+    })
+    return response.data
   },
 }
 
@@ -2104,7 +2129,52 @@ export const teacherAnalyticsAPI = {
       params: { threshold }
     })
     return response.data
+  },
+  getComponentAnalysis: async (subjectAssignmentId: number) => {
+    const response = await apiClient.get(`/teacher-analytics/component-analysis/${subjectAssignmentId}`)
+    return response.data
+  },
+  getStudentDetail: async (studentId: number, subjectAssignmentId: number) => {
+    const response = await apiClient.get(`/teacher-analytics/student-detail/${studentId}/${subjectAssignmentId}`)
+    return response.data
+  },
+  getTeachingStats: async (teacherId: number) => {
+    const response = await apiClient.get(`/teacher-analytics/teaching-stats/${teacherId}`)
+    return response.data
   }
+}
+
+
+// HOD Analytics API
+export const hodAnalyticsAPI = {
+  getDepartmentDashboard: async (departmentId: number, academicYearId?: number) => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get(`/hod-analytics/dashboard/${departmentId}`, { params })
+    return response.data
+  },
+  getBatchComparison: async (departmentId: number, academicYearId?: number) => {
+    const params: QueryParams = {}
+    if (academicYearId) params.academic_year_id = academicYearId
+    const response = await apiClient.get(`/hod-analytics/batch-comparison/${departmentId}`, { params })
+    return response.data
+  },
+  getFacultyPerformance: async (departmentId: number) => {
+    const response = await apiClient.get(`/hod-analytics/faculty-performance/${departmentId}`)
+    return response.data
+  },
+  getTopSubjects: async (departmentId: number, limit: number = 10) => {
+    const response = await apiClient.get(`/hod-analytics/top-subjects/${departmentId}`, {
+      params: { limit }
+    })
+    return response.data
+  },
+  getWeakAreas: async (departmentId: number, threshold: number = 50.0) => {
+    const response = await apiClient.get(`/hod-analytics/weak-areas/${departmentId}`, {
+      params: { threshold }
+    })
+    return response.data
+  },
 }
 
 export default apiClient

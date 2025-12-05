@@ -113,7 +113,8 @@ class SemesterUpdateDatesRequest(BaseModel):
 class SemesterResponse(BaseModel):
     """Semester response DTO"""
     id: int
-    batch_year_id: int
+    batch_year_id: Optional[int] = None
+    batch_instance_id: Optional[int] = None
     semester_no: int
     display_name: str
     is_current: bool

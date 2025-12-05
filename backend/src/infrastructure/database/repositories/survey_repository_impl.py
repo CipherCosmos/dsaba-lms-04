@@ -284,8 +284,8 @@ class SurveyRepositoryImpl(SurveyRepository):
             # a separate alumni table or more sophisticated logic
             expected_count = self.session.query(func.count(StudentModel.id)).filter(
                 StudentModel.department_id == survey.department_id,
-                StudentModel.academic_year_id < survey.academic_year_id,
-                StudentModel.status == "graduated"
+                StudentModel.academic_year_id < survey.academic_year_id
+                # StudentModel.status field does not exist, relying on academic year for now
             ).scalar() or 0
             
         elif survey.target_audience == "employers":

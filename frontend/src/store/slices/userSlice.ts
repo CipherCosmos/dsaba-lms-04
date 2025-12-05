@@ -44,7 +44,12 @@ export const fetchUsers = createAsyncThunk('users/fetchUsers', async (filters?: 
 export const createUser = createAsyncThunk(
   'users/createUser',
   async (user: Omit<User, 'id' | 'created_at'> & { password: string }) => {
-    const response = await userAPI.create(user)
+    // Transform roles array to backend format
+    const backendUser = {
+      ...user,
+      roles: user.roles.map(role => ({ role, department_id: user.department_ids[0] }))
+    }
+    const response = await userAPI.create(backendUser as any)
     return response
   }
 )
@@ -88,13 +93,13 @@ const userSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch users'
       })
       .addCase(createUser.fulfilled, (state, action) => {
-        state.users.push(mapUserResponse(action.payload))
+        state.users.push(mapUserResponse(action.payload) as any)
       })
       .addCase(updateUser.fulfilled, (state, action) => {
         const index = state.users.findIndex(u => u.id === action.payload.id)
         const mappedUser = mapUserResponse(action.payload)
         if (index !== -1) {
-          state.users[index] = mappedUser
+          state.users[index] = mappedUser as any
         }
       })
       .addCase(deleteUser.fulfilled, (state, action) => {

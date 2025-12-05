@@ -147,8 +147,11 @@ class ExitExamRepositoryImpl(ExitExamRepository):
         pass_rate = exam.calculate_pass_rate() if results else 0.0
         average_score = exam.calculate_average_score() if results else 0.0
 
+        exam_data = exam.dict()
+        exam_data.pop("results", None)
+
         return ExitExamWithResults(
-            **exam.dict(),
+            **exam_data,
             total_students=total_students,
             pass_rate=pass_rate,
             average_score=average_score,

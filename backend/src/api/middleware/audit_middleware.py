@@ -49,8 +49,13 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             # Log the response
             processing_time = time.time() - start_time
+            
+            response_body = b""
+            if hasattr(response, "body"):
+                response_body = response.body
+                
             await self._log_response(
-                request, response.status_code, response.body, processing_time, user, db
+                request, response.status_code, response_body, processing_time, user, db
             )
 
             return response

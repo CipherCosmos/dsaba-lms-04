@@ -56,7 +56,7 @@ async def get_subject_assignment(
             id=assignment.id,
             subject_id=assignment.subject_id,
             teacher_id=assignment.teacher_id,
-            class_id=assignment.class_id,
+            class_id=None,
             semester_id=assignment.semester_id,
             academic_year=assignment.academic_year,
             created_at=assignment.created_at
@@ -133,7 +133,7 @@ async def list_subject_assignments(
                     id=assignment.id,
                     subject_id=assignment.subject_id,
                     teacher_id=assignment.teacher_id,
-                    class_id=assignment.class_id,
+                    class_id=None,
                     semester_id=assignment.semester_id,
                     academic_year=assignment.academic_year,
                     created_at=assignment.created_at
@@ -175,50 +175,38 @@ async def create_subject_assignment(
             detail=f"Semester with ID {request.semester_id} not found"
         )
     
-    # Get academic year ID - prefer from request, fallback to semester's academic year
-    academic_year_id = None
-    academic_year_value = request.academic_year if request.academic_year else None
+    # Get academic year ID from request
+    academic_year_id = request.academic_year_id
+    academic_year_value = None
     
-    if request.academic_year:
-        # Try to find academic year by start_year
-        academic_year = db.query(AcademicYearModel).filter(
-            AcademicYearModel.start_year == request.academic_year
-        ).first()
-        if academic_year:
-            academic_year_id = academic_year.id
-            academic_year_value = request.academic_year
-        else:
-            # If not found by year, try to get current academic year
-            current_ay = db.query(AcademicYearModel).filter(
-                AcademicYearModel.is_current == True
-            ).first()
-            if current_ay:
-                academic_year_id = current_ay.id
-                academic_year_value = current_ay.start_year
+    # Fetch academic year value
+    academic_year_obj = db.query(AcademicYearModel).filter(
+        AcademicYearModel.id == academic_year_id
+    ).first()
     
-    # If still no academic year ID, try to get from semester
-    if not academic_year_id and semester.academic_year_id:
-        academic_year_id = semester.academic_year_id
-        academic_year_obj = db.query(AcademicYearModel).filter(
-            AcademicYearModel.id == academic_year_id
-        ).first()
-        if academic_year_obj:
-            academic_year_value = academic_year_obj.start_year
-    
-    # If still no academic year, try to get current academic year
-    if not academic_year_id:
-        current_ay = db.query(AcademicYearModel).filter(
-            AcademicYearModel.is_current == True
-        ).first()
-        if current_ay:
-            academic_year_id = current_ay.id
-            academic_year_value = current_ay.start_year
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Academic year is required. Please create an academic year first or ensure semester has an academic year assigned."
-            )
-    
+    if academic_year_obj:
+        academic_year_value = academic_year_obj.start_year
+    else:
+        # Fallback to semester's academic year if provided ID is invalid (though DTO validation ensures it's > 0)
+        # Or raise error. Let's try to find it via semester.
+        if semester.academic_year_id:
+             academic_year_id = semester.academic_year_id
+             ay = db.query(AcademicYearModel).filter(AcademicYearModel.id == academic_year_id).first()
+             if ay:
+                 academic_year_value = ay.start_year
+        
+        if not academic_year_value:
+             # Fallback to current
+             current_ay = db.query(AcademicYearModel).filter(AcademicYearModel.is_current == True).first()
+             if current_ay:
+                 academic_year_id = current_ay.id
+                 academic_year_value = current_ay.start_year
+             else:
+                 raise HTTPException(
+                     status_code=status.HTTP_400_BAD_REQUEST,
+                     detail="Invalid Academic Year ID and no active academic year found."
+                 )
+
     # Check if assignment already exists (unique constraint: subject + semester + teacher)
     # Note: class_id is optional, so we don't include it in the uniqueness check
     existing = db.query(SubjectAssignmentModel).filter(
@@ -267,7 +255,6 @@ async def create_subject_assignment(
         assignment = SubjectAssignmentModel(
             subject_id=request.subject_id,
             teacher_id=request.teacher_id,
-            class_id=request.class_id,  # Optional - can be None
             semester_id=request.semester_id,
             academic_year=academic_year_value,
             academic_year_id=academic_year_id
@@ -281,7 +268,7 @@ async def create_subject_assignment(
             id=assignment.id,
             subject_id=assignment.subject_id,
             teacher_id=assignment.teacher_id,
-            class_id=assignment.class_id,
+            class_id=None,
             semester_id=assignment.semester_id,
             academic_year=assignment.academic_year,
             created_at=assignment.created_at
@@ -335,7 +322,7 @@ async def get_subject_assignment_by_exam(
             id=assignment.id,
             subject_id=assignment.subject_id,
             teacher_id=assignment.teacher_id,
-            class_id=assignment.class_id,
+            class_id=None,
             semester_id=assignment.semester_id,
             academic_year=assignment.academic_year,
             created_at=assignment.created_at

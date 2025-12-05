@@ -1,11 +1,11 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
-import { 
-  coAPI, 
-  poAPI, 
-  coTargetAPI, 
-  assessmentWeightAPI, 
-  coPoMatrixAPI, 
-  questionCoWeightAPI, 
+import {
+  coAPI,
+  poAPI,
+  coTargetAPI,
+  assessmentWeightAPI,
+  coPoMatrixAPI,
+  questionCoWeightAPI,
   indirectAttainmentAPI,
   attainmentAuditAPI,
   attainmentAnalyticsAPI
@@ -284,7 +284,7 @@ export const fetchCODefinitions = createAsyncThunk(
 export const createCODefinition = createAsyncThunk(
   'copo/createCODefinition',
   async ({ subjectId, coData }: { subjectId: number; coData: Partial<CODefinition> }) => {
-    const response = await coAPI.create({ ...coData, subject_id: subjectId })
+    const response = await coAPI.create({ ...coData, subject_id: subjectId } as any)
     return response
   }
 )
@@ -317,7 +317,7 @@ export const fetchPODefinitions = createAsyncThunk(
 export const createPODefinition = createAsyncThunk(
   'copo/createPODefinition',
   async ({ departmentId, poData }: { departmentId: number; poData: Partial<PODefinition> }) => {
-    const response = await poAPI.create({ ...poData, department_id: departmentId })
+    const response = await poAPI.create({ ...poData, department_id: departmentId } as any)
     return response
   }
 )
@@ -366,7 +366,7 @@ export const fetchAssessmentWeights = createAsyncThunk(
 export const bulkUpdateAssessmentWeights = createAsyncThunk(
   'copo/bulkUpdateAssessmentWeights',
   async ({ subjectId, assessmentWeights }: { subjectId: number; assessmentWeights: Partial<AssessmentWeight>[] }) => {
-    const response = await assessmentWeightAPI.bulkUpdate(subjectId, assessmentWeights)
+    const response = await assessmentWeightAPI.bulkUpdate(subjectId, assessmentWeights as any)
     return response
   }
 )
@@ -382,7 +382,7 @@ export const fetchCOPOMatrix = createAsyncThunk(
 export const bulkUpdateCOPOMatrix = createAsyncThunk(
   'copo/bulkUpdateCOPOMatrix',
   async ({ subjectId, coPoMatrix }: { subjectId: number; coPoMatrix: Partial<COPOMatrix>[] }) => {
-    const response = await coPoMatrixAPI.bulkUpdate(subjectId, coPoMatrix)
+    const response = await coPoMatrixAPI.bulkUpdate(subjectId, coPoMatrix as any)
     return response
   }
 )
@@ -398,7 +398,7 @@ export const fetchQuestionCOWeights = createAsyncThunk(
 export const bulkUpdateQuestionCOWeights = createAsyncThunk(
   'copo/bulkUpdateQuestionCOWeights',
   async ({ questionId, coWeights }: { questionId: number; coWeights: Partial<QuestionCOWeight>[] }) => {
-    const response = await questionCoWeightAPI.bulkUpdate(questionId, coWeights)
+    const response = await questionCoWeightAPI.bulkUpdate(questionId, coWeights as any)
     return response
   }
 )
@@ -446,7 +446,7 @@ export const fetchAttainmentAudit = createAsyncThunk(
 export const fetchSubjectAttainment = createAsyncThunk(
   'copo/fetchSubjectAttainment',
   async ({ subjectId, examType }: { subjectId: number; examType?: string }) => {
-    const response = await attainmentAnalyticsAPI.getSubjectAttainment(subjectId, examType)
+    const response = await (attainmentAnalyticsAPI as any).getSubjectAttainment(subjectId, examType)
     return response
   }
 )

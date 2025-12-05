@@ -18,7 +18,6 @@ from src.api.v1 import (
     final_marks,
     internal_marks,
     analytics,
-    enhanced_analytics,
     reports,
     pdf_generation,
     academic_years,
@@ -31,7 +30,9 @@ from src.api.v1 import (
     smart_marks,
     bulk_uploads,
     audit,
-    monitoring
+    monitoring,
+    teachers,
+    indirect_attainment
 )
 
 # Create main API router
@@ -40,6 +41,7 @@ router = APIRouter(prefix="/api/v1")
 # Include all sub-routers
 router.include_router(auth.router)
 router.include_router(users.router)
+router.include_router(teachers.router)
 router.include_router(departments.router)
 router.include_router(subjects.router)
 router.include_router(academic_structure.router)
@@ -53,7 +55,6 @@ router.include_router(students.router)
 router.include_router(final_marks.router)
 router.include_router(internal_marks.router)
 router.include_router(analytics.router)
-router.include_router(enhanced_analytics.router)
 router.include_router(reports.router)
 router.include_router(pdf_generation.router)
 router.include_router(academic_years.router)
@@ -67,3 +68,4 @@ router.include_router(smart_marks.router)
 router.include_router(bulk_uploads.router)
 router.include_router(audit.router)
 router.include_router(monitoring.router)
+router.include_router(indirect_attainment.router)

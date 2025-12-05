@@ -1,14 +1,21 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { RootState } from '../../store/store'
-import { batchAd missionAPI, departmentAPI, batchesAPI, academicYearAPI } from '../../services/api'
+import { batchAdmissionAPI, departmentAPI, batchesAPI, academicYearAPI, batchInstanceAPI } from '../../services/api'
 import toast from 'react-hot-toast'
-import { Upload, Users, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react'
+import { Upload, Users, FileText, CheckCircle, AlertCircle, Download, Loader } from 'lucide-react'
 
 const BatchAdmissionDashboard: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth)
   const [activeTab, setActiveTab] = useState<'create' | 'upload'>('create')
   
+  // Data state
+  const [departments, setDepartments] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [academicYears, setAcademicYears] = useState<any[]>([])
+  const [batchInstances, setBatchInstances] = useState<any[]>([])
+  const [initialLoading, setInitialLoading] = useState(true)
+
   // Form state
   const [formData, setFormData] = useState({
     department_id: '',
@@ -25,6 +32,32 @@ const BatchAdmissionDashboard: React.FC = () => {
   const [admissionResult, setAdmissionResult] = useState<any>(null)
   
   const [loading, setLoading] = useState(false)
+
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [deptRes, progRes, yearRes, batchRes] = await Promise.all([
+          departmentAPI.getAll(0, 100, { is_active: true }),
+          batchesAPI.getAll(0, 100, true),
+          academicYearAPI.getAll(0, 100, { status: 'active' }),
+          batchInstanceAPI.getAll(0, 100, { is_active: true })
+        ])
+
+        setDepartments(deptRes.items || [])
+        setPrograms(progRes.items || [])
+        setAcademicYears(yearRes.items || [])
+        setBatchInstances(batchRes.items || [])
+      } catch (error) {
+        console.error('Failed to fetch form data:', error)
+        toast.error('Failed to load form data. Please refresh.')
+      } finally {
+        setInitialLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
   
   const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +74,10 @@ const BatchAdmissionDashboard: React.FC = () => {
       
       toast.success(`Batch created successfully! ${formData.num_sections} section(s) initialized.`)
       
+      // Refresh batch instances
+      const batchRes = await batchInstanceAPI.getAll(0, 100, { is_active: true })
+      setBatchInstances(batchRes.items || [])
+
       // Reset form
       setFormData({
         department_id: '',
@@ -113,6 +150,14 @@ const BatchAdmissionDashboard: React.FC = () => {
       toast.error('Failed to download template')
     }
   }
+
+  if (initialLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <Loader className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
   
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -170,9 +215,11 @@ const BatchAdmissionDashboard: React.FC = () => {
                   required
                 >
                   <option value="">Select Department</option>
-                  {/* These would be loaded from API */}
-                  <option value="1">Computer Science & Engineering</option>
-                  <option value="2">Electronics & Communication</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name} ({dept.code})
+                    </option>
+                  ))}
                 </select>
               </div>
               
@@ -187,8 +234,11 @@ const BatchAdmissionDashboard: React.FC = () => {
                   required
                 >
                   <option value="">Select Program</option>
-                  <option value="1">B.Tech (4 Years)</option>
-                  <option value="2">M.Tech (2 Years)</option>
+                  {programs.map(prog => (
+                    <option key={prog.id} value={prog.id}>
+                      {prog.batch_name} ({prog.duration_years} Years)
+                    </option>
+                  ))}
                 </select>
               </div>
               
@@ -203,8 +253,11 @@ const BatchAdmissionDashboard: React.FC = () => {
                   required
                 >
                   <option value="">Select Academic Year</option>
-                  <option value="1">2024-2025</option>
-                  <option value="2">2025-2026</option>
+                  {academicYears.map(year => (
+                    <option key={year.id} value={year.id}>
+                      {year.name} ({year.start_year}-{year.end_year})
+                    </option>
+                  ))}
                 </select>
               </div>
               
@@ -291,9 +344,16 @@ const BatchAdmissionDashboard: React.FC = () => {
                   required
                 >
                   <option value="">Select Batch</option>
-                  {/* These would be loaded from API */}
-                  <option value="1">CSE - 2024 Admission (Year 1)</option>
-                  <option value="2">ECE - 2024 Admission (Year 1)</option>
+                  {batchInstances.map(batch => {
+                     // Find department and program names for better display
+                     const dept = departments.find(d => d.id === batch.department_id)
+                     const prog = programs.find(p => p.id === batch.batch_id)
+                     return (
+                       <option key={batch.id} value={batch.id}>
+                         {dept?.code || batch.department_id} - {prog?.batch_name || batch.batch_id} ({batch.admission_year})
+                       </option>
+                     )
+                  })}
                 </select>
               </div>
               

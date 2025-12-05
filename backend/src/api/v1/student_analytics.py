@@ -9,9 +9,9 @@ from pydantic import BaseModel
 
 from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
-from src.api.v1.dependencies import get_current_user
+from src.api.v1.auth import get_current_user
 from src.domain.entities.user import User as UserEntity
-from src.application.services.enhanced_student_analytics_service import EnhancedStudentAnalyticsService
+from src.application.services.analytics import StudentAnalyticsService
 from src.domain.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/student-analytics", tags=["Student Analytics"])
@@ -44,7 +44,10 @@ async def get_student_dashboard(
     # Access control
     if current_user.role == "student":
         # Students can only view their own data
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only view your own analytics"
@@ -56,7 +59,7 @@ async def get_student_dashboard(
         )
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         dashboard = await service.get_student_dashboard(student_id, semester_id)
         return dashboard
     
@@ -78,11 +81,14 @@ async def get_performance_overview(
     """
     # Access control (same as dashboard)
     if current_user.role == "student":
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         overview = await service.get_performance_overview(student_id, semester_id)
         return overview
     
@@ -103,11 +109,14 @@ async def get_component_breakdown(
     **Returns**: Performance by assessment type (IA1, IA2, Quiz, Assignment, etc.)
     """
     if current_user.role == "student":
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         breakdown = await service.get_component_wise_breakdown(student_id, semester_id)
         return breakdown
     
@@ -128,11 +137,14 @@ async def get_subject_performance(
     **Returns**: List of subjects with marks, percentage, components
     """
     if current_user.role == "student":
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         subjects = await service.get_subject_wise_performance(student_id, semester_id)
         return {"subjects": subjects}
     
@@ -153,11 +165,14 @@ async def get_performance_trends(
     **Returns**: Semester-wise performance with trend analysis
     """
     if current_user.role == "student":
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         trends = await service.get_performance_trends(student_id, num_semesters)
         return trends
     
@@ -178,11 +193,14 @@ async def get_student_insights(
     **Returns**: Identified strengths, weaknesses, and actionable suggestions
     """
     if current_user.role == "student":
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         insights = await service.identify_strengths_weaknesses(student_id, semester_id)
         return insights
     
@@ -203,11 +221,14 @@ async def get_co_attainment(
     **Returns**: CO-wise attainment data
     """
     if current_user.role == "student":
-        if current_user.student_profile and current_user.student_profile.id != student_id:
+        from src.infrastructure.database.models import StudentModel
+        student_profile = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        
+        if not student_profile or student_profile.id != student_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedStudentAnalyticsService(db)
+        service = StudentAnalyticsService(db)
         co_status = await service.get_co_attainment_status(student_id, semester_id)
         return co_status
     

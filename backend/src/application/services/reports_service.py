@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from src.domain.exceptions import EntityNotFoundError, ValidationError
-from src.application.services.analytics_service import AnalyticsService
+from src.application.services.analytics.analytics_service import AnalyticsService
 from src.infrastructure.cache.redis_client import CacheService
 from src.shared.constants import CACHE_KEYS
 

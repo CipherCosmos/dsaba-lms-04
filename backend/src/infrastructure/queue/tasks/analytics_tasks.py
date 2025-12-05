@@ -31,7 +31,7 @@ def calculate_nightly_analytics() -> Dict[str, Any]:
         departments = db.query(DepartmentModel).all()
         
         # Import analytics service and repositories
-        from src.application.services.analytics_service import AnalyticsService
+        from src.application.services.analytics.analytics_service import AnalyticsService
         from src.application.services.co_po_attainment_service import COPOAttainmentService
         from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
         from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
@@ -165,7 +165,7 @@ def cache_warming_task(self) -> Dict[str, Any]:
         departments = db.query(DepartmentModel).all()
 
         # Initialize services
-        from src.application.services.analytics_service import AnalyticsService
+        from src.application.services.analytics.analytics_service import AnalyticsService
         from src.application.services.co_po_attainment_service import COPOAttainmentService
         from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
         from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository

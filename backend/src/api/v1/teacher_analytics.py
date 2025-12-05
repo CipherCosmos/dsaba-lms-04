@@ -9,9 +9,9 @@ from pydantic import BaseModel
 
 from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
-from src.api.v1.dependencies import get_current_user
+from src.api.v1.auth import get_current_user
 from src.domain.entities.user import User as UserEntity
-from src.application.services.enhanced_teacher_analytics_service import EnhancedTeacherAnalyticsService
+from src.application.services.analytics import TeacherAnalyticsService
 from src.domain.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/teacher-analytics", tags=["Teacher Analytics"])
@@ -40,7 +40,10 @@ async def get_teacher_dashboard(
     """
     # Access control
     if current_user.role == "teacher":
-        if current_user.teacher_profile and current_user.teacher_profile.id != teacher_id:
+        from src.infrastructure.database.models import TeacherModel
+        teacher_profile = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+        
+        if not teacher_profile or teacher_profile.id != teacher_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only view your own analytics"
@@ -52,7 +55,7 @@ async def get_teacher_dashboard(
         )
     
     try:
-        service = EnhancedTeacherAnalyticsService(db)
+        service = TeacherAnalyticsService(db)
         dashboard = await service.get_teacher_dashboard(teacher_id, subject_assignment_id)
         return dashboard
     
@@ -86,7 +89,10 @@ async def get_class_performance(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject assignment not found")
         
         if current_user.role == "teacher":
-            if not current_user.teacher_profile or current_user.teacher_profile.id != assignment.teacher_id:
+            from src.infrastructure.database.models import TeacherModel
+            teacher_profile = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+            
+            if not teacher_profile or teacher_profile.id != assignment.teacher_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You can only view your own class performance"
@@ -95,7 +101,7 @@ async def get_class_performance(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
     
     try:
-        service = EnhancedTeacherAnalyticsService(db)
+        service = TeacherAnalyticsService(db)
         performance = await service.get_class_performance(subject_assignment_id)
         return performance
     
@@ -115,7 +121,7 @@ async def get_component_analysis(
     **Returns**: Performance breakdown by assessment type
     """
     try:
-        service = EnhancedTeacherAnalyticsService(db)
+        service = TeacherAnalyticsService(db)
         analysis = await service.get_component_analysis(subject_assignment_id)
         return analysis
     
@@ -137,11 +143,14 @@ async def get_at_risk_students(
     """
     # Access control
     if current_user.role == "teacher":
-        if current_user.teacher_profile and current_user.teacher_profile.id != teacher_id:
+        from src.infrastructure.database.models import TeacherModel
+        teacher_profile = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+        
+        if not teacher_profile or teacher_profile.id != teacher_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedTeacherAnalyticsService(db)
+        service = TeacherAnalyticsService(db)
         at_risk = await service.identify_at_risk_students(teacher_id, threshold)
         return {"at_risk_students": at_risk, "total_count": len(at_risk)}
     
@@ -162,7 +171,7 @@ async def get_student_detail(
     **Returns**: Component-wise marks, overall stats, assessment history
     """
     try:
-        service = EnhancedTeacherAnalyticsService(db)
+        service = TeacherAnalyticsService(db)
         detail = await service.get_student_detail_view(student_id, subject_assignment_id)
         return detail
     
@@ -182,11 +191,14 @@ async def get_teaching_stats(
     **Returns**: Aggregated stats across all classes
     """
     if current_user.role == "teacher":
-        if current_user.teacher_profile and current_user.teacher_profile.id != teacher_id:
+        from src.infrastructure.database.models import TeacherModel
+        teacher_profile = db.query(TeacherModel).filter(TeacherModel.user_id == current_user.id).first()
+        
+        if not teacher_profile or teacher_profile.id != teacher_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     try:
-        service = EnhancedTeacherAnalyticsService(db)
+        service = TeacherAnalyticsService(db)
         stats = await service.get_overall_teaching_stats(teacher_id)
         return stats
     

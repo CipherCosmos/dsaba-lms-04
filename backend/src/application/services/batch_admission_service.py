@@ -11,6 +11,7 @@ import pandas as pd
 import re
 
 from src.domain.exceptions import BusinessRuleViolationError, EntityNotFoundError, ValidationError
+from src.infrastructure.security.password_hasher import password_hasher
 from src.infrastructure.database.models import (
     StudentModel,
     UserModel,
@@ -34,8 +35,8 @@ class BatchAdmissionService:
         batch_id: int,
         academic_year_id: int,
         admission_year: int,
-        num_sections: int = 1,
-        created_by: int
+        created_by: int,
+        num_sections: int = 1
     ) -> BatchInstanceModel:
         """
         Create a new batch instance for annual admission
@@ -60,6 +61,7 @@ class BatchAdmissionService:
         
         if existing:
             raise BusinessRuleViolationError(
+                "BATCH_ALREADY_EXISTS",
                 f"Batch already exists for {admission_year} admission"
             )
         
@@ -89,7 +91,7 @@ class BatchAdmissionService:
         for i in range(1, num_sections + 1):
             section = SectionModel(
                 batch_instance_id=batch_instance.id,
-                name=chr(64 + i),  # A, B, C, etc.
+                section_name=chr(64 + i),  # A, B, C, etc.
                 capacity=60,
                 is_active=True
             )
@@ -180,11 +182,13 @@ class BatchAdmissionService:
             
             # Validate phone (if provided)
             phone = student.get('phone')
-            if phone and not re.match(r'^\+?[\d\s-]{10,}$', phone):
-                warnings.append({
-                    'row': idx,
-                    'message': 'Invalid phone format (will be skipped)'
-                })
+            if phone:
+                phone = str(phone)
+                if not re.match(r'^\+?[\d\s-]{10,}$', phone):
+                    warnings.append({
+                        'row': idx,
+                        'message': 'Invalid phone format (will be skipped)'
+                    })
             
             if row_errors:
                 errors.append({
@@ -207,9 +211,9 @@ class BatchAdmissionService:
         self,
         students_data: List[Dict[str, Any]],
         batch_instance_id: int,
+        admitted_by: int,
         section_id: Optional[int] = None,
-        auto_assign_sections: bool = True,
-        admitted_by: int
+        auto_assign_sections: bool = True
     ) -> Dict[str, Any]:
         """
         Bulk admit students to a batch
@@ -249,7 +253,7 @@ class BatchAdmissionService:
             ).all()
             
             if not sections:
-                raise BusinessRuleViolationError("No active sections found for batch")
+                raise BusinessRuleViolationError("NO_ACTIVE_SECTIONS", "No active sections found for batch")
         else:
             if not section_id:
                 raise ValidationError("section_id required when not auto-assigning")
@@ -274,24 +278,31 @@ class BatchAdmissionService:
         for student_data in students_data:
             try:
                 # Create user account
+                hashed_password = password_hasher.hash(student_data.get('password', 'Student@123'))
+                
                 user = UserModel(
                     email=student_data['email'],
                     username=student_data['email'].split('@')[0],
                     first_name=student_data['first_name'],
                     last_name=student_data['last_name'],
-                    phone=student_data.get('phone'),
+                    phone_number=student_data.get('phone'),
+                    hashed_password=hashed_password,
                     is_active=True,
                     created_at=datetime.utcnow()
                 )
-                user.set_password(student_data.get('password', 'Student@123'))  # Default password
+                # user.set_password(...) removed
                 self.db.add(user)
                 self.db.flush()
                 
                 # Assign role
-                from src.infrastructure.database.models import UserRoleModel
+                from src.infrastructure.database.models import UserRoleModel, RoleModel
+                student_role = self.db.query(RoleModel).filter(RoleModel.name == "student").first()
+                if not student_role:
+                    raise EntityNotFoundError("Role", "student")
+
                 user_role = UserRoleModel(
                     user_id=user.id,
-                    role_id=4,  # Student role ID
+                    role_id=student_role.id,
                     granted_by=admitted_by,
                     granted_at=datetime.utcnow()
                 )
@@ -348,7 +359,7 @@ class BatchAdmissionService:
                     'roll_no': roll_no,
                     'name': f"{student_data['first_name']} {student_data['last_name']}",
                     'email': student_data['email'],
-                    'section': selected_section.name
+                    'section': selected_section.section_name
                 })
                 
             except Exception as e:

@@ -32,8 +32,8 @@ def get_final_mark_service(
 
 # Create router
 router = APIRouter(
-    prefix="/student",
-    tags=["Student"],
+    prefix="/students",
+    tags=["Students"],
     responses={
         401: {"description": "Unauthorized"},
         403: {"description": "Forbidden"},
@@ -41,6 +41,99 @@ router = APIRouter(
     }
 )
 
+from src.application.dto.student_dto import StudentCreateRequest, StudentResponse
+from src.infrastructure.database.models import StudentModel, UserModel
+from src.domain.enums.user_role import UserRole
+
+@router.post("", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)
+async def create_student(
+    request: StudentCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Create a new student profile
+    
+    Requires admin permissions.
+    """
+    if UserRole.ADMIN not in current_user.roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can create student profiles"
+        )
+    
+    # Verify user exists
+    user = db.query(UserModel).filter(UserModel.id == request.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {request.user_id} not found"
+        )
+    
+    # Check if profile already exists
+    existing = db.query(StudentModel).filter(StudentModel.user_id == request.user_id).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Student profile already exists for user ID {request.user_id}"
+        )
+    
+    # Create student profile
+    student = StudentModel(
+        user_id=request.user_id,
+        roll_no=request.roll_no,
+        batch_instance_id=request.batch_instance_id,
+        section_id=request.section_id,
+        current_semester_id=request.current_semester_id,
+        department_id=request.department_id,
+        academic_year_id=request.academic_year_id,
+        admission_date=request.admission_date,
+        current_year_level=request.current_year_level,
+        expected_graduation_year=request.expected_graduation_year
+    )
+    
+    try:
+        db.add(student)
+        db.commit()
+        db.refresh(student)
+        return student
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create student profile: {str(e)}"
+        )
+
+
+@router.get("/{student_id}", response_model=StudentResponse)
+async def get_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get student profile by ID
+    
+    - **student_id**: Student ID
+    """
+    # Check permissions: Admin, Teacher, or the student themselves
+    if UserRole.ADMIN not in current_user.roles and UserRole.TEACHER not in current_user.roles:
+        # Check if student is accessing their own profile
+        student = db.query(StudentModel).filter(StudentModel.user_id == current_user.id).first()
+        if not student or student.id != student_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this student profile"
+            )
+
+    student = db.query(StudentModel).filter(StudentModel.id == student_id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student with ID {student_id} not found"
+        )
+    
+    return student
 
 @router.get("/marks/sem/{semester_id}")
 async def get_student_marks_by_semester(

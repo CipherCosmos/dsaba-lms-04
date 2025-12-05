@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import Optional
 
 from src.application.services.reports_service import ReportsService
-from src.application.services.analytics_service import AnalyticsService
+from src.application.services.analytics import AnalyticsService
 from src.application.dto.reports_dto import (
     GenerateReportRequest,
     ReportResponse,

@@ -361,7 +361,7 @@ def hod_user(test_db_session, password_hasher, department):
     test_db_session.commit()
     
     # Assign HOD role
-    user_role = UserRoleModel(user_id=hod.id, role_id=hod_role.id)
+    user_role = UserRoleModel(user_id=hod.id, role_id=hod_role.id, department_id=department.id)
     test_db_session.add(user_role)
     test_db_session.commit()
     
@@ -498,11 +498,11 @@ def semester(test_db_session, batch_instance, academic_year, department):
 
 
 @pytest.fixture
-def section(test_db_session, department, semester):
+def section(test_db_session, department, semester, batch_instance):
     """Create a test section"""
     section = SectionModel(
         section_name="A",
-        batch_instance_id=None,  # Will be set by batch_instance fixture
+        batch_instance_id=batch_instance.id,
         capacity=60
     )
     test_db_session.add(section)

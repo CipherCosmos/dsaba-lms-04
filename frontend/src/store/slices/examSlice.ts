@@ -26,12 +26,12 @@ interface Exam {
   id: number
   name: string
   subject_assignment_id: number
-  exam_type: 'internal1' | 'internal2' | 'external'
+  exam_type: 'internal1' | 'internal2' | 'external' | 'assignment'
   exam_date?: string
   duration_minutes?: number
   total_marks: number
   instructions?: string
-  status?: string
+  status?: 'draft' | 'active' | 'locked' | 'published'
   question_paper_url?: string
   created_by?: number
   created_at: string
@@ -62,10 +62,10 @@ export const createExam = createAsyncThunk(
   async (exam: Omit<Exam, 'id' | 'created_at'>, { rejectWithValue }) => {
     try {
       // Map frontend format to backend format
-      const backendExam = mapExamRequest(exam)
+      const backendExam = mapExamRequest(exam as any)
       const response = await examAPI.create(backendExam)
       // Map backend response to frontend format
-      return mapExamResponse(response)
+      return mapExamResponse(response) as Exam
     } catch (error: any) {
       logger.error('Create exam error:', error)
       return rejectWithValue(error.response?.data?.detail || 'Failed to create exam')
@@ -78,10 +78,10 @@ export const updateExam = createAsyncThunk(
   async ({ id, ...exam }: Partial<Exam> & { id: number }, { rejectWithValue }) => {
     try {
       // Map frontend format to backend format
-      const backendExam = mapExamRequest(exam)
+      const backendExam = mapExamRequest(exam as any)
       const response = await examAPI.update(id, backendExam)
       // Map backend response to frontend format
-      return mapExamResponse(response)
+      return mapExamResponse(response) as Exam
     } catch (error: any) {
       logger.error('Update exam error:', error)
       return rejectWithValue(error.response?.data?.detail || 'Failed to update exam')
@@ -133,16 +133,16 @@ const examSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch exams'
       })
       .addCase(createExam.fulfilled, (state, action) => {
-        state.exams.push(action.payload)
+        state.exams.push(action.payload as any)
         logger.info('Exam created and added to state')
       })
       .addCase(updateExam.fulfilled, (state, action) => {
         const index = state.exams.findIndex(e => e.id === action.payload.id)
         if (index !== -1) {
-          state.exams[index] = action.payload
+          state.exams[index] = action.payload as any
           logger.info('Exam updated in state')
         } else {
-          state.exams.push(action.payload)
+          state.exams.push(action.payload as any)
           logger.debug('Exam not found in state, adding')
         }
       })

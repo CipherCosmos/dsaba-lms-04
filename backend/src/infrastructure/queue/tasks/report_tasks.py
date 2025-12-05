@@ -38,7 +38,7 @@ def generate_report_async(
     db = SessionLocal()
     try:
         # Get reports service with proper dependency injection
-        from src.application.services.analytics_service import AnalyticsService
+        from src.application.services.analytics.analytics_service import AnalyticsService
         from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository
         from src.infrastructure.database.repositories.exam_repository_impl import ExamRepository
         from src.infrastructure.database.repositories.user_repository_impl import UserRepository
@@ -157,7 +157,7 @@ def publish_semester_async(
             StudentModel, UserModel
         )
         from src.application.services.final_mark_service import FinalMarkService
-        from src.application.services.analytics_service import AnalyticsService
+        from src.application.services.analytics.analytics_service import AnalyticsService
         from src.application.services.pdf_generation_service import PDFGenerationService
         from src.infrastructure.database.repositories.final_mark_repository_impl import FinalMarkRepository
         from src.infrastructure.database.repositories.mark_repository_impl import MarkRepository

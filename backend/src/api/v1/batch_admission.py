@@ -10,7 +10,7 @@ from datetime import date
 
 from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
-from src.api.v1.dependencies import get_current_user
+from src.api.v1.auth import get_current_user
 from src.domain.entities.user import User as UserEntity
 from src.application.services.batch_admission_service import BatchAdmissionService
 from src.domain.exceptions import BusinessRuleViolationError, EntityNotFoundError, ValidationError
@@ -266,7 +266,7 @@ async def upload_bulk_admission_file(
         }
     
     except Exception as e:
-        raise HTTP Exception(
+        raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing file: {str(e)}"
         )

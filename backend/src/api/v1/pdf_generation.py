@@ -133,7 +133,7 @@ async def generate_co_po_report_pdf(
         from src.infrastructure.database.repositories.subject_repository_impl import SubjectRepository
         from src.infrastructure.database.session import get_db
         from src.infrastructure.cache.redis_client import get_cache_service
-        from src.application.services.analytics_service import AnalyticsService
+        from src.application.services.analytics import AnalyticsService
         
         # Use dependency injection for database session
         db_gen = get_db()

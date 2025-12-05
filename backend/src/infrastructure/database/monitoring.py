@@ -36,9 +36,15 @@ class DatabaseMonitor:
             return
 
         @event.listens_for(engine, "before_execute")
-        def before_execute(conn, clauseelement, multiparams, params):
+        def before_execute(conn,clauseelement, multiparams, params, execution_options):
+            """Log query execution start"""
             conn._query_start_time = time.time()
-            conn._query_sql = str(clauseelement)
+            # Safely convert clauseelement to string, handle DDL/ENUM objects
+            try:
+                conn._query_sql = str(clauseelement)
+            except (AttributeError, TypeError):
+                # For DDL operations like CREATE ENUM that don't support stringify_dialect
+                conn._query_sql = repr(clauseelement)
 
         @event.listens_for(engine, "after_execute")
         def after_execute(conn, clauseelement, multiparams, params, result):

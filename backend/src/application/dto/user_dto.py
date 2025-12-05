@@ -77,6 +77,8 @@ class ProfileResponse(BaseModel):
     roles: List[str]
     department_ids: List[int]
     role: Optional[str] = None  # For backward compatibility (first role from roles array)
+    teacher_id: Optional[int] = None
+    student_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     

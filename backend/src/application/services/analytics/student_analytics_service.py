@@ -1,5 +1,5 @@
 """
-Enhanced Student Analytics Service
+Student Analytics Service
 Provides detailed internal marks analysis for students
 """
 
@@ -20,9 +20,10 @@ from src.infrastructure.database.models import (
     StudentEnrollmentModel,
     MarksWorkflowState
 )
+from .analytics_utils import calculate_grade, calculate_percentage, calculate_sgpa
 
 
-class EnhancedStudentAnalyticsService:
+class StudentAnalyticsService:
     """Enhanced analytics service focused on detailed internal marks analysis"""
     
     def __init__(self, db: Session):
@@ -121,7 +122,7 @@ class EnhancedStudentAnalyticsService:
         sgpa = (percentage / 10) if percentage > 0 else 0
         
         # Determine grade
-        grade = self._calculate_grade(percentage)
+        grade = calculate_grade(percentage)
         
         # Get class average for comparison
         class_stats = await self._get_class_statistics(student_id, semester_id)
@@ -180,7 +181,7 @@ class EnhancedStudentAnalyticsService:
                 "maximum": maximum,
                 "percentage": round(percentage, 2),
                 "count": result.count,
-                "grade": self._calculate_grade(percentage)
+                "grade": calculate_grade(percentage)
             }
         
         return breakdown
@@ -259,7 +260,7 @@ class EnhancedStudentAnalyticsService:
                 "obtained": round(total_obtained, 2),
                 "maximum": total_max,
                 "percentage": round(percentage, 2),
-                "grade": self._calculate_grade(percentage),
+                "grade": calculate_grade(percentage),
                 "assessments_count": len(marks),
                 "components": components
             })
@@ -281,21 +282,25 @@ class EnhancedStudentAnalyticsService:
             CO-wise attainment percentages
         """
         # Get student's marks with CO mappings
-        marks_query = self.db.query(InternalMarkModel).filter(
-            InternalMarkModel.student_id == student_id,
-            InternalMarkModel.workflow_state.in_([
-                MarksWorkflowState.APPROVED,
-                MarksWorkflowState.PUBLISHED
-            ])
+        # Get student's marks with CO mappings
+        # We need question-level marks for CO attainment
+        from src.infrastructure.database.models import MarkModel
+        
+        marks_query = self.db.query(MarkModel).filter(
+            MarkModel.student_id == student_id
         )
         
+        # Note: MarkModel doesn't have semester_id directly, we need to join with Exam
         if semester_id:
-            marks_query = marks_query.filter(InternalMarkModel.semester_id == semester_id)
+            from src.infrastructure.database.models import ExamModel, SubjectAssignmentModel
+            marks_query = marks_query.join(ExamModel).join(SubjectAssignmentModel).filter(
+                SubjectAssignmentModel.semester_id == semester_id
+            )
         
         marks = marks_query.all()
         
         # Get CO mappings for questions
-        from src.infrastructure.database.models import QuestionModel, QuestionCOMapping
+        from src.infrastructure.database.models import QuestionModel, QuestionCOMappingModel
         
         co_performance = {}
         
@@ -304,8 +309,8 @@ class EnhancedStudentAnalyticsService:
                 continue
             
             # Get CO mappings for this question
-            co_mappings = self.db.query(QuestionCOMapping).filter(
-                QuestionCOMapping.question_id == mark.question_id
+            co_mappings = self.db.query(QuestionCOMappingModel).filter(
+                QuestionCOMappingModel.question_id == mark.question_id
             ).all()
             
             for mapping in co_mappings:
@@ -318,8 +323,15 @@ class EnhancedStudentAnalyticsService:
                         "count": 0
                     }
                 
-                co_performance[co_id]["obtained"] += mark.marks_obtained
-                co_performance[co_id]["maximum"] += mark.max_marks
+                # Calculate weight contribution
+                weight = float(mapping.weight_pct) / 100.0
+                
+                # Get question max marks
+                question = self.db.query(QuestionModel).filter(QuestionModel.id == mark.question_id).first()
+                q_max = float(question.marks_per_question) if question else 0
+                
+                co_performance[co_id]["obtained"] += float(mark.marks_obtained) * weight
+                co_performance[co_id]["maximum"] += q_max * weight
                 co_performance[co_id]["count"] += 1
         
         # Calculate attainment percentages
@@ -410,7 +422,7 @@ class EnhancedStudentAnalyticsService:
                 "semester_no": semester.semester_no if semester else 0,
                 "academic_year_level": semester.academic_year_level if semester else 0,
                 "percentage": round(percentage, 2),
-                "grade": self._calculate_grade(percentage)
+                "grade": calculate_grade(percentage)
             })
         
         # Sort by semester number
@@ -483,23 +495,6 @@ class EnhancedStudentAnalyticsService:
         }
     
     # Helper methods
-    
-    def _calculate_grade(self, percentage: float) -> str:
-        """Calculate letter grade from percentage"""
-        if percentage >= 90:
-            return 'O'  # Outstanding
-        elif percentage >= 80:
-            return 'A+'
-        elif percentage >= 70:
-            return 'A'
-        elif percentage >= 60:
-            return 'B+'
-        elif percentage >= 50:
-            return 'B'
-        elif percentage >= 40:
-            return 'C'
-        else:
-            return 'F'
     
     async def _get_class_statistics(
         self,

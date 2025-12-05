@@ -10,7 +10,6 @@ import subjectReducer from '../store/slices/subjectSlice'
 import examReducer from '../store/slices/examSlice'
 import marksReducer from '../store/slices/marksSlice'
 import departmentReducer from '../store/slices/departmentSlice'
-import classReducer from '../store/slices/classSlice'
 import copoReducer from '../store/slices/copoSlice'
 import analyticsReducer from '../store/slices/analyticsSlice'
 
@@ -24,7 +23,6 @@ export function createTestStore(preloadedState?: Partial<RootState>) {
       exams: examReducer,
       marks: marksReducer,
       departments: departmentReducer,
-      classes: classReducer,
       copo: copoReducer,
       analytics: analyticsReducer,
     },

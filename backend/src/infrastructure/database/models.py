@@ -189,6 +189,34 @@ class BatchModel(Base):
     
     # Relationships
     batch_instances = relationship("BatchInstanceModel", back_populates="batch", cascade="all, delete-orphan")
+    batch_years = relationship("BatchYearModel", back_populates="batch", cascade="all, delete-orphan")
+
+
+class BatchYearModel(Base):
+    """
+    Batch Year database model (Legacy)
+    
+    Represents a specific year instance of a batch (e.g., 2020-2024).
+    Kept for backward compatibility. New code should use BatchInstance.
+    """
+    __tablename__ = "batch_years"
+    __table_args__ = (
+        UniqueConstraint('batch_id', 'start_year', 'end_year', name='unique_batch_year'),
+        CheckConstraint('end_year > start_year', name='check_batch_year_order'),
+        Index('idx_batch_years_batch', 'batch_id'),
+        Index('idx_batch_years_current', 'is_current'),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    batch_id = Column(Integer, ForeignKey("batches.id", ondelete="CASCADE"), nullable=False)
+    start_year = Column(Integer, nullable=False)
+    end_year = Column(Integer, nullable=False)
+    is_current = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    batch = relationship("BatchModel", back_populates="batch_years")
 
 
 class BatchInstanceModel(Base):
@@ -424,12 +452,10 @@ class StudentModel(Base):
     __tablename__ = "students"
     __table_args__ = (
         Index('idx_students_dept', 'department_id'),
-        Index('idx_students_batch_year', 'batch_year_id'),  # DEPRECATED: Index for legacy batch_year_id queries
         Index('idx_students_batch_instance', 'batch_instance_id'),
         Index('idx_students_section', 'section_id'),
         Index('idx_students_current_semester', 'current_semester_id'),
         Index('idx_students_ay', 'academic_year_id'),
-        Index('idx_students_class', 'class_id'),  # DEPRECATED: Index for legacy class_id queries
     )
     
     id = Column(Integer, primary_key=True, index=True)
@@ -536,7 +562,6 @@ class SubjectAssignmentModel(Base):
         UniqueConstraint('subject_id', 'semester_id', 'teacher_id', name='unique_assignment'),
         Index('idx_assignments_subject', 'subject_id'),
         Index('idx_assignments_teacher', 'teacher_id'),
-        Index('idx_assignments_class', 'class_id'),  # DEPRECATED: Index for legacy class_id queries
         Index('idx_assignments_semester', 'semester_id'),
         Index('idx_assignments_ay', 'academic_year_id'),
         Index('idx_assignments_composite', 'teacher_id', 'semester_id', 'academic_year_id'),

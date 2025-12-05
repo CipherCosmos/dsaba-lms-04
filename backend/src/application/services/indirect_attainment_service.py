@@ -26,6 +26,23 @@ class IndirectAttainmentService:
 
     async def create_survey(self, survey_data: Dict[str, Any]) -> Survey:
         """Create a new survey"""
+        # Convert questions to objects if they are dicts
+        if "questions" in survey_data and survey_data["questions"]:
+            from ...domain.entities.survey import SurveyQuestion
+            survey_data["questions"] = [
+                SurveyQuestion(**q) if isinstance(q, dict) else q
+                for q in survey_data["questions"]
+            ]
+            
+        # Convert date strings to date objects
+        from datetime import datetime
+        for date_field in ["start_date", "end_date"]:
+            if date_field in survey_data and isinstance(survey_data[date_field], str):
+                try:
+                    survey_data[date_field] = datetime.strptime(survey_data[date_field], "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+            
         survey = Survey(**survey_data)
         return await self.survey_repository.create(survey)
 
@@ -46,6 +63,15 @@ class IndirectAttainmentService:
         existing_survey = await self.survey_repository.get_by_id(survey_id)
         if not existing_survey:
             raise ValueError(f"Survey with id {survey_id} not found")
+
+        # Convert date strings to date objects
+        from datetime import datetime
+        for date_field in ["start_date", "end_date"]:
+            if date_field in survey_data and isinstance(survey_data[date_field], str):
+                try:
+                    survey_data[date_field] = datetime.strptime(survey_data[date_field], "%Y-%m-%d").date()
+                except ValueError:
+                    pass
 
         # Update fields
         for key, value in survey_data.items():
@@ -130,6 +156,14 @@ class IndirectAttainmentService:
 
     async def create_exit_exam(self, exam_data: Dict[str, Any]) -> ExitExam:
         """Create a new exit exam"""
+        # Convert date strings to date objects
+        if "exam_date" in exam_data and isinstance(exam_data["exam_date"], str):
+            from datetime import datetime
+            try:
+                exam_data["exam_date"] = datetime.strptime(exam_data["exam_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass # Let validation fail if format is wrong
+                
         exit_exam = ExitExam(**exam_data)
         return await self.exit_exam_repository.create(exit_exam)
 
@@ -150,6 +184,14 @@ class IndirectAttainmentService:
         existing_exam = await self.exit_exam_repository.get_by_id(exam_id)
         if not existing_exam:
             raise ValueError(f"Exit exam with id {exam_id} not found")
+
+        # Convert date strings to date objects
+        if "exam_date" in exam_data and isinstance(exam_data["exam_date"], str):
+            from datetime import datetime
+            try:
+                exam_data["exam_date"] = datetime.strptime(exam_data["exam_date"], "%Y-%m-%d").date()
+            except ValueError:
+                pass
 
         # Update fields
         for key, value in exam_data.items():

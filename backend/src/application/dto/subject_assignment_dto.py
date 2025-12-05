@@ -5,7 +5,7 @@ from typing import Optional, List
 from datetime import datetime
 
 
-class SubjectAssignmentCreate(BaseModel):
+class SubjectAssignmentCreateRequest(BaseModel):
     """
     Subject assignment creation DTO
     

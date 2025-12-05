@@ -27,7 +27,7 @@ const StudentDashboard = () => {
       const response = await dashboardAPI.getStats()
       setDashboardStats(response)
     } catch (error) {
-      logger.error('Error fetching student dashboard stats:', error)
+      logger.error('Error fetching student dashboard stats:', error as Error)
     } finally {
       setLoadingStats(false)
     }
@@ -50,13 +50,13 @@ const StudentDashboard = () => {
   
   // Get upcoming exams - use backend data if available, otherwise filter from exams
   const upcomingExams = dashboardStats?.statistics?.upcoming_exams_list?.length > 0
-    ? dashboardStats.statistics.upcoming_exams_list.slice(0, 3).map((exam: Exam) => ({
+    ? dashboardStats.statistics.upcoming_exams_list.slice(0, 3).map((exam: any) => ({
         id: exam.id,
         name: exam.name,
         exam_date: exam.exam_date,
         total_marks: exam.total_marks
       }))
-    : exams.filter(exam => {
+    : (exams as any[]).filter(exam => {
         const examSubject = getSubjectForExam(exam)
         return examSubject && exam.exam_date && new Date(exam.exam_date) > new Date()
       }).slice(0, 3)
@@ -139,7 +139,7 @@ const StudentDashboard = () => {
     const reminders: Array<{subject: string, message: string, priority: string, task: string, dueDate: string}> = []
     
     // Generate reminders based on upcoming exams
-    upcomingExams.forEach(exam => {
+    upcomingExams.forEach((exam: any) => {
       const subject = getSubjectForExam(exam)
       if (subject) {
         const examDate = new Date(exam.exam_date || exam.created_at)
@@ -267,11 +267,11 @@ const StudentDashboard = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Performance</h3>
           {(dashboardStats?.statistics?.recent_results?.length > 0 || recentPerformance.length > 0) ? (
             <div className="space-y-3">
-              {(dashboardStats?.statistics?.recent_results || recentPerformance).map((performance: { percentage?: number; marks_obtained?: number; total_marks?: number; subject_name?: string; exam_name?: string }, index: number) => {
+              {(dashboardStats?.statistics?.recent_results || recentPerformance).map((performance: any, index: number) => {
                 const percentage = performance.percentage || (performance.marks_obtained && performance.total_marks 
                   ? (performance.marks_obtained / performance.total_marks * 100) 
                   : 0)
-                const examName = performance.exam_name || performance.exam
+                const examName = performance.exam_name || performance.exam || 'Unknown Exam'
                 return (
                   <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
                     <div className="flex-1">

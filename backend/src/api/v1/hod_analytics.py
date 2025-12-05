@@ -8,7 +8,7 @@ from typing import Optional
 
 from src.infrastructure.database.session import get_db
 from sqlalchemy.orm import Session
-from src.api.v1.dependencies import get_current_user
+from src.api.v1.auth import get_current_user
 from src.domain.entities.user import User as UserEntity
 from src.application.services.hod_analytics_service import HODAnalyticsService
 from src.domain.exceptions import EntityNotFoundError

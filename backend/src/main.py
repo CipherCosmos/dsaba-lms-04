@@ -17,10 +17,15 @@ from src.infrastructure.database.session import verify_database_connection, crea
 from src.infrastructure.database import models as _  # noqa: F401
 from src.infrastructure.database.role_initializer import ensure_roles_exist
 from src.api.v1 import (
-    auth, users, roles, departments, subjects, batches, exams, marks,
-    analytics, batch_instances, academic_structure, internal_marks,
-    final_marks, enhanced_analytics, student_progression, batch_admission, student_analytics, teacher_analytics, hod_analytics
-), reports, course_outcomes, program_outcomes, co_po_mappings, questions, final_marks, bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, students, academic_years, student_enrollments, internal_marks, batch_instances, indirect_attainment, backup, monitoring
+    auth, users, departments, subjects, exams, marks,
+    analytics, batch_instances, academic_structure, internal_marks, profile,
+    final_marks, student_progression, batch_admission, 
+    student_analytics, teacher_analytics, hod_analytics, reports, 
+    course_outcomes, program_outcomes, co_po_mappings, questions, 
+    bulk_uploads, pdf_generation, dashboard, subject_assignments, audit, 
+    students, academic_years, student_enrollments, indirect_attainment, 
+    backup, monitoring, teachers, smart_marks, co_po_attainment
+)
 from src.api.middleware.error_handler import setup_error_handlers
 from src.api.middleware.security_headers import add_security_headers
 from src.api.middleware.logging import setup_logging
@@ -246,6 +251,9 @@ app.include_router(
     students.router,
     prefix=settings.api_prefix,
 )
+print(f"DEBUG: Students Router Routes: {len(students.router.routes)}")
+for route in students.router.routes:
+    print(f"DEBUG: Route: {route.path} {route.methods}")
 app.include_router(
     academic_years.router,
     prefix=settings.api_prefix,
@@ -292,6 +300,18 @@ app.include_router(
 )
 app.include_router(
     hod_analytics.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    teachers.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    smart_marks.router,
+    prefix=settings.api_prefix,
+)
+app.include_router(
+    co_po_attainment.router,
     prefix=settings.api_prefix,
 )
 
